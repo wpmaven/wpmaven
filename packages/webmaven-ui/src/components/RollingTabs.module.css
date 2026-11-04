@@ -1,0 +1,108 @@
+/* ── Tab buttons ───────────────────────────────────────────────────── */
+
+.tabRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* Auto-rotate countdown — small 40px indicator pinned to the far right
+   of the tab row so it doesn't dominate the layout. */
+.progressTrack {
+  margin-left: auto;
+  width: 40px;
+  height: 2px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--purple) 15%, transparent);
+}
+
+.progressFill {
+  height: 100%;
+  width: 0;
+  background: var(--purple);
+  border-radius: inherit;
+  animation-name: rollingTabsProgress;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+  /* duration & play-state set inline */
+}
+
+@keyframes rollingTabsProgress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.tab:hover {
+  color: var(--text);
+  border-color: var(--glass-border-hover);
+}
+
+.tabActive {
+  border-color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 15%, transparent);
+  color: var(--purple);
+}
+
+.tabActive:hover {
+  color: var(--purple);
+  border-color: var(--purple);
+}
+
+/* ── Cylinder viewport ─────────────────────────────────────────────── */
+
+/* Outer wrapper claims the layout footprint (height set inline to the
+   tallest face). Sibling content sits above/below this rectangle. */
+.wrapper {
+  position: relative;
+}
+
+/* Viewport is absolutely positioned inside the wrapper so the rolling
+   faces can escape vertically during the animation without clipping —
+   layout stays fixed, only the rendering overflows. */
+.viewport {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.cylinder {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Always-present inner wrapper so the ResizeObserver has a stable
+   target even when the user's content is null (e.g. loading states). */
+.faceInner {
+  width: 100%;
+}

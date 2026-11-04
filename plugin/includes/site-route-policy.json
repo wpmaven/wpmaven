@@ -1,0 +1,1476 @@
+{
+  "version": 5,
+  "minPlugin": "1.3.0",
+  "rules": [
+    {
+      "method": "POST",
+      "path": "/agent/sse/approval/:stepId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/agent/sse/execute",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/agent/sse/ticket",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/alerts/:instanceId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/campaigns",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/events",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/goals",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/analytics/:instanceId/goals",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/analytics/:instanceId/goals/:goalId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/analytics/:instanceId/goals/:goalId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/pages",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/realtime",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/referrers",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/summary",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/timeseries",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/analytics/:instanceId/vitals",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/conversations",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/conversations",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/conversations/:conversationId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/conversations/:conversationId/messages",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/conversations/latest",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/deferred-runs",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/deferred-runs/:id",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/deferred-runs/:id/cancel",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/deferred-runs/:id/next-steps",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/activity",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/business-details",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/instances/:instanceId/business-details",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/edits",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/edits",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/edits/:operationId",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/edits/:operationId/discard",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/edits/:operationId/publish",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/edits/:operationId/share",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/edits/:operationId/undo",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/edits/site-map",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/finance/summary",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/health",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/health/check",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/media/alt-text",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": true
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/media/designed",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/owner-step",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/pages/:postId/seo/share-image",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/pages/:postId/seo/suggest",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/payments/setup",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/status",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/wpmaven/balance",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/wpmaven/orders",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/wpmaven/payouts",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/wpmaven/statements",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/wpmaven/statements/:month",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/payments/wpmaven/status",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/products/:productKey/redesign",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": true
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/products/redesign-available",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/products/redesign/:jobId",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/report-config",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/instances/:instanceId/report-config",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/seo/check",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/seo/check",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/site/seo/share-image",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/social/consent",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/social/instagram/conversations",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/social/meta/conversations",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/social/meta/status",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/instances/:instanceId/social/x/share",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/social/x/status",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/store-currency",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "own",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/instances/:instanceId/store-currency",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "own",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/store-currency/quote",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "own",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/store/products/:productId/pricing",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/instances/:instanceId/team",
+      "tiers": [
+        "owner",
+        "store",
+        "content"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/notifications",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/notifications/:id",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/notifications/mark-all-read",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/notifications/unread-count",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/analyze",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/business-plan/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/onboarding/business-plan/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/onboarding/confirm/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/design-concepts",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/design-restore/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding/inspirations",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/keep-site/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding/manage-fixes/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/manage-fixes/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/operate-preview/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding/operators",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/publish/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/publish/:sessionId/keep-as-is",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/roadmap-interest",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/site-brief/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/site-build/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding/site-check/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/site-check/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/site-description/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding/site-fixes/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/onboarding/site-session",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/start",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/store-catalog/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/onboarding/store-currency/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/onboarding/style/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/ticket/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/onboarding/whatsapp-intent/:sessionId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "onboarding",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/operators/approvals",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/operators/approvals/:id/before",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/operators/approvals/:id/cancel-held",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/operators/approvals/:id/decide",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/operators/approvals/:id/request-changes",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "GET",
+      "path": "/operators/connect",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/operators/plan",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/operators/plans/:planId/milestones",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/operators/progress",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/referrals/me",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/reports/:instanceId",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/reports/:instanceId/generate",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "GET",
+      "path": "/reports/:instanceId/latest",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/reports/:reportId/pdf",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/reports/detail/:reportId",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/scheduled-tasks",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/scheduled-tasks",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/scheduled-tasks/:taskId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/scheduled-tasks/:taskId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/scheduled-tasks/:taskId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/scheduled-tasks/:taskId/edit",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/scheduled-tasks/:taskId/run",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/scheduled-tasks/parse",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "GET",
+      "path": "/scheduled-tasks/upcoming",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/sites/me",
+      "tiers": "any",
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/sites/me/edition",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/sites/me/onboarding-skip",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/sites/me/owner",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "PUT",
+      "path": "/sites/me/owner",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/sites/me/publish-waiting",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/store/approvals",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/widgets",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/widgets/:instanceId",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/widgets/:widgetId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/widgets/:widgetId",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "GET",
+      "path": "/widgets/:widgetId/data",
+      "tiers": [
+        "owner",
+        "store"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
+      "path": "/widgets/:widgetId/regenerate",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/widgets/generate",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": true
+    },
+    {
+      "method": "POST",
+      "path": "/widgets/reorder",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "role",
+      "proxy": true,
+      "spendsAi": false
+    }
+  ]
+}

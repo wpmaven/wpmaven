@@ -1,0 +1,489 @@
+/* Store: products and orders (wm-store-*). Imported by the page registry (see store.css). */
+
+.wm-store-plainlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wm-store-push {
+  margin-left: auto;
+}
+
+.wm-store-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.wm-store-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 360px;
+}
+
+.wm-store-toolbar--chips {
+  align-items: flex-start;
+}
+
+.wm-store-toolbar--chips .wm-store-chips {
+  margin-bottom: 0;
+}
+
+.wm-store-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wm-store-field__error {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--danger, #e5484d);
+}
+
+.wm-store-empty {
+  padding: 40px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  border: 1px dashed var(--glass-border);
+  border-radius: 14px;
+}
+
+/* Product cards and rows */
+
+.wm-store-card__open {
+  width: 100%;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.wm-store-card__photo {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.wm-store-nophoto {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 4px;
+}
+
+.wm-store-titlelink {
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.wm-store-titlelink:hover,
+.wm-store-titlelink:focus-visible {
+  color: var(--purple);
+  text-decoration: underline;
+}
+
+.wm-store-price {
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.wm-store-price__was {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.wm-store-row__stock {
+  min-width: 96px;
+  text-align: right;
+}
+
+/* A row that is a button inside its list item: the line goes between items. */
+.wm-store-plainlist > li:not(:last-child) > .wm-store-row {
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* Editor and order detail */
+
+.wm-store-editor__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.wm-store-editor__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.wm-store-back {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.wm-store-back:hover {
+  color: var(--text);
+}
+
+.wm-store-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wm-store-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.wm-store-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wm-store-input--money {
+  width: 96px;
+}
+
+.wm-store-tablewrap {
+  overflow-x: auto;
+}
+
+.wm-store-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wm-store-table th,
+.wm-store-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--glass-border);
+  vertical-align: middle;
+}
+
+.wm-store-table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.wm-store-table tbody th {
+  font-weight: 500;
+}
+
+.wm-store-table__removed {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.wm-store-options,
+.wm-store-newvar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wm-store-attr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wm-store-newvar__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.wm-store-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.wm-store-photo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 6px;
+  background: var(--glass);
+  min-height: 96px;
+  justify-content: center;
+  text-align: center;
+}
+
+.wm-store-photo img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.wm-store-photo--main {
+  grid-column: span 2;
+}
+
+.wm-store-photo__label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.wm-store-photo__tools {
+  display: flex;
+  gap: 2px;
+}
+
+.wm-store-photo__tools button {
+  font: inherit;
+  font-size: 11px;
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.wm-store-photo__tools button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wm-store-ai {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid var(--glass-border);
+  padding-top: 12px;
+}
+
+.wm-store-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.wm-store-fieldset legend {
+  margin-bottom: 6px;
+}
+
+.wm-store-woo {
+  align-self: flex-start;
+  padding-left: 0;
+}
+
+.wm-store-link--danger {
+  color: var(--danger, #e5484d);
+}
+
+.wm-store-link--danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wm-store-trash-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wm-store-link--plain {
+  padding-left: 0;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+/* Rich text */
+
+.wm-store-rte__bar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.wm-store-rte__tool {
+  font: inherit;
+  font-size: 12px;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wm-store-rte__tool:hover,
+.wm-store-rte__tool:focus-visible {
+  border-color: var(--purple);
+}
+
+.wm-store-rte__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wm-store-rte__area {
+  min-height: 96px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.wm-store-rte__area:focus {
+  outline: none;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--purple) 20%, transparent);
+}
+
+.wm-store-rte__area p {
+  margin: 0 0 8px;
+}
+
+.wm-store-rte__area img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Orders */
+
+.wm-store-order__number {
+  font-weight: 600;
+  min-width: 64px;
+}
+
+.wm-store-order__total {
+  min-width: 80px;
+  text-align: right;
+}
+
+.wm-store-row--button .wm-store-grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wm-store-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--glass-border);
+  font-size: 13px;
+}
+
+.wm-store-item .wm-store-grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wm-store-totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.wm-store-totals dt,
+.wm-store-totals dd {
+  margin: 0;
+}
+
+.wm-store-totals dd {
+  text-align: right;
+}
+
+.wm-store-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wm-store-notes__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.wm-store-address {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .wm-store-row__stock,
+  .wm-store-row .wm-store-badges {
+    display: none;
+  }
+
+  .wm-store-search {
+    max-width: none;
+  }
+
+  .wm-store-photo--main {
+    grid-column: span 1;
+  }
+}

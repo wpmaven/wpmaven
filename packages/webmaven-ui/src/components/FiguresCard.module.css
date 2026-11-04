@@ -1,0 +1,96 @@
+/* The grid follows the card's width, not the window's: the same card sits in
+   a side column and in the main one. */
+.frame { container: figures / inline-size; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+/* Two classes deep: wp-admin's h3 and li rules do not reach the card. */
+.root .title {
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.action { flex: none; display: flex; align-items: center; gap: 8px; }
+
+.root .grid {
+  display: grid;
+  grid-template-columns: repeat(var(--figures-narrow, 2), minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 -10px;
+  padding: 0;
+  list-style: none;
+}
+
+@container figures (min-width: 520px) {
+  .root .grid { grid-template-columns: repeat(var(--figures-wide, 4), minmax(0, 1fr)); }
+}
+
+.root .item { margin: 0; padding: 0; min-width: 0; }
+
+.root .cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.root .link { cursor: pointer; transition: background 150ms ease; }
+.root .link:hover,
+.root .link:focus {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: inherit;
+  box-shadow: none;
+  outline: none;
+}
+.root .link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.value {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.15;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}

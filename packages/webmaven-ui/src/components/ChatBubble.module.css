@@ -1,0 +1,112 @@
+.bubble {
+  position: relative;
+  max-width: 85%;
+  padding: 10px 16px;
+  border-radius: var(--r-lg);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.user {
+  align-self: flex-end;
+  background: var(--n-900);
+  color: var(--n-0);
+  border-bottom-right-radius: 4px;
+}
+
+/* Dark (2026-10-16): --n-900 (#17181C) is the dark card's own colour
+   (#16171C), so the bubble vanished into it. It takes a lifted surface, the
+   hover border's grey, with the theme's text. */
+:global([data-theme='dark']) .user {
+  background: var(--glass-border-hover);
+  color: var(--text);
+}
+
+.assistant {
+  align-self: stretch;
+  max-width: 100%;
+  width: 100%;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* Assistant rows take full width */
+.row:not(.rowUser) {
+  width: 100%;
+}
+
+.rowUser {
+  flex-direction: row-reverse;
+}
+
+.meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.channelIcon {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  color: var(--text-dim);
+  opacity: 0.5;
+  line-height: 0;
+}
+
+/* An assistant bubble signed by the member who answers. */
+.withAuthor {
+  align-items: flex-start;
+}
+
+.withAuthor .assistant {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  /* The face sits at the top left (2026-10-16): the bubble's small corner
+     moves there, beside it, and the bottom left is round again. */
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: var(--r-lg);
+}
+
+.author {
+  flex: none;
+  line-height: 0;
+  padding-top: 2px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 480px) {
+  .withAuthor {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .withAuthor .assistant {
+    width: 100%;
+  }
+}

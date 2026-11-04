@@ -1,0 +1,297 @@
+/* ==========================================================================
+   Analytics: the website's visitors, then the channels
+   ========================================================================== */
+
+.wm-analytics__header {
+  margin-bottom: 24px;
+}
+
+.wm-analytics__section {
+  margin-bottom: 32px;
+}
+
+.wm-analytics__section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.wm-analytics__section-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wm-analytics__section-title--alone {
+  margin-bottom: 12px;
+}
+
+.wm-analytics__periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wm-analytics__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wm-analytics__dim {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.wm-analytics__after {
+  margin-top: 8px;
+}
+
+.wm-analytics__empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+/* The figures: two a row on a phone, three from a 900px window (the
+   sidebar takes 260px of it). */
+.wm-analytics__figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 16px;
+}
+
+@media (min-width: 900px) {
+  .wm-analytics__figures {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.wm-analytics__figure {
+  min-width: 0;
+}
+
+.wm-analytics__figure-label {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.wm-analytics__figure-value {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.wm-analytics__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wm-analytics__card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wm-analytics__card-title--alone {
+  margin-bottom: 10px;
+}
+
+/* "Show as table": a quiet text button, wp-admin's button look taken off. */
+.wm-dashboard .wm-analytics__switch {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.wm-analytics__switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.wm-analytics__days {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.wm-analytics__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wm-analytics__table--fixed {
+  table-layout: fixed;
+}
+
+.wm-analytics__table th {
+  padding: 4px 12px 6px 0;
+  font-weight: 500;
+  text-align: left;
+  color: var(--text-dim);
+}
+
+.wm-analytics__table td {
+  padding: 6px 12px 6px 0;
+  border-top: 1px solid var(--glass-border);
+  color: var(--text);
+}
+
+.wm-analytics__table th:last-child,
+.wm-analytics__table td:last-child {
+  padding-right: 0;
+}
+
+.wm-analytics__table .wm-analytics__num,
+.wm-analytics__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A page's short path wraps rather than lose its end, the page's own name. */
+.wm-analytics__path {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+/* Top pages and the sources: one under the other, side by side from a
+   1280px window. */
+.wm-analytics__pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+@media (min-width: 1280px) {
+  .wm-analytics__pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wm-analytics__subhead {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.wm-analytics__subhead--next {
+  margin-top: 14px;
+}
+
+.wm-analytics__sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wm-analytics__source {
+  margin: 0;
+  padding: 6px 0;
+}
+
+.wm-analytics__source-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.wm-analytics__source-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wm-analytics__bar {
+  height: 4px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--glass-border);
+}
+
+.wm-analytics__bar > div {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* The channels: one row on a computer; on a phone the words take the
+   whole width and the link goes under them. */
+.wm-analytics__channels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.wm-analytics__channels-glyph {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.wm-analytics__channels-text {
+  flex: 1 1 260px;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.wm-dashboard a.wm-analytics__channels-link,
+a.wm-analytics__channels-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 7px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-btn, 9px);
+  background: var(--bg-raised);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+a.wm-analytics__channels-link:hover {
+  border-color: var(--glass-border-hover);
+  background: var(--glass-hover);
+  color: var(--text);
+}
+
+a.wm-analytics__channels-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -1,0 +1,654 @@
+.frame {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: var(--r-lg, 20px);
+  /* Transparent so neither the bg-raised color nor the 1px outline can leak
+     through subpixel rounding at the corners. The .chrome and .content
+     children together cover the whole frame, so we don't need a fallback bg. */
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  position: relative;
+  transition: box-shadow 320ms ease;
+}
+
+.frame.done {
+  box-shadow:
+    0 24px 60px -16px rgba(0, 0, 0, 0.45),
+    0 0 30px -2px color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+
+/* ── Browser chrome ── */
+
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 60%, var(--bg-raised)), var(--bg-raised));
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--glass-border);
+}
+
+.dot.r { background: #ff5f57; }
+.dot.y { background: #febc2e; }
+.dot.g { background: #28c840; }
+
+.urlBar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--glass-border);
+  font-size: 11px;
+  /* line-height: 1 collapses the text's line-box to the font size so the
+     glyph's visual center aligns with the icon's geometric center. With
+     the default `normal` line-height (~1.2), the text would render with
+     ~1px of whitespace above/below it, pushing its visual center higher
+     than the SVG's center. */
+  line-height: 1;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  max-width: 380px;
+  margin: 0 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.urlBar svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+  /* The icon is positioned by the parent's flex `align-items: center`.
+     `display: block` removes the inline baseline reservation that would
+     add 1-2px of phantom space below the SVG. */
+  display: block;
+  /* Optical-alignment nudge: `align-items: center` aligns the icon and
+     text BOXES geometrically, but the text's visual mass in JetBrains
+     Mono at 11px sits slightly above the box center (the font has more
+     descender room than ascender room, so the optical middle drifts up).
+     Pull the icon up 1px to match. */
+  transform: translateY(-1px);
+}
+
+.kebab {
+  width: 16px;
+  height: 16px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* ── Viewport slot (BrowserFrame) ──
+   Fills the frame below the chrome. A flex column so a single child with
+   `flex: 1; min-height: 0` (.content, .mockScroll, ScaledSiteFrame) spans it
+   exactly. Deliberately NOT position:relative — the .shimmer sweep positions
+   against .frame (top: 36px, over the chrome's lower edge) and must keep
+   doing so from inside the slot. Bottom radius matches .content's inner-edge
+   treatment so any child background stops where the frame's border begins. */
+.viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 0 calc(var(--r-lg, 20px) - 1px) calc(var(--r-lg, 20px) - 1px);
+}
+
+/* ── Building shimmer ── */
+
+.shimmer {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.shimmer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--accent) 60%, transparent) 30%,
+    color-mix(in srgb, var(--n-500) 80%, transparent) 50%,
+    color-mix(in srgb, var(--accent) 60%, transparent) 70%,
+    transparent 100%
+  );
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* ── Content area ── */
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mock-bg, #ffffff);
+  color: var(--mock-text, #262626);
+  font-family: var(--mock-body-font, 'Inter', system-ui, sans-serif);
+  transition:
+    background-color 240ms ease,
+    color 240ms ease;
+  /* Content's bottom corners curve at the INNER edge of the frame's 1px
+     border (radius 20 − 1 = 19) so its background stops exactly where the
+     border begins — no overlap, no gap. The frame's solid border fills the
+     1px ring between 19px and 20px on its own.
+     Top corners stay 0 because the chrome sits above and handles them. */
+  border-radius: 0 0 calc(var(--r-lg, 20px) - 1px) calc(var(--r-lg, 20px) - 1px);
+  /* Stack the chrome/hero/section/footer vertically so the footer always
+     pins to the bottom of the visible content area (no gap below it). */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Mock site header ── */
+
+.siteHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+  border-bottom: 1px solid color-mix(in srgb, var(--mock-text, #262626) 8%, transparent);
+  min-width: 0;
+}
+
+.siteLogo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mock-heading-font, 'Inter', system-ui, sans-serif);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--mock-text, #262626);
+  letter-spacing: -0.01em;
+  transition: font-family 240ms ease;
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+}
+
+.siteLogo > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.siteLogoMark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--mock-radius, 6px);
+  background: var(--mock-primary, #9ca3af);
+  overflow: hidden;
+  transition: background-color 240ms ease, border-radius 240ms ease;
+}
+/* When a generated logo SVG is injected, let it fill the mark and
+   drop the placeholder fill so a transparent mark doesn't sit on a color block. */
+.siteLogoMark:has(svg) { background: transparent; }
+.siteLogoMark svg { width: 100%; height: 100%; display: block; }
+
+.siteNav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.navItem {
+  position: relative;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--mock-text, #262626) 75%, transparent);
+  padding: 6px 10px;
+  border-radius: var(--mock-radius, 6px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 200ms ease, background-color 200ms ease;
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navItem.ghost {
+  opacity: 0.45;
+}
+
+.navItem.populated {
+  animation: navItemIn 360ms ease-out backwards;
+  animation-delay: calc(var(--idx, 0) * 40ms);
+}
+
+.navItem.building {
+  color: var(--mock-primary, #9ca3af);
+  background: color-mix(in srgb, var(--mock-primary, #9ca3af) 10%, transparent);
+}
+
+.navItem.completed {
+  color: var(--mock-text, #262626);
+}
+
+.navItem.completed::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+
+@keyframes navItemIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.navPlaceholder {
+  display: inline-block;
+  width: 50px;
+  height: 8px;
+  background: color-mix(in srgb, var(--mock-text, #262626) 12%, transparent);
+  border-radius: 999px;
+  margin: 0 6px;
+}
+
+/* ── Hero section ── */
+
+.hero {
+  position: relative;
+  padding: 28px 28px 32px;
+  background: var(--mock-bg, #ffffff);
+  text-align: center;
+  overflow: hidden;
+  /* Hug the content — never absorb leftover flex space. The .section below
+     handles the "fill remaining height" role so the hero stays compact. */
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in srgb, var(--mock-primary, #9ca3af) 10%, transparent) 0%,
+    transparent 65%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.heroInner {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mock-primary, #9ca3af) 12%, transparent);
+  color: var(--mock-primary, #9ca3af);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: background-color 240ms ease, color 240ms ease;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heroTitle {
+  font-family: var(--mock-heading-font, 'Inter', system-ui, sans-serif);
+  font-size: clamp(20px, 2.6vw, 28px);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--mock-text, #262626);
+  letter-spacing: -0.02em;
+  transition: font-family 240ms ease, color 240ms ease;
+  /* Clamp to 3 lines with ellipsis; the underlying value is still mirrored
+     in full from PreviewPane (truncated to 80 chars), so this prevents the
+     hero from blowing out the preview vertically on long descriptions. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  width: 100%;
+  max-width: 100%;
+}
+
+.heroTitlePlaceholder {
+  color: color-mix(in srgb, var(--mock-text, #262626) 35%, transparent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  background: var(--mock-primary, #9ca3af);
+  animation: caretBlink 1s steps(2, start) infinite;
+}
+
+@keyframes caretBlink {
+  to { visibility: hidden; }
+}
+
+.heroSubtitle {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+  color: color-mix(in srgb, var(--mock-text, #262626) 70%, transparent);
+  max-width: 440px;
+  transition: color 240ms ease;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ctas {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btnPrimary {
+  font-family: var(--mock-heading-font, 'Inter', system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--mock-radius, 6px);
+  background: var(--mock-primary, #9ca3af);
+  color: var(--mock-bg, #ffffff);
+  border: none;
+  letter-spacing: 0.01em;
+  transition: background-color 240ms ease, border-radius 240ms ease, color 240ms ease;
+}
+
+.btnSecondary {
+  font-family: var(--mock-heading-font, 'Inter', system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--mock-radius, 6px);
+  background: transparent;
+  /* Use the concept's secondary, but mix it 70/30 toward the body text so a
+     clashing or oversaturated secondary settles into a grounded shade that
+     doesn't fight the primary CTA next to it. Falls back to primary. */
+  color: color-mix(
+    in srgb,
+    var(--mock-secondary, var(--mock-primary, #9ca3af)) 70%,
+    var(--mock-text, #262626)
+  );
+  border: 1.5px solid color-mix(
+    in srgb,
+    var(--mock-secondary, var(--mock-primary, #9ca3af)) 70%,
+    var(--mock-text, #262626)
+  );
+  letter-spacing: 0.01em;
+  transition: color 240ms ease, border-color 240ms ease, border-radius 240ms ease;
+}
+
+/* ── Below-fold mock sections ── */
+
+.section {
+  padding: 36px 28px;
+  border-top: 1px solid color-mix(in srgb, var(--mock-text, #262626) 6%, transparent);
+  /* Subtle off-canvas band — derived from the bg, never from secondary/accent,
+     so it can't clash regardless of the concept's palette. */
+  background: color-mix(in srgb, var(--mock-bg, #ffffff) 92%, var(--mock-text, #262626));
+  transition: background-color 240ms ease;
+  /* Absorb any remaining vertical space so the footer below stays pinned to
+     the bottom of the content area without a visible gap above it. */
+  flex: 1;
+}
+
+.sectionTitle {
+  display: block;
+  width: 200px;
+  height: 16px;
+  background: color-mix(in srgb, var(--mock-text, #262626) 18%, transparent);
+  border-radius: 4px;
+  margin: 0 auto 16px;
+}
+
+.sectionGrid {
+  display: grid;
+  /* minmax(0, 1fr), NOT 1fr: a long no-wrap product name would otherwise
+     raise one card's intrinsic minimum and skew the column widths (and with
+     them the 16:10 image sizes). Zero the minimum so all three stay equal. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+.sectionCard {
+  background: color-mix(in srgb, var(--mock-text, #262626) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mock-text, #262626) 8%, transparent);
+  border-radius: var(--mock-radius, 6px);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  transition: border-radius 240ms ease;
+}
+
+.sectionImg {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--mock-primary, #9ca3af) 25%, transparent),
+    color-mix(in srgb, var(--mock-primary, #9ca3af) 8%, transparent)
+  );
+  border-radius: calc(var(--mock-radius, 6px) - 2px);
+  transition: background-color 240ms ease, border-radius 240ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Accent pill inside the middle section card — small "New" tag.
+   Background tint is low (22%) so even a wild accent stays a glow,
+   not a focal point. The pill text uses the accent at full strength. */
+.accentPill {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  padding: 0 6px;
+  font-family: var(--mock-heading-font, 'Inter', system-ui, sans-serif);
+  font-size: 7.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mock-accent, var(--mock-primary, #9ca3af)) 22%, var(--mock-bg, #fff));
+  color: var(--mock-accent, var(--mock-primary, #9ca3af));
+  border: 1px solid color-mix(in srgb, var(--mock-accent, var(--mock-primary, #9ca3af)) 40%, transparent);
+  transition: background-color 240ms ease, color 240ms ease, border-color 240ms ease;
+}
+
+/* Real product cards: the same slots as the skeleton bars, but with
+   the planned lineup's name + price. Everything reads --mock-* tokens so a
+   hovered/picked concept restyles them exactly like the rest of the mock. */
+.productName {
+  font-family: var(--mock-heading-font, 'Inter', system-ui, sans-serif);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--mock-text, #262626);
+  /* Wrap, never crop: up to two lines, then clamp. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  transition: font-family 240ms ease, color 240ms ease;
+}
+
+.productPrice {
+  font-family: var(--mock-body-font, 'Inter', system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mock-primary, #9ca3af);
+  transition: font-family 240ms ease, color 240ms ease;
+}
+
+.sectionBar {
+  height: 8px;
+  background: color-mix(in srgb, var(--mock-text, #262626) 12%, transparent);
+  border-radius: 999px;
+}
+
+.sectionBarShort {
+  height: 8px;
+  background: color-mix(in srgb, var(--mock-text, #262626) 12%, transparent);
+  border-radius: 999px;
+  width: 70%;
+}
+
+/* Dark footer band — derived from the body text color, slightly tinted toward
+   the brand primary so it always feels on-brand without using raw secondary
+   or accent (which would risk clashing). */
+.sectionFoot {
+  padding: 28px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: color-mix(in srgb, var(--mock-text, #262626) 92%, var(--mock-primary, #9ca3af));
+  color: var(--mock-bg, #ffffff);
+  transition: background-color 240ms ease, color 240ms ease;
+  flex-shrink: 0;
+}
+
+.footColumns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.footCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.footColTitle {
+  display: block;
+  height: 9px;
+  width: 50%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mock-bg, #fff) 70%, transparent);
+}
+
+.footColLink {
+  display: block;
+  height: 6px;
+  width: 80%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mock-bg, #fff) 35%, transparent);
+}
+
+.footColLink:nth-child(2) { width: 70%; }
+.footColLink:nth-child(3) { width: 90%; }
+.footColLink:nth-child(4) { width: 65%; }
+
+.footBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--mock-bg, #fff) 18%, transparent);
+}
+
+.footCopy {
+  display: block;
+  height: 6px;
+  width: 30%;
+  max-width: 140px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mock-bg, #fff) 35%, transparent);
+}
+
+/* Real catalogue photography inside the mock storefront tile. Catalogue shots
+   are square garments on white, so they are contained on white — cropping them
+   into a 16:10 tile slices the garment. */
+.productImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+  padding: 4px;
+  border-radius: inherit;
+}

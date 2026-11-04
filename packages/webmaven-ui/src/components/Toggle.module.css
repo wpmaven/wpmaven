@@ -1,0 +1,39 @@
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--glass-border);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.3s, filter 0.3s;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.25s;
+}
+
+.active {
+  background: var(--purple);
+  filter: url(#goo-sm);
+}
+
+.active::after {
+  transform: translateX(20px);
+  background: #fff;
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

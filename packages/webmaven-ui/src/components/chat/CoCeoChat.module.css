@@ -1,0 +1,542 @@
+/* The Co-CEO chat (2026-10-16): one look for the plugin and the dashboard,
+   the dashboard's colours. The card takes the design system's card radius
+   (--r-card), the field its field radius (ChatInput), Send the button radius.
+   Rules on headings, paragraphs and buttons are two classes deep, so
+   wp-admin's own `h2`, `p` and `button` rules lose to them. */
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--glass);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+/* ── Looks ───────────────────────────────────────────────────────────── */
+
+/* Home's card. */
+.card {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-card);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+/* The full view: the page's whole height, the thread kept to a readable width. */
+.full {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-card);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+}
+
+.full .thread > *,
+.full .footer > *,
+.full .above > * {
+  width: 100%;
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* The editor's panel: flush against its edges, tighter. */
+.sidebar {
+  border: none;
+  border-left: 1px solid var(--glass-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.sidebar .header { padding: 10px 14px; gap: 10px; }
+/* A smaller "Your Web Designer" in the editor's panel (2026-10-17): 13px
+   beside a 24px face, where the card and the full view keep 15px and 32px. */
+.sidebar .header .title { font-size: 13px; }
+.sidebar .thread { padding: 12px 14px; }
+.sidebar .footer { padding: 10px 14px 12px; }
+.sidebar .above { padding: 8px 14px 0; }
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* "Your Co-CEO: Spring sale banner", cut with an ellipsis; the whole line is the tooltip. */
+.header .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "Co-CEO" in the Co-CEO's own colour (the face's accent), the dark ground's
+   own shade there. */
+.header .role {
+  color: var(--coceo-accent);
+}
+
+:global([data-theme='dark']) .header .role {
+  color: var(--coceo-accent-dark);
+}
+
+/* The subject: lighter than "Your Co-CEO". */
+.header .subject {
+  font-weight: 400;
+  color: var(--text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Header buttons: a glyph in a small square with the button radius. */
+.actions .iconBtn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.actions .iconBtn:hover {
+  background: var(--glass-hover);
+  border-color: var(--glass-border);
+  color: var(--text);
+}
+
+.actions .iconBtn:focus-visible {
+  outline: 2px solid var(--n-900);
+  outline-offset: 2px;
+}
+
+:global([data-theme='dark']) .actions .iconBtn:focus-visible { outline-color: var(--n-0); }
+
+.actions .iconBtn[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--glass-hover);
+}
+
+.actions .iconBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The conversation switcher: a quiet button as wide as the open
+   conversation's name, up to 200px (an ellipsis past it), with the browser's
+   own list laid over it, invisible. In the editor's panel it is the arrow
+   alone, a 32px square like the header's other buttons (2026-10-17). */
+.switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 200px;
+  height: 32px;
+  padding: 0 26px 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar .switcher {
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+}
+
+.sidebar .switcher .switcherIcon { position: static; }
+
+.switcher:hover,
+.switcher:focus-within {
+  background: var(--glass-hover);
+  border-color: var(--glass-border);
+  color: var(--text);
+}
+
+.switcher:has(.switcherSelect:focus-visible) {
+  outline: 2px solid var(--n-900);
+  outline-offset: 2px;
+}
+
+:global([data-theme='dark']) .switcher:has(.switcherSelect:focus-visible) { outline-color: var(--n-0); }
+
+.switcherLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 30px;
+}
+
+.switcher .switcherSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.switcherIcon {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: inherit;
+}
+
+/* ── Above the messages, the status banner ───────────────────────────── */
+
+.above {
+  padding: 10px 20px 0;
+  flex-shrink: 0;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 20px 0;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.status_connecting { background: var(--accent-soft, color-mix(in srgb, var(--accent) 10%, transparent)); color: var(--text); }
+.status_error { background: var(--danger-soft); color: var(--danger); }
+.status_disconnected { background: var(--warning-soft); color: var(--text); }
+
+.status .statusRetry {
+  padding: 2px 10px;
+  margin: 0;
+  border: 1px solid currentColor;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── The thread ──────────────────────────────────────────────────────── */
+
+.threadWrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* An empty conversation, compact (2026-10-17): the header and the box only,
+   one line between them. The middle comes back, fading in, once the box has
+   the focus. */
+.compact .threadWrap { display: none; }
+.compact .footer { border-top: none; }
+
+.threadWrap.opening { animation: coceo-open 0.2s ease-out; }
+
+@keyframes coceo-open {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .threadWrap.opening { animation: none; }
+}
+
+.thread {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-border) transparent;
+}
+
+.thread:focus-visible {
+  outline: 2px solid var(--accent-ring, var(--accent));
+  outline-offset: -2px;
+}
+
+.thread::-webkit-scrollbar { width: 4px; }
+.thread::-webkit-scrollbar-track { background: transparent; }
+.thread::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 2px; }
+
+.item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 0;
+}
+
+.thread .loadingMore {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* An answer's words, and the owner's: line breaks kept, a long link wrapped. */
+.thread .plain,
+.thread .ownerText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A turn that did not finish: marked in the danger colour beside its words, which stay readable. */
+.failed {
+  border-left: 3px solid var(--danger);
+  padding-left: 10px;
+}
+
+.thread .errorText {
+  color: var(--danger);
+}
+
+.thread .notice {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.thread .subLine {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.underOwner {
+  align-self: flex-end;
+  text-align: right;
+  max-width: 85%;
+}
+
+.reuse {
+  margin-top: 8px;
+}
+
+.images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.image {
+  max-width: 100%;
+  border-radius: var(--r-sm);
+}
+
+.thread .workingLine {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+/* A sub-run's step (the Co-CEO's own work while the lead asked it),
+   indented under the step that asked (2026-10-17). */
+.nested {
+  margin-left: 24px;
+  padding-left: 10px;
+  border-left: 2px solid var(--glass-border);
+}
+
+/* What another member said to the lead (the Co-CEO's answer): a small
+   signed line, the face and "Your Co-CEO", then the words as written. */
+.said {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--glass-hover);
+}
+
+.thread .saidWho {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.thread .saidText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── An approval the turn waits on ───────────────────────────────────── */
+
+.approvalTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.thread .approvalText {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.approvalActions {
+  display: flex;
+  gap: 8px;
+}
+
+.thread .approvalDone {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* ── New messages ────────────────────────────────────────────────────── */
+
+.threadWrap .newMessages {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 14px 4px 10px;
+  border: none;
+  border-radius: var(--r-chip, 999px);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+}
+
+.threadWrap .newMessages:hover { filter: brightness(1.08); }
+
+/* Back to the newest message, nothing new: a quiet square with the arrow,
+   the design system's button radius, over the thread's bottom edge. */
+.threadWrap .toBottom {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-btn);
+  background: var(--n-0);
+  color: var(--text);
+  box-shadow: var(--sh-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+:global([data-theme='dark']) .threadWrap .toBottom { background: var(--glass); }
+
+.threadWrap .toBottom:hover { background: var(--glass-hover); }
+
+.threadWrap .newMessages:focus-visible,
+.threadWrap .toBottom:focus-visible {
+  outline: 2px solid var(--n-900);
+  outline-offset: 2px;
+}
+
+:global([data-theme='dark']) .threadWrap .newMessages:focus-visible,
+:global([data-theme='dark']) .threadWrap .toBottom:focus-visible { outline-color: var(--n-0); }
+
+/* ── The input ───────────────────────────────────────────────────────── */
+
+.footer {
+  flex-shrink: 0;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.aboveInput {
+  margin: 0 0 8px;
+}
+
+.footer .error {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--danger);
+}

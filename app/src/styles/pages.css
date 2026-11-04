@@ -1,0 +1,679 @@
+/* ==========================================================================
+   Content Pages Styles
+   ========================================================================== */
+
+/* The plan's usage, the kit's bar: it turns peach past 70% and rose past 90%. */
+/* An open report: our heading says the type and the period in words, in
+   place of the kit's own ("Plan_progress report, 2026-W42"), and the kit's
+   type badge prints the words as given, without its capitalize. */
+.wm-report-words .wm-report-heading {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.wm-report-words h2:not(.wm-report-heading) {
+  display: none;
+}
+
+.wm-report-words [class*="typeBadge"] {
+  text-transform: none;
+}
+
+.wm-usage-bar--high > [class*="_fill_"] {
+  background: var(--peach);
+}
+
+.wm-usage-bar--full > [class*="_fill_"] {
+  background: var(--rose);
+}
+
+/* Filters row */
+.wpm-content-page__filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.wpm-content-page__select {
+  padding: 8px 32px 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--bg-raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color: var(--text);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.wpm-content-page__select:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--purple) 20%, transparent);
+  outline: none;
+}
+
+/* ==========================================================================
+   Data Table
+   ========================================================================== */
+
+.wpm-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+}
+
+.wpm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wpm-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--bg);
+}
+
+.wpm-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--text);
+}
+
+.wpm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.wpm-table__row--clickable {
+  cursor: pointer;
+}
+
+.wpm-table__row--clickable:hover td {
+  background: var(--bg);
+}
+
+.wpm-table__link {
+  color: var(--purple);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.wpm-table__link:hover {
+  text-decoration: underline;
+}
+
+.wpm-table__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.wpm-table__action {
+  font-size: 12px;
+  color: var(--purple);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+
+.wpm-table__action:hover {
+  text-decoration: underline;
+}
+
+.wpm-table__action--danger {
+  color: var(--rose);
+}
+
+.wpm-table-loading {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wpm-skeleton--row {
+  height: 40px;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.wpm-table-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ==========================================================================
+   Pagination
+   ========================================================================== */
+
+.wpm-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  font-size: 13px;
+}
+
+.wpm-pagination__info {
+  color: var(--text-dim);
+}
+
+.wpm-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wpm-pagination__btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.wpm-pagination__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wpm-pagination__current {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   Search Bar
+   ========================================================================== */
+
+.wpm-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  flex: 1;
+  max-width: 320px;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.wpm-search-bar:focus-within {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--purple) 20%, transparent);
+}
+
+.wpm-search-bar__icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.wpm-search-bar__input {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Status Badge
+   ========================================================================== */
+
+.wpm-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.wpm-status-badge--green {
+  background: #ECFDF5;
+  color: #047857;
+}
+
+.wpm-status-badge--yellow {
+  background: #FFFBEB;
+  color: #B45309;
+}
+
+.wpm-status-badge--red {
+  background: #FEF2F2;
+  color: #DC2626;
+}
+
+.wpm-status-badge--blue {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+.wpm-status-badge--gray {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+/* Dark mode badge adjustments */
+[data-theme="dark"] .wpm-status-badge--green {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+}
+
+[data-theme="dark"] .wpm-status-badge--yellow {
+  background: rgba(245, 158, 11, 0.15);
+  color: #FBBF24;
+}
+
+[data-theme="dark"] .wpm-status-badge--red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #F87171;
+}
+
+[data-theme="dark"] .wpm-status-badge--blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60A5FA;
+}
+
+[data-theme="dark"] .wpm-status-badge--gray {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9CA3AF;
+}
+
+/* ==========================================================================
+   Confirm Dialog
+   ========================================================================== */
+
+.wpm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.wpm-dialog {
+  background: var(--bg-raised);
+  border-radius: 20px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.wpm-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.wpm-dialog__message {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.wpm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wpm-btn--danger {
+  background: var(--rose);
+  color: #fff;
+  border: none;
+}
+
+.wpm-btn--danger:hover {
+  opacity: 0.9;
+}
+
+/* ==========================================================================
+   Empty State
+   ========================================================================== */
+
+.wpm-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-dim);
+}
+
+.wpm-empty-state__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.wpm-empty-state__description {
+  font-size: 14px;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Themes Grid
+   ========================================================================== */
+
+.wpm-themes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.wpm-theme-card {
+  background: var(--bg-raised);
+  border: 2px solid var(--glass-border);
+  border-radius: 20px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.wpm-theme-card--active {
+  border-color: var(--purple);
+}
+
+.wpm-theme-card__screenshot {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wpm-theme-card__screenshot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wpm-theme-card__screenshot--placeholder {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.wpm-theme-card__no-preview {
+  width: 100%;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.wpm-theme-card__info {
+  padding: 12px 16px;
+}
+
+.wpm-theme-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.wpm-theme-card__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.wpm-theme-card__version {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ==========================================================================
+   Theme Card Actions & Labels
+   ========================================================================== */
+
+.wpm-theme-card__actions {
+  padding: 12px 16px;
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wpm-theme-card__active-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cyan);
+}
+
+/* ==========================================================================
+   Theme Section Headings
+   ========================================================================== */
+
+.wpm-themes-section__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 24px 0 12px;
+}
+
+.wpm-themes-section__title:first-child {
+  margin-top: 0;
+}
+
+/* ==========================================================================
+   Media Grid
+   ========================================================================== */
+
+.wpm-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.wpm-media-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.wpm-media-card:hover {
+  border-color: var(--purple);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.wpm-media-card--skeleton {
+  pointer-events: none;
+}
+
+.wpm-media-card__preview {
+  width: 100%;
+  height: 140px;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wpm-media-card__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wpm-media-card__icon {
+  color: var(--text-dim);
+}
+
+.wpm-media-card__info {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wpm-media-card__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wpm-media-card__meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ==========================================================================
+   Media Detail Overlay
+   ========================================================================== */
+
+.wpm-media-detail {
+  background: var(--bg-raised);
+  border-radius: 20px;
+  display: flex;
+  max-width: 800px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.wpm-media-detail__preview {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.wpm-media-detail__preview img {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+}
+
+.wpm-media-detail__icon {
+  color: var(--text-dim);
+  padding: 40px;
+}
+
+.wpm-media-detail__icon svg {
+  width: 64px;
+  height: 64px;
+}
+
+.wpm-media-detail__sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 20px;
+  border-left: 1px solid var(--glass-border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wpm-media-detail__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  word-break: break-word;
+}
+
+.wpm-media-detail__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.wpm-media-detail__meta dt {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.wpm-media-detail__meta dd {
+  color: var(--text);
+  margin: 0;
+}
+
+.wpm-media-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.wpm-media-detail__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: color 200ms;
+  z-index: 1;
+}
+
+.wpm-media-detail__close:hover {
+  color: var(--text);
+}
+
+@media (max-width: 600px) {
+  .wpm-media-detail {
+    flex-direction: column;
+  }
+
+  .wpm-media-detail__sidebar {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--glass-border);
+  }
+}

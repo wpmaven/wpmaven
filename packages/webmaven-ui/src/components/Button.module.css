@@ -1,0 +1,126 @@
+/* Atelier buttons, from a research pass and a contrast check.
+   The near-black fill is the one tier with evidence behind it (NN/g signifier
+   study: weak signifiers cost 22% more time on task and 25% more fixations).
+   The gradient ring on the primary is a deliberate brand choice with NO measured
+   lift, kept because it is the signature; it is decorative only, since 5 of its
+   6 stops fall under 3:1 on white and it can never carry the boundary or focus.
+   Every other tier recedes so exactly one fill wins per view. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--font-button, var(--font-ui)); font-weight: 620; font-size: 14px; letter-spacing: .004em;
+  padding: 0 20px; height: 42px; border-radius: var(--r-btn); border: 1px solid transparent; cursor: pointer;
+  transition: background .15s ease, box-shadow .15s ease, transform .08s ease, color .15s ease, opacity .2s;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+.btn:active { transform: scale(0.98); transition-duration: 0.08s; }
+/* Focus is a solid outline and never the gradient: the ring measures under
+   3:1 on white, so it cannot be relied on as a focus indicator. */
+.btn:focus-visible { outline: 2px solid var(--n-900); outline-offset: 3px; }
+:global([data-theme='dark']) .btn:focus-visible { outline-color: var(--n-0); }
+
+.sm { height: 32px; padding: 0 13px; font-size: 13px; gap: 6px; border-radius: 8px; }
+.lg { height: 48px; padding: 0 24px; font-size: 15px; gap: 10px; border-radius: 12px; }
+
+.spinner { animation: wm-btn-spin 0.7s linear infinite; }
+@keyframes wm-btn-spin { to { transform: rotate(360deg); } }
+.iconSlot { display: flex; align-items: center; }
+
+/* Ink: near-black on light, inverted on dark. Colour stays out of buttons so
+   the one hero moment (the ring CTA) owns it. */
+/* The ring turns: one full turn every 3 seconds, so its colours visibly travel
+   (picked from four versions shown side by side). It is the same six pastels
+   (--ring-stops) as a conic gradient whose start angle is animated. The first background below is the still gradient it
+   always was: browsers without conic gradients keep it, and where @property is
+   not supported the angle never advances, so the ring simply stands still.
+   Reduced motion freezes it; a disabled button has no ring at all. */
+@property --wm-ring-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+@keyframes wm-ring-turn { to { --wm-ring-angle: 360deg; } }
+.primary {
+  color: var(--n-0);
+  border: 2px solid transparent;
+  background: linear-gradient(var(--n-900), var(--n-900)) padding-box,
+              var(--grad-cta, var(--grad-brand)) border-box;
+  background: linear-gradient(var(--n-900), var(--n-900)) padding-box,
+              conic-gradient(from var(--wm-ring-angle), var(--ring-stops, #47C8D8, #5B9BD5, #8E85C2, #D08EC8, #E8919F, #F2AA84, #47C8D8)) border-box;
+  box-shadow: var(--sh-xs);
+  animation: wm-ring-turn 3s linear infinite;
+}
+.primary:hover { box-shadow: var(--sh-sm); filter: brightness(1.12); }
+.primary:active { box-shadow: none; filter: none; }
+/* A disabled primary button has no ring: the border
+   area takes the button's own colour, so it keeps its size and reads as flat. */
+.primary:disabled { animation: none; background: var(--n-900); box-shadow: none; }
+:global([data-theme='dark']) .primary {
+  color: var(--n-900);
+  background: linear-gradient(var(--n-0), var(--n-0)) padding-box,
+              var(--grad-cta, var(--grad-brand)) border-box;
+  background: linear-gradient(var(--n-0), var(--n-0)) padding-box,
+              conic-gradient(from var(--wm-ring-angle), var(--ring-stops, #47C8D8, #5B9BD5, #8E85C2, #D08EC8, #E8919F, #F2AA84, #47C8D8)) border-box;
+}
+:global([data-theme='dark']) .primary:disabled { background: var(--n-0); }
+@media (prefers-reduced-motion: reduce) {
+  .primary { animation: none; }
+}
+:global([data-theme='dark']) .primary:hover { filter: brightness(0.96); }
+
+/* Hairline outline. n-500 is the LIGHTEST border that clears 1.4.11's 3:1
+   against white (4.73:1); n-300 is 1.54:1 and n-400 is 2.61:1, both fail. */
+.secondary { background: var(--bg-raised); color: var(--n-700); border-color: var(--n-500); }
+.secondary:hover { background: var(--n-25); border-color: var(--n-600); }
+:global([data-theme='dark']) .secondary { color: var(--n-100); border-color: var(--n-500); background: transparent; }
+:global([data-theme='dark']) .secondary:hover { background: rgba(255,255,255,.06); border-color: var(--n-400); }
+
+.outline { background: var(--bg-raised); color: var(--n-800); border-color: var(--n-500); }
+.outline:hover { background: var(--n-25); border-color: var(--n-600); }
+:global([data-theme='dark']) .outline { color: var(--n-100); border-color: var(--n-500); background: transparent; }
+
+/* text-dim is n-500 = 4.73:1 on white, the floor for AA normal text. */
+.ghost { background: transparent; border-color: transparent; color: var(--n-700); }
+.ghost:hover { background: var(--n-100); color: var(--n-900); }
+:global([data-theme='dark']) .ghost { color: var(--n-200); }
+:global([data-theme='dark']) .ghost:hover { background: rgba(255,255,255,.08); color: var(--n-0); }
+
+/* Destructive stays quiet until it is confirmed. #DC2626 is used instead of
+   the semantic.danger token because that token is 4.31:1 on white and fails AA
+   for normal text; #DC2626 is 4.83:1. See the note at the foot of this file. */
+.danger { background: var(--bg-raised); color: #DC2626; border-color: #E4A0A0; }
+.danger:hover { background: #FBEBEE; border-color: #DC2626; }
+/* .dangerSolid is the confirmed state, e.g. inside a confirm dialog. */
+.dangerSolid { background: #DC2626; color: #fff; border-color: transparent; }
+.dangerSolid:hover { background: #B91C1C; }
+:global([data-theme='dark']) .danger { background: transparent; color: #F87171; border-color: #7F2222; }
+:global([data-theme='dark']) .danger:hover { background: rgba(220,38,38,.12); border-color: #DC2626; }
+
+.icon {
+  width: 42px; height: 42px; padding: 0; display: grid; place-items: center;
+  border-radius: var(--r-btn); background: var(--bg-raised);
+  border: 1px solid var(--n-500); color: var(--n-700);
+}
+.icon:hover { background: var(--n-25); color: var(--n-900); border-color: var(--n-600); }
+.icon:active { transform: scale(0.96); transition-duration: 0.08s; }
+.icon svg { width: 16px; height: 16px; }
+
+.bare {
+  width: 36px; height: 36px; padding: 0; display: grid; place-items: center;
+  border-radius: 50%; background: transparent; border: none; color: var(--text-dim);
+}
+.bare:hover { background: var(--glass-hover); color: var(--text); }
+.bare:active { transform: scale(0.92); background: var(--glass); transition-duration: 0.1s; }
+.bare svg { width: 18px; height: 18px; }
+
+/* A square variant carrying a text label sizes to the label. Without this the
+   text overflows a 36px or 42px box and paints over the next control. Button
+   adds this class itself when it is given text, so no caller has to know. */
+.labeled {
+  width: auto; min-width: 36px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: var(--r-pill, 999px);
+  white-space: nowrap;
+}
+.labeled.icon { min-width: 42px; }
+
+/* ── Note for whoever touches the tokens next ─────────────────────────────
+   semantic.danger (#D6455D) measures 4.31:1 against white and therefore fails
+   WCAG 1.4.3 AA for normal text wherever it is used as a LABEL, not only here.
+   This file works around it; the token itself is still worth revisiting.
+   Computed 2026-08-19: #D6455D 4.31:1, #E5484D 3.91:1, #DC2626 4.83:1.       */

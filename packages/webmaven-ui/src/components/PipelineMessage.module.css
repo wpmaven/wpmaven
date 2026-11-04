@@ -1,0 +1,249 @@
+.container {
+  align-self: stretch;
+  width: 100%;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  border-bottom-left-radius: 4px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Top section: header + progress ── */
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerAnimation {
+  flex-shrink: 0;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.titleDone {
+  color: var(--purple);
+}
+
+.description {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* ── Progress bar ── */
+.progressSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressCount {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  align-self: flex-end;
+}
+
+.progressTrack {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--glass-border);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  background-size: var(--progress-total, 100%) 100%;
+  transition: width 0.5s ease;
+}
+
+/* ── Separator ── */
+.separator {
+  height: 1px;
+  background: var(--glass-border);
+  margin: 14px 0;
+}
+
+/* ── Steps ── */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  animation: stepIn 0.3s ease both;
+}
+
+@keyframes stepIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Done */
+.stepDone {
+  color: var(--text);
+}
+
+.stepDone .icon {
+  color: var(--purple);
+  flex-shrink: 0;
+}
+
+.doneTag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* Active */
+.stepActive {
+  color: var(--text);
+}
+
+.activeTag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--purple);
+}
+
+.stepSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(142, 133, 194, 0.2);
+  border-top-color: var(--purple);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Approval */
+.stepApproval {
+  color: var(--text);
+  align-items: flex-start;
+}
+
+.approvalDot {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.approvalDot::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--peach);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.approvalContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.approvalActions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Failed */
+.stepFailed {
+  color: var(--rose);
+}
+
+.stepFailed .icon {
+  color: var(--rose);
+  flex-shrink: 0;
+}
+
+.failedContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.errorText {
+  font-size: 11px;
+  color: var(--rose);
+  opacity: 0.7;
+}
+
+.failedTag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rose);
+}
+
+/* Pending */
+.stepPending {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+.pendingDot {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pendingDot::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--glass-border);
+}

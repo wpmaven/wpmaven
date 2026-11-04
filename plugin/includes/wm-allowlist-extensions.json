@@ -1,0 +1,552 @@
+{
+  "_comment": "Allowlist extensions proven necessary by the zero-visual-loss gate (compile fails without them). Keys and attributes are LOWERCASE because wp_kses lowercases attribute names before matching; the companion plugin's camelCase viewBox entry never matched, which the gate caught. Merge this file into the companion plugin's sanitize_llm_content at integration.",
+  "svg": [
+    "aria-hidden",
+    "aria-label",
+    "data-*",
+    "fill-opacity",
+    "fill-rule",
+    "focusable",
+    "id",
+    "overflow",
+    "preserveaspectratio",
+    "role",
+    "stroke",
+    "stroke-opacity",
+    "stroke-width",
+    "style",
+    "viewbox",
+    "x",
+    "y"
+  ],
+  "g": [
+    "class",
+    "clip-path",
+    "data-*",
+    "fill",
+    "fill-opacity",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "stroke",
+    "stroke-opacity",
+    "stroke-width",
+    "transform"
+  ],
+  "text": [
+    "class",
+    "clip-path",
+    "data-*",
+    "dx",
+    "dy",
+    "fill",
+    "fill-opacity",
+    "filter",
+    "font-family",
+    "font-size",
+    "font-weight",
+    "id",
+    "letter-spacing",
+    "mask",
+    "opacity",
+    "stroke-opacity",
+    "style",
+    "text-anchor",
+    "transform",
+    "x",
+    "y"
+  ],
+  "tspan": [
+    "x",
+    "y",
+    "dx",
+    "dy",
+    "class",
+    "fill"
+  ],
+  "polygon": [
+    "class",
+    "clip-path",
+    "data-*",
+    "fill",
+    "fill-opacity",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "points",
+    "stroke",
+    "stroke-opacity",
+    "stroke-width",
+    "transform"
+  ],
+  "polyline": [
+    "class",
+    "clip-path",
+    "data-*",
+    "fill",
+    "fill-opacity",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "points",
+    "stroke",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "stroke-opacity",
+    "stroke-width"
+  ],
+  "line": [
+    "class",
+    "clip-path",
+    "data-*",
+    "fill-opacity",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "stroke-dasharray",
+    "stroke-linecap",
+    "stroke-opacity",
+    "stroke-width",
+    "transform"
+  ],
+  "path": [
+    "class",
+    "clip-path",
+    "clip-rule",
+    "data-*",
+    "fill-opacity",
+    "fill-rule",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "stroke-dasharray",
+    "stroke-dashoffset",
+    "stroke-opacity",
+    "transform"
+  ],
+  "circle": [
+    "class",
+    "clip-path",
+    "data-*",
+    "fill-opacity",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "stroke-dasharray",
+    "stroke-opacity",
+    "stroke-width",
+    "transform"
+  ],
+  "rect": [
+    "class",
+    "clip-path",
+    "data-*",
+    "fill-opacity",
+    "filter",
+    "id",
+    "mask",
+    "opacity",
+    "stroke",
+    "stroke-opacity",
+    "stroke-width",
+    "transform"
+  ],
+  "ellipse": [
+    "class",
+    "cx",
+    "cy",
+    "data-*",
+    "fill",
+    "fill-opacity",
+    "opacity",
+    "rx",
+    "ry",
+    "stroke",
+    "stroke-opacity"
+  ],
+  "defs": [],
+  "lineargradient": [
+    "id",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "gradientunits",
+    "gradienttransform"
+  ],
+  "radialgradient": [
+    "id",
+    "cx",
+    "cy",
+    "r",
+    "fx",
+    "fy",
+    "gradientunits"
+  ],
+  "stop": [
+    "offset",
+    "stop-color",
+    "stop-opacity"
+  ],
+  "clippath": [
+    "id"
+  ],
+  "mask": [
+    "id"
+  ],
+  "filter": [
+    "id",
+    "x",
+    "y",
+    "width",
+    "height"
+  ],
+  "fegaussianblur": [
+    "in",
+    "stddeviation",
+    "result"
+  ],
+  "use": [
+    "href",
+    "xlink:href",
+    "x",
+    "y"
+  ],
+  "button": [
+    "class",
+    "id",
+    "type",
+    "style",
+    "aria-label",
+    "aria-expanded",
+    "aria-controls",
+    "aria-pressed",
+    "data-*",
+    "disabled"
+  ],
+  "div": [
+    "role",
+    "aria-hidden",
+    "aria-label",
+    "aria-live",
+    "tabindex"
+  ],
+  "span": [
+    "role",
+    "aria-hidden",
+    "aria-label"
+  ],
+  "a": [
+    "aria-current",
+    "aria-label",
+    "download",
+    "hreflang",
+    "referrerpolicy",
+    "rel",
+    "role",
+    "target",
+    "title",
+    "type"
+  ],
+  "section": [
+    "role",
+    "aria-label",
+    "aria-labelledby",
+    "tabindex"
+  ],
+  "nav": [
+    "role",
+    "data-*"
+  ],
+  "ul": [
+    "role",
+    "aria-label"
+  ],
+  "li": [
+    "role",
+    "aria-hidden",
+    "data-*"
+  ],
+  "img": [
+    "loading",
+    "decoding",
+    "sizes",
+    "srcset",
+    "aria-hidden",
+    "role",
+    "data-*"
+  ],
+  "header": [
+    "role",
+    "aria-label",
+    "data-*"
+  ],
+  "footer": [
+    "role",
+    "aria-label",
+    "data-*"
+  ],
+  "article": [
+    "role",
+    "aria-label",
+    "data-*"
+  ],
+  "aside": [
+    "role",
+    "aria-label",
+    "data-*"
+  ],
+  "figure": [
+    "role",
+    "aria-label",
+    "data-*"
+  ],
+  "main": [
+    "role",
+    "aria-label",
+    "data-*"
+  ],
+  "time": [
+    "datetime",
+    "class"
+  ],
+  "picture": [
+    "class"
+  ],
+  "source": [
+    "srcset",
+    "media",
+    "sizes"
+  ],
+  "symbol": [
+    "id",
+    "viewbox"
+  ],
+  "marker": [
+    "id",
+    "markerheight",
+    "markerwidth",
+    "orient",
+    "refx",
+    "refy",
+    "viewbox"
+  ],
+  "femerge": [
+    "in",
+    "result"
+  ],
+  "femergenode": [
+    "in"
+  ],
+  "feflood": [
+    "flood-color",
+    "flood-opacity",
+    "result"
+  ],
+  "feoffset": [
+    "dx",
+    "dy",
+    "in",
+    "result"
+  ],
+  "feblend": [
+    "in",
+    "in2",
+    "mode",
+    "result"
+  ],
+  "fecolormatrix": [
+    "in",
+    "result",
+    "type",
+    "values"
+  ],
+  "fecomposite": [
+    "in",
+    "in2",
+    "operator",
+    "result"
+  ],
+  "feturbulence": [
+    "basefrequency",
+    "numoctaves",
+    "result",
+    "seed",
+    "stitchtiles",
+    "type"
+  ],
+  "fedisplacementmap": [
+    "in",
+    "in2",
+    "result",
+    "scale",
+    "xchannelselector",
+    "ychannelselector"
+  ],
+  "fedropshadow": [
+    "dx",
+    "dy",
+    "flood-color",
+    "flood-opacity",
+    "stddeviation"
+  ],
+  "pattern": [
+    "class",
+    "height",
+    "href",
+    "id",
+    "patterncontentunits",
+    "patterntransform",
+    "patternunits",
+    "viewbox",
+    "width",
+    "x",
+    "xlink:href",
+    "y"
+  ],
+  "image": [
+    "class",
+    "clip-path",
+    "height",
+    "href",
+    "opacity",
+    "preserveaspectratio",
+    "width",
+    "x",
+    "xlink:href",
+    "y"
+  ],
+  "textpath": [
+    "class",
+    "href",
+    "startoffset",
+    "xlink:href"
+  ],
+  "animate": [
+    "attributename",
+    "begin",
+    "calcmode",
+    "dur",
+    "fill",
+    "from",
+    "keytimes",
+    "repeatcount",
+    "to",
+    "values"
+  ],
+  "animatetransform": [
+    "additive",
+    "attributename",
+    "begin",
+    "dur",
+    "fill",
+    "from",
+    "repeatcount",
+    "to",
+    "type",
+    "values"
+  ],
+  "input": [
+    "type",
+    "id",
+    "class",
+    "style",
+    "name",
+    "value",
+    "min",
+    "max",
+    "step",
+    "placeholder",
+    "checked",
+    "disabled",
+    "readonly",
+    "required",
+    "list",
+    "inputmode",
+    "autocomplete",
+    "aria-label",
+    "aria-labelledby",
+    "data-*",
+    "aria-hidden",
+    "tabindex"
+  ],
+  "label": [
+    "for",
+    "class",
+    "id",
+    "style"
+  ],
+  "select": [
+    "id",
+    "class",
+    "style",
+    "name",
+    "required",
+    "disabled",
+    "multiple",
+    "aria-label",
+    "aria-labelledby",
+    "data-*"
+  ],
+  "option": [
+    "value",
+    "selected",
+    "disabled",
+    "label"
+  ],
+  "optgroup": [
+    "label",
+    "disabled"
+  ],
+  "textarea": [
+    "id",
+    "class",
+    "style",
+    "name",
+    "rows",
+    "cols",
+    "placeholder",
+    "required",
+    "disabled",
+    "readonly",
+    "aria-label",
+    "data-*"
+  ],
+  "form": [
+    "aria-label",
+    "aria-labelledby",
+    "autocomplete",
+    "class",
+    "data-*",
+    "id",
+    "name",
+    "novalidate",
+    "role",
+    "style"
+  ],
+  "iframe": [
+    "src",
+    "title",
+    "width",
+    "height",
+    "name",
+    "loading",
+    "allow",
+    "allowfullscreen",
+    "referrerpolicy",
+    "sandbox",
+    "frameborder",
+    "class",
+    "id",
+    "style",
+    "aria-label",
+    "aria-hidden",
+    "data-*"
+  ]
+}

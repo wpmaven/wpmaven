@@ -1,0 +1,62 @@
+/* ── Both boxed looks ─────────────────────────────────────────────────────
+   The tab's own rules are two classes deep (.segmented .tab, .pill .tab):
+   inside wp-admin they win over WordPress's button rules. */
+.container { display: inline-flex; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.container::-webkit-scrollbar { display: none; }
+
+.tab {
+  margin: 0; min-height: 0; border: none; outline: none; background: none; box-shadow: none;
+  font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer;
+  white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; line-height: 1;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ── Segmented (the default since 0.7.0) ──────────────────────────────────
+   The design system's tab bar (docs/design-system.html, .wtabs): a 10px
+   track with 8px tabs, the active one raised. The track is the dashboard's
+   soft fill: --n-100 in light, the hairline colour in dark. */
+.segmented { gap: 2px; padding: 3px; border-radius: 10px; background: var(--n-100); }
+:global([data-theme='dark']) .segmented { background: var(--glass-border); }
+.segmented .tab { border-radius: 8px; padding: 6px 14px; background: transparent; color: var(--text-dim); }
+.segmented .tab:hover { color: var(--text); }
+.segmented .active,
+.segmented .active:hover { background: var(--bg-raised); color: var(--text); box-shadow: var(--sh-xs); }
+.segmented.sm .tab { padding: 5px 10px; font-size: 12px; }
+.segmented.lg { padding: 4px; }
+.segmented.lg .tab { padding: 9px 22px; font-size: 14px; gap: 8px; }
+
+/* ── Pill (0.6's look, kept for one release) ────────────────────────────── */
+.pill { border-radius: 999px; background: var(--glass); padding: 3px; border: 1px solid var(--glass-border); }
+.pill .tab { border-radius: 999px; padding: 7px 18px; }
+.pill .active { background: var(--glass-hover); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+.pill.lg { padding: 4px; }
+.pill.lg .tab { padding: 9px 28px; font-size: 14px; gap: 8px; }
+.pill.sm .tab { padding: 5px 14px; font-size: 12px; }
+
+/* The active tab filled with the accent (gradient), in either look. */
+.container.gradient .active,
+.container.gradient .active:hover { background: var(--accent); color: #fff; box-shadow: var(--sh-sm); }
+
+.icon { display: flex; align-items: center; line-height: 0; }
+.icon svg { display: block; }
+
+/* Underline style */
+.underlineContainer { display: flex; gap: 0; border-bottom: 1px solid var(--glass-border); }
+.underlineTab {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 4px; margin-right: 24px;
+  border: none; border-bottom: 2px solid transparent; background: none; font-family: inherit;
+  font-size: 13px; font-weight: 500; color: var(--text-dim); cursor: pointer; white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s;
+}
+.underlineTab:hover { color: var(--text); border-bottom-color: var(--glass-border); }
+.underlineActive { color: var(--n-900); border-bottom-color: var(--n-900); }
+
+.panel { padding-top: 16px; }
+
+@media (max-width: 640px) {
+  .pill .tab { font-size: 12px; padding: 7px 14px; }
+  .segmented .tab { padding: 6px 12px; }
+  .underlineTab { font-size: 12px; margin-right: 16px; }
+}

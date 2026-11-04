@@ -1,0 +1,172 @@
+/* Two classes deep throughout: wp-admin's h3, h4, p, dl, ul and li rules do
+   not reach the card. */
+.root .header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0 0 10px;
+}
+
+.root .heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.root .title {
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.root .check {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: 280px;
+}
+
+.root .note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.root .state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.root .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.root .lastCheck {
+  margin: 2px 0 0 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* The numbers: three across, two on a narrow card. */
+.root .figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+@media (max-width: 420px) {
+  .root .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.root .figure { min-width: 0; margin: 0; }
+
+.root .figureLabel {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.root .figureValue {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.root .figureHint {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.root .details {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--glass-border);
+}
+
+.root .detail {
+  display: grid;
+  grid-template-columns: minmax(110px, 35%) 1fr;
+  gap: 12px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.root .detail dt { margin: 0; color: var(--text-dim); font-weight: 400; }
+.root .detail dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  .root .detail { grid-template-columns: 1fr; gap: 0; }
+}
+
+.root .issues {
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--glass-border);
+}
+
+.root .issuesTitle {
+  margin: 0 0 6px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.root .noIssues {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.root .issueList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.root .issue {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+}
+
+.root .issueTitle { font-size: 13.5px; font-weight: 600; line-height: 1.4; }
+.root .issueText { font-size: 13px; line-height: 1.45; color: var(--text); }
+.root .info { color: var(--text-dim); }
+.root .warning { color: var(--warning); }
+.root .critical { color: var(--danger); }

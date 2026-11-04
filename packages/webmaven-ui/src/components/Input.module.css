@@ -1,0 +1,26 @@
+.wrapper { width: 100%; }
+.label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+.inputWrap { position: relative; }
+
+.input {
+  width: 100%; font-family: inherit; font-size: 14px; font-weight: 500; color: var(--text);
+  background: var(--n-0);
+  border: 1px solid var(--glass-border); border-radius: var(--r-md, 8px); padding: 10px 16px;
+  outline: none; transition: border-color 0.25s, box-shadow 0.25s;
+}
+.input::placeholder { color: var(--text-dim); font-weight: 400; }
+.hasLeft { padding-left: 2.5rem; }
+.hasRight { padding-right: 2.5rem; }
+.focused { border-color: var(--purple); box-shadow: var(--sh-sm); }
+.error { border-color: var(--rose); box-shadow: var(--sh-sm); }
+
+.leftIcon, .rightIcon {
+  position: absolute; top: 0; bottom: 0; display: flex; align-items: center;
+  pointer-events: none; color: var(--text-dim); z-index: 1;
+}
+.leftIcon { left: 0; padding-left: 12px; }
+.rightIcon { right: 0; padding-right: 12px; }
+.leftIcon svg, .rightIcon svg { width: 18px; height: 18px; }
+
+.errorText { margin: 4px 0 0; font-size: 13px; color: var(--rose); }
+.helperText { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); }

@@ -1,0 +1,12 @@
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; text-transform: capitalize;
+}
+.healthy { background: color-mix(in srgb, var(--cyan) 15%, transparent); color: var(--cyan); }
+.attention { background: color-mix(in srgb, var(--peach) 15%, transparent); color: var(--peach); }
+.issues { background: color-mix(in srgb, var(--rose) 15%, transparent); color: var(--rose); }
+.dot { width: 6px; height: 6px; border-radius: 50%; }
+.healthy .dot { background: var(--cyan); }
+.attention .dot { background: var(--peach); }
+.issues .dot { background: var(--rose); }

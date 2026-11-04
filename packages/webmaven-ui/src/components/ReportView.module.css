@@ -1,0 +1,65 @@
+.report { display: flex; flex-direction: column; gap: 24px; }
+
+.header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+}
+.headerInfo { flex: 1; }
+.title { font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 4px; }
+.meta { font-size: 12px; color: var(--text-dim); display: flex; gap: 12px; align-items: center; }
+.typeBadge { text-transform: capitalize; }
+.actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* Executive summary */
+.summaryWrap { margin-bottom: 24px; }
+
+.summaryText {
+  font-size: 14px; line-height: 1.7; color: var(--text);
+}
+
+/* Highlights */
+.highlights { display: flex; flex-direction: column; gap: 10px; }
+.highlight {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; border-radius: var(--r-md, 8px);
+  background: var(--bg-raised); border: 1px solid var(--glass-border);
+}
+.highlightIcon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.highlightText { font-size: 13px; color: var(--text); line-height: 1.5; }
+
+/* Sections */
+.section {
+  padding: 20px; border-radius: var(--r-lg, 12px);
+  background: var(--bg-raised); border: 1px solid var(--glass-border);
+}
+.sectionTitle {
+  font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sectionMetrics {
+  display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;
+}
+.metric {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 16px; border-radius: var(--r-md, 8px);
+  background: var(--glass); min-width: 100px;
+}
+.metricLabel { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.metricValue { font-size: 18px; font-weight: 700; color: var(--text); }
+.sectionContent { font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+
+/* Recommendations */
+.recommendations { display: flex; flex-direction: column; gap: 10px; }
+.recommendation {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; border-radius: var(--r-md, 8px);
+  background: var(--bg-raised); border: 1px solid var(--glass-border);
+}
+.recText { font-size: 13px; color: var(--text); line-height: 1.5; flex: 1; }
+
+/* Empty state */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; gap: 12px;
+}
+.emptyTitle { font-size: 16px; font-weight: 600; color: var(--text); }
+.emptyText { font-size: 13px; color: var(--text-dim); max-width: 360px; }

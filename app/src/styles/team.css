@@ -1,0 +1,19 @@
+/* ==========================================================================
+   Your team: the shared screen in the plugin's frame
+   ========================================================================== */
+
+/* The plan's narrow column sticks under the top bar and scrolls on its own
+   when it is taller than the window. WordPress's admin bar is hidden on the
+   app's pages, and they scroll inside .wm-main, under the 52px top bar: the
+   column's top is measured from there, 16px down, as on the dashboard. */
+.wm-team {
+  --screens-sticky-top: 16px;
+}
+
+/* The screen sizes the column from the top of the window, which the top
+   bar does not leave free here: its height also leaves out the top bar and
+   the page's 24px at the bottom, so the column's end stays in view. Only
+   while the column stands beside the plan (the board is wide). */
+.wm-team [data-testid="plan-board"][data-wide="true"] > [data-testid="plan-side"] {
+  max-height: calc(var(--wm-app-height, 100vh) - 52px - var(--screens-sticky-top) - 24px) !important;
+}

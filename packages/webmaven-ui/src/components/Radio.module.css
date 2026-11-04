@@ -1,0 +1,48 @@
+.label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.label.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hidden {
+  display: none;
+}
+
+.dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass);
+  display: grid;
+  place-items: center;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.dot::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--purple);
+  transform: scale(0);
+  transition: transform 0.2s;
+}
+
+.checked .dot {
+  border-color: var(--purple);
+}
+
+.checked .dot::after {
+  transform: scale(1);
+}

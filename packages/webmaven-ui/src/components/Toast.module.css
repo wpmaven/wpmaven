@@ -1,0 +1,47 @@
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--r-md);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Variants ────────────────────────────────────────── */
+.info {
+  border-left: 3px solid var(--n-500);
+}
+.info .icon {
+  color: var(--n-600);
+}
+
+.success {
+  border-left: 3px solid var(--success);
+}
+.success .icon {
+  color: var(--success);
+}
+
+.warning {
+  border-left: 3px solid var(--warning);
+}
+.warning .icon {
+  color: var(--warning);
+}
+
+.error {
+  border-left: 3px solid var(--danger);
+}
+.error .icon {
+  color: var(--danger);
+}

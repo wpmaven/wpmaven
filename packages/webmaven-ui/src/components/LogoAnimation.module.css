@@ -1,0 +1,33 @@
+/* ── LogoAnimation ──────────────────────────────────────────────────────────── */
+
+.container {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* A brand's logo fits the box, whatever size it was given. */
+.container > * {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* ── The Hand-off mark ──────────────────────────────────────────────────────── */
+
+/* The mark sits off centre in its 64-unit box: its ink spans x 7.59 to 58.91
+   and y 5.61 to 55.89, so its middle is 1.25 units right of the box's middle
+   and 1.25 above it. Moving the svg back by that much (1.25 / 64 of its size)
+   centres the ink in the loader's box. The working loop's moves stay at least
+   5 units inside the box. */
+.mark {
+  display: block;
+  transform: translate(-1.95%, 1.95%);
+}
+
+.image {
+  display: block;
+  object-fit: contain;
+}

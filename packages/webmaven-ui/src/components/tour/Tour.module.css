@@ -1,0 +1,206 @@
+/*
+ * The tour's dim, spotlight and card (0.9.0; the done line and the phone's
+ * slim bar in 0.10.0). Every rule that wp-admin also styles (h2, p, button)
+ * is set two classes deep, so the card looks the same inside WordPress.
+ */
+
+.root {
+  position: fixed;
+  inset: 0;
+}
+
+/* The screen behind a step that is read: one dim, nothing behind it takes a click. */
+.dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 12, 0.6);
+}
+
+/* One of the four panels around a step that is used: the hole takes clicks. */
+.panel {
+  position: fixed;
+  background: rgba(8, 9, 12, 0.6);
+  pointer-events: auto;
+}
+
+/* The ring around the element, in the accent; with the dim as one huge shadow on a read step. */
+.spot {
+  position: fixed;
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--accent, #6962ad);
+}
+
+.spot.withDim {
+  box-shadow: 0 0 0 2px var(--accent, #6962ad), 0 0 0 9999px rgba(8, 9, 12, 0.6);
+}
+
+.card {
+  position: fixed;
+  box-sizing: border-box;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 18px;
+  background: var(--bg-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-card, 16px);
+  box-shadow: var(--sh-lg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  text-align: left;
+  pointer-events: auto;
+  animation: tourIn 180ms ease-out;
+}
+
+.card.still {
+  animation: none;
+}
+
+/* Opacity only: while a step's page opens the card is centred with a
+   transform, and a keyframe transform would fight it (the card jumped to
+   the bottom right for the length of the fade). */
+@keyframes tourIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+}
+
+.card .progress {
+  margin: 0;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.card .title {
+  margin: 4px 0 8px;
+  padding: 0;
+  font-family: var(--font-title, 'Instrument Serif', Georgia, serif);
+  font-size: var(--text-title, 20px);
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.card .body {
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.card .opening {
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* What the person did, once the element says so ("Saved"). */
+.card .done {
+  margin: 0 0 14px;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.card .check {
+  color: var(--accent, #6962ad);
+}
+
+/* The slim bar: a phone with a field focused, clear of the keyboard. */
+.card.slim {
+  padding: 8px 12px;
+}
+
+.slimRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slimText {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.card .slimTitle {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.card .slimDone {
+  flex-shrink: 0;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+/* Where you are in the tour, drawn; the words above say it for screen readers. */
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 14px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--glass-border);
+}
+
+.dot.past {
+  background: var(--text-dim);
+}
+
+.dot.here {
+  width: 16px;
+  background: var(--accent, #6962ad);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.end {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

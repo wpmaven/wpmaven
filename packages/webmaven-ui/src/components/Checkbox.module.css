@@ -1,0 +1,47 @@
+.label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.label.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hidden {
+  display: none;
+}
+
+.box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass);
+  display: grid;
+  place-items: center;
+  transition: border-color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.box svg {
+  width: 12px;
+  height: 12px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.checked .box {
+  background: var(--purple);
+  border-color: var(--purple);
+}
+
+.checked .box svg {
+  opacity: 1;
+}

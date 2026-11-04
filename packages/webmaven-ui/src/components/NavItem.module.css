@@ -1,0 +1,116 @@
+/* The dashboard's sidebar row (layout/Sidebar.tsx): 10px 12px, 10px corners,
+   15px at weight 550, a 20px icon 12px before the label. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.55;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+/* wp-admin's a:hover, a:focus and a:visited are one element and one state:
+   a class and a state beat them. */
+.row:visited { color: var(--text-dim); }
+.row:hover,
+.row:focus {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  box-shadow: none;
+  text-decoration: none;
+  outline: none;
+}
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The open page: the accent's tint, the label in the accent and semibold.
+   The dashboard's --accent-tint wins when it is set. */
+.row.active,
+.row.active:visited,
+.row.active:hover,
+.row.active:focus {
+  background: var(--accent-tint, color-mix(in srgb, var(--accent) 12%, transparent));
+  color: var(--accent);
+  font-weight: 650;
+}
+:global([data-theme='dark']) .row.active,
+:global([data-theme='dark']) .row.active:hover,
+:global([data-theme='dark']) .row.active:focus {
+  background: var(--accent-tint, var(--accent-soft));
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  line-height: 0;
+}
+.icon svg,
+.icon img { display: block; max-width: 20px; max-height: 20px; }
+
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.external {
+  display: flex;
+  flex: none;
+  align-items: center;
+  color: var(--text-dim);
+  line-height: 0;
+}
+
+/* The dashboard's count bubble: --n-700 under --n-0, 18px high. */
+.badge {
+  flex: none;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--n-700);
+  color: var(--n-0);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

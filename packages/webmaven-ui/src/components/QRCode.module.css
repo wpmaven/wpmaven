@@ -1,0 +1,62 @@
+.container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container canvas {
+  display: block;
+}
+
+.logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.logo > svg {
+  /* Compensate for the SVG's visual center being slightly above its viewBox center */
+  transform: scale(1.25) translateY(1%);
+}
+
+/* ── Brand drawing (2026-10-11) ──────────────────────────────────────────── */
+
+/* A QR code is read dark on light, whatever the theme: the code and its mark
+   sit on paper, so they take the mark's light-ground colours here. The dark
+   theme's lifted ink (#F4F3F8) would vanish on the white, and its lighter
+   violet read as light to a camera. The canvas reads these off the box.
+   --brand-ink and --brand-violet keep their value in both themes; the
+   orange lifts on dark, so its light-ground value is set as is. */
+.paper {
+  --wm-mark-ink: var(--brand-ink, #15121F);
+  --wm-mark-violet: var(--brand-violet, #6A4BFF);
+  --wm-mark-orange: #FF6A3D;
+}
+
+/* The mark's tile: the favicon's rounded square, in paper, centred in the
+   hole the code leaves for it (sizes inline, from the code's modules). */
+.tile {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #F4F3F8;
+}
+
+.tileMark {
+  position: absolute;
+  display: flex;
+}
+
+.tileMark > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

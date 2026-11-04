@@ -1,0 +1,150 @@
+/* A member of the team on a paper disc, with presence worn around it.
+   The keyframes and the reduced motion rule live here, so the arc turns (or
+   stays still) in every host: the dashboard, the plugin, the wizard. */
+
+.root {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  line-height: 0;
+  --wmop-ring: var(--wmop-accent);
+  --wmop-outline: rgba(23, 24, 28, 0.08);
+}
+
+:global([data-theme='dark']) .root {
+  --wmop-ring: var(--wmop-accent-dark);
+  --wmop-outline: var(--glass-border, #262932);
+}
+
+/* The disc keeps its paper ground in both themes, like a printed portrait. */
+.disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  transition: opacity 300ms ease, filter 300ms ease;
+}
+
+.disc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--wmop-outline);
+  pointer-events: none;
+}
+
+.disc svg {
+  display: block;
+}
+
+.queued .disc {
+  opacity: 0.45;
+  filter: grayscale(0.65);
+}
+
+.halo {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.arc {
+  stroke: var(--wmop-ring);
+  stroke-linecap: round;
+  stroke-dasharray: var(--wmop-run);
+}
+
+.ring {
+  stroke: var(--warning, #B7791F);
+}
+
+.orbit {
+  transform-origin: 50% 50%;
+  animation: orbit 1.5s linear infinite;
+}
+
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--bg-raised, #FFFFFF);
+  box-shadow: 0 0 0 2px var(--bg-raised, #FFFFFF);
+}
+
+.badge svg {
+  width: 78%;
+  height: 78%;
+  display: block;
+}
+
+.badgeDone {
+  background: var(--success, #2E9E63);
+}
+
+.badgeFailed {
+  background: var(--danger, #D6455D);
+}
+
+.badgeWaiting {
+  background: var(--warning, #B7791F);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit {
+    animation: none;
+  }
+
+  .arc {
+    stroke-dasharray: var(--wmop-still);
+  }
+
+  .disc {
+    transition: none;
+  }
+}
+
+/* Several members, overlapping, with "+2" past the limit. */
+.stack {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.stackItem {
+  display: inline-flex;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--bg-raised, #FFFFFF);
+}
+
+.stackItem + .stackItem {
+  margin-left: var(--wmop-overlap);
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--n-100, #EDEEF2);
+  color: var(--text-dim, #6E7382);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-weight: 600;
+  line-height: 1;
+}
+
+:global([data-theme='dark']) .more {
+  background: var(--bg-raised, #16171C);
+  box-shadow: inset 0 0 0 1px var(--glass-border, #262932);
+}

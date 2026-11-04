@@ -1,0 +1,51 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.btn:hover {
+  color: var(--text);
+}
+
+.btn:focus-visible {
+  /* A 60%-alpha accent ring measured under 3:1. Focus matches Button. */
+  outline: 2px solid var(--n-900);
+  outline-offset: 3px;
+}
+
+.btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.active {
+  background: color-mix(in srgb, var(--purple) 20%, transparent);
+  color: var(--text-bright);
+}
+
+.active:hover {
+  color: var(--text-bright);
+}
+
+:global([data-theme='dark']) .btn:focus-visible { outline-color: var(--n-0); }

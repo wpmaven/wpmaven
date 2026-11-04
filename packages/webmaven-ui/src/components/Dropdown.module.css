@@ -1,0 +1,157 @@
+.wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  /* Even on both sides: the chevron's box is its ink (DropdownChevron). */
+  padding: 10px 16px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.trigger:focus {
+  border-color: var(--purple);
+  box-shadow: var(--sh-sm);
+}
+
+.placeholder {
+  color: var(--text-dim);
+}
+
+/* The chosen option with its icon: the icon and the label, centred together. */
+.value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* The chosen option's label over its detail (the trigger only). */
+.stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.2;
+}
+
+.stackLabel,
+.detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail {
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+
+/* An option's icon, before its label (in the trigger and in the menu). */
+.icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.chevron {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Menu ─────────────────────────────────────────────────────────────── */
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  /* Size to the longest option, but never narrower than the trigger. */
+  min-width: 100%;
+  width: max-content;
+  max-width: min(320px, 90vw);
+  background: var(--bg-raised);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--glass-shadow);
+  z-index: 9999;
+  padding: 4px;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.menuOpen {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  /* The menu's 1px border and 4px padding, then 12px: the text starts where
+     the trigger's label does (its 1px border and 16px padding). */
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  border-radius: calc(var(--r-md) - 4px);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.item:hover {
+  background: var(--glass-hover);
+}
+
+.selected {
+  color: var(--purple);
+}
+
+.selected::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--purple);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.separator {
+  height: 1px;
+  background: var(--glass-border);
+  margin: 4px 8px;
+}

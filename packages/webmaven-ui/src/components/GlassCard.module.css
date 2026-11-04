@@ -1,0 +1,68 @@
+.card {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--glass-shadow);
+  padding: 32px;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.card:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow), var(--glass-glow);
+}
+
+.accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 1;
+}
+
+.active::before {
+  background: linear-gradient(
+    90deg,
+    var(--cyan), var(--blue), var(--purple), var(--mauve), var(--rose), var(--peach),
+    var(--rose), var(--mauve), var(--purple), var(--blue), var(--cyan),
+    var(--blue), var(--purple), var(--mauve), var(--rose), var(--peach)
+  );
+  background-size: 200% 100%;
+  animation: borderShift 4s linear infinite;
+}
+
+.glowWrap {
+  position: relative;
+}
+
+.glowWrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-xl);
+  animation: cardGlow 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes borderShift {
+  from { background-position: 0% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes cardGlow {
+  0%, 100% {
+    box-shadow: var(--sh-sm);
+  }
+  50% {
+    box-shadow: var(--sh-sm);
+  }
+}

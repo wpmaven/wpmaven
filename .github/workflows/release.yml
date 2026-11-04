@@ -1,0 +1,115 @@
+# Builds the WPMaven plugin from this repository at each release, and sends
+# that build to WordPress.org.
+#
+# Each release arrives here as one commit and its tag (v<version>), pushed
+# by WPMaven's release pipeline after its checks (Plugin Check, the readme,
+# a secret scan). This workflow then, in public:
+#   1. builds dist/wpmaven.zip with build.sh, from the public npm registry;
+#   2. checks that every file in it is the one those checks passed
+#      (SHA256SUMS, in the release's commit);
+#   3. publishes the zip as the tag's GitHub Release, with its checksum and
+#      a signed build attestation;
+#   4. once a maintainer approves it (the wordpress.org environment), puts
+#      that same zip in the WordPress.org plugin directory.
+#
+# To check a copy of the plugin against this repository:
+#   gh attestation verify wpmaven.zip -R wpmaven/wpmaven   (a GitHub Release's zip)
+#   unzip -q wpmaven.zip && sha256sum -c SHA256SUMS        (any copy, WordPress.org's too)
+
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write      # the GitHub Release
+      id-token: write      # the attestation's signature
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: The tag is the plugin's version
+        run: |
+          version=$(grep -E '^[[:space:]]*\*[[:space:]]*Version:' plugin/wpmaven.php | head -1 | sed -E 's/.*Version:[[:space:]]*//' | tr -d '\r')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::The tag $GITHUB_REF_NAME is not the plugin's version ($version)."
+            exit 1
+          fi
+
+      - name: Build
+        run: bash build.sh
+
+      - name: The same files as the checked release
+        run: |
+          mkdir -p dist/check
+          unzip -q dist/wpmaven.zip -d dist/check
+          (cd dist/check && find wpmaven -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > dist/built.sha256
+          if ! diff -u SHA256SUMS dist/built.sha256; then
+            echo "::error::This build differs from the release WPMaven checked (SHA256SUMS)."
+            exit 1
+          fi
+          (cd dist && sha256sum wpmaven.zip > wpmaven.zip.sha256)
+
+      # GitHub signs attestations for public repositories.
+      - name: Attestation
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/wpmaven.zip
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/wpmaven.zip dist/wpmaven.zip.sha256 SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "WPMaven ${GITHUB_REF_NAME#v}" \
+            --notes "WPMaven ${GITHUB_REF_NAME#v}, built from this tag by this repository's release workflow. This zip is the one WordPress.org gets for this version."
+
+  deploy:
+    name: WordPress.org
+    needs: build
+    # The directory's SVN credentials are the wordpress.org environment's
+    # secrets, and a maintainer approves each deploy.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    environment: wordpress.org
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The released zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern wpmaven.zip --pattern wpmaven.zip.sha256 --dir dist
+          (cd dist && sha256sum -c wpmaven.zip.sha256)
+          unzip -q dist/wpmaven.zip -d dist/build
+
+      # Trunk and tags/<version> from the zip, the directory's icon and banners from .wordpress-org/.
+      - uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: wpmaven
+          BUILD_DIR: dist/build/wpmaven
+          ASSETS_DIR: .wordpress-org

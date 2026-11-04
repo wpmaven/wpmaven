@@ -1,0 +1,17 @@
+.wrapper { width: 100%; }
+.label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+
+.textarea {
+  width: 100%; box-sizing: border-box; font-family: inherit; font-size: 14px; font-weight: 500;
+  line-height: 1.5; color: var(--text);
+  background: var(--n-0);
+  border: 1px solid var(--glass-border); border-radius: var(--r-md, 8px); padding: 10px 16px;
+  outline: none; resize: vertical; min-height: 76px;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.textarea::placeholder { color: var(--text-dim); font-weight: 400; }
+.focused { border-color: var(--purple); box-shadow: var(--sh-sm); }
+.error { border-color: var(--rose); box-shadow: var(--sh-sm); }
+
+.errorText { margin: 4px 0 0; font-size: 13px; color: var(--rose); }
+.helperText { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); }

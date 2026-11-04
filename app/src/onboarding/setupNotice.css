@@ -1,0 +1,69 @@
+/*
+ * The setup notice for someone who is not an administrator (SetupNotice.tsx):
+ * a bar above the app, never over it. The app's screens size themselves on
+ * the viewport (100vh); while the bar shows they take the height left under
+ * it, so no control of the app sits behind the bar.
+ */
+.wm-setup-notice-frame--on {
+  display: flex;
+  flex-direction: column;
+  height: var(--wm-app-height, 100vh);
+}
+
+.wm-setup-notice-frame--on > .wm-setup-notice-frame__app {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.wm-setup-notice-frame--on .wm-dashboard {
+  min-height: 0;
+  height: 100%;
+}
+
+.wm-setup-notice-frame--on .wm-dashboard__main,
+.wm-setup-notice-frame--on .wm-sidebar,
+.wm-setup-notice-frame--on .wpm-editor-page {
+  height: 100%;
+}
+
+.wm-setup-notice {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  font-family: "Inter", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.wm-setup-notice__text {
+  min-width: 0;
+}
+
+.wm-setup-notice__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.wm-setup-notice__close:hover,
+.wm-setup-notice__close:focus-visible {
+  background: var(--glass-border);
+  color: var(--text);
+}

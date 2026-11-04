@@ -1,0 +1,45 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.root .text {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+/* Two classes deep, so wp-admin's `h1`, `h2` and `.wrap h1` lose to it. */
+.root .title {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-title, 'Instrument Serif', Georgia, serif);
+  font-size: var(--text-title, 20px);
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.25;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.root .subtitle {
+  margin: 4px 0 0;
+  padding: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.root .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+}

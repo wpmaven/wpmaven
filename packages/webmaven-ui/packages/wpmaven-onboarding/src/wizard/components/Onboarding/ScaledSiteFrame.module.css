@@ -1,0 +1,22 @@
+/* Host: fills the BrowserFrame viewport slot (flex column) or any sized
+   parent, and clips the height-compensation remainder of the scaled iframe. */
+.host {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* Light, like the pages it holds — no dark flash while the document paints. */
+  background: #fff;
+}
+
+.doc {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  border: 0;
+  transform-origin: top left;
+  background: #fff;
+}

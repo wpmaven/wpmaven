@@ -1,0 +1,43 @@
+.track {
+  position: absolute;
+  transition: opacity 0.15s ease;
+  z-index: 1;
+}
+
+.vertical {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 6px;
+}
+
+.horizontal {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+}
+
+.thumb {
+  background: var(--glass-border);
+  border-radius: 999px;
+  cursor: grab;
+  transition: background 0.15s ease;
+}
+
+.vertical .thumb {
+  width: 100%;
+}
+
+.horizontal .thumb {
+  height: 100%;
+}
+
+.thumb:hover {
+  background: var(--glass-border-hover);
+}
+
+.thumb:active {
+  cursor: grabbing;
+  background: var(--glass-border-hover);
+}

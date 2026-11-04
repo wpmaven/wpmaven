@@ -1,0 +1,222 @@
+/* The box, and under it the line with why Send is off and the keyboard's hint. */
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  /* The dashboard's field (2026-10-16): white on light, the dark card's own
+     ground on dark. The dashboard painted its chat box this way from its own
+     stylesheet; both apps now get it from here. */
+  background: var(--n-0);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-field, var(--r-md));
+  padding: 10px 10px 8px 16px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: text;
+}
+
+:global([data-theme='dark']) .container {
+  background: var(--glass);
+}
+
+.container:focus-within {
+  border-color: var(--purple);
+  box-shadow: var(--sh-sm);
+}
+
+/* ── Free-text mode ───────────────────────────────────────────── */
+
+.textarea {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  resize: none;
+  min-height: 22px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.textarea::placeholder {
+  color: var(--text-dim);
+}
+
+/* ── Template mode ────────────────────────────────────────────── */
+
+.template {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text);
+  min-height: 22px;
+  /* Extra breathing room between the slot row and the action row in
+     template mode — the slots feel less cramped against the buttons. */
+  margin-bottom: 8px;
+}
+
+.templateText {
+  white-space: pre-wrap;
+}
+
+/* SlotInput — a contenteditable span. Sizes naturally to its content (or
+   the :empty:before placeholder when blank). No input chrome, no glyph
+   discrepancy between measurement and rendering. */
+.slotInput {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  line-height: inherit;
+  padding: 0 6px;
+  margin: 0 1px;
+  background: color-mix(in srgb, var(--purple) 16%, transparent);
+  color: var(--purple);
+  border-radius: 4px;
+  outline: none;
+  caret-color: var(--purple);
+  vertical-align: baseline;
+  white-space: pre;        /* preserve typed spaces; no soft-wrap inside chip */
+  min-width: 1ch;          /* keeps the empty chip clickable when no placeholder */
+  cursor: text;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Placeholder via empty-state pseudo-element — matches the italic+500
+   rendering used elsewhere for placeholder text. */
+.slotInput:empty:before {
+  content: attr(data-placeholder);
+  color: color-mix(in srgb, var(--purple) 65%, transparent);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.slotInput:focus {
+  background: color-mix(in srgb, var(--purple) 24%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--purple) 30%, transparent);
+}
+
+.slotInput[contenteditable='false'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slotInput::placeholder {
+  color: color-mix(in srgb, var(--purple) 65%, transparent);
+  font-style: italic;
+  font-weight: 500;
+  opacity: 1;
+}
+
+.slotInput:focus {
+  background: color-mix(in srgb, var(--purple) 24%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--purple) 30%, transparent);
+}
+
+.slotInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Footer row: cancel + actions ─────────────────────────────── */
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  min-height: 32px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.attachBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.2s, background 0.2s;
+}
+
+.attachBtn:hover {
+  color: var(--text);
+  background: var(--glass-hover);
+}
+
+.attachBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Send (2026-10-16): the kit's primary Button, made square. Fill, ring,
+   hover, the flat disabled state and the reduced-motion stop are all
+   Button.module.css's own; only the box is set here, two classes deep so it
+   wins over .btn's padding and height whatever order the sheets load in. */
+.actions .sendBtn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: var(--r-btn);
+  flex-shrink: 0;
+}
+
+/* Under the box, lined up with the typed text (the box's 16px padding and
+   its 1px border): why Send is off on the left, the keyboard's hint on the
+   right. On a narrow panel the hint wraps under the reason, still right. */
+.under {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  margin-top: 6px;
+  padding: 0 17px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+/* Why Send is off: the app holds it, or a turn runs. */
+.reason {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* "Shift + Enter for a new line": the same quiet text (never fainter, it
+   stays readable at AA), always on the right. */
+.hint {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A touch screen has no Shift + Enter. */
+@media (hover: none) and (pointer: coarse) {
+  .hint { display: none; }
+}

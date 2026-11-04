@@ -1,0 +1,124 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+/* Two classes deep: wp-admin's h3, ul, li, a and button rules do not reach the list. */
+.root .title {
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.root .seeAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin: 0;
+  min-height: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.root .seeAll:hover,
+.root .seeAll:focus {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  box-shadow: none;
+  outline: none;
+}
+.root .seeAll:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.root .list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -10px;
+  padding: 0;
+  list-style: none;
+}
+
+.root .item { margin: 0; padding: 0; }
+.root .item + .item { border-top: 1px solid var(--glass-border); }
+
+.root .row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  min-height: 0;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.root .link { cursor: pointer; transition: background 150ms ease; }
+.root .link:hover,
+.root .link:focus {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: inherit;
+  box-shadow: none;
+  outline: none;
+}
+.root .link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.lead {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  color: var(--text-dim);
+  line-height: 0;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.time {
+  flex: none;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.root .empty {
+  margin: 0;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}

@@ -1,0 +1,66 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* An icon in the dot's place, or a plain tag: no dot. Two classes, so the
+   colour variants' own ::before below cannot bring it back. */
+.badge.noDot::before {
+  content: none;
+  display: none;
+}
+
+/* The icon sits where the dot was, a little closer to the edge. */
+.badge.withIcon {
+  padding-left: 8px;
+  gap: 5px;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  line-height: 0;
+}
+
+.icon svg {
+  display: block;
+}
+
+/* ── Color variants ──────────────────────────────────
+   The names are kept so callers keep compiling, but each one now resolves
+   through the palette remap in GlobalStyles rather than a literal pastel:
+   cyan is success, rose is danger, peach is warning, purple and blue are the
+   accent, mauve is neutral. The tint is mixed from the same token as the text,
+   so a badge can never drift away from the colour it claims to be. */
+.cyan   { background: color-mix(in srgb, var(--cyan) 12%, transparent);   color: var(--cyan); }
+.cyan::before   { background: var(--cyan); }
+
+.blue   { background: color-mix(in srgb, var(--blue) 12%, transparent);   color: var(--blue); }
+.blue::before   { background: var(--blue); }
+
+.purple { background: color-mix(in srgb, var(--purple) 12%, transparent); color: var(--purple); }
+.purple::before { background: var(--purple); }
+
+.mauve  { background: color-mix(in srgb, var(--n-700) 12%, transparent);  color: var(--n-700); }
+.mauve::before  { background: var(--n-700); }
+
+.rose   { background: color-mix(in srgb, var(--rose) 12%, transparent);   color: var(--rose); }
+.rose::before   { background: var(--rose); }
+
+.peach  { background: color-mix(in srgb, var(--peach) 12%, transparent);  color: var(--peach); }
+.peach::before  { background: var(--peach); }

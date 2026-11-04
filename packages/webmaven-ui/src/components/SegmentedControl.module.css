@@ -1,0 +1,32 @@
+/* The track (2026-10-17): one bordered box with the options inside, so the
+   switch reads as a switch. The options are the kit's Buttons: fill, ring,
+   hover and focus are Button.module.css's own; the track sets only their
+   height and corners (the track's radius less its 3px padding), two classes
+   deep so they win over the Button's whatever order the sheets load in. */
+.root {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-btn);
+  background: var(--glass);
+  box-sizing: border-box;
+}
+
+/* The whole switch is a button's height: 32, 42 or 48px. */
+.root .option {
+  height: auto;
+  min-height: 24px;
+  border-radius: calc(var(--r-btn) - 3px);
+}
+.md .option { min-height: 34px; }
+.lg .option { min-height: 40px; }
+
+.root .icon { display: flex; align-items: center; line-height: 0; }
+.root .icon svg { display: block; width: 16px; height: 16px; }
+.root .label { line-height: inherit; white-space: nowrap; }
+
+.lg .icon svg { width: 18px; height: 18px; }

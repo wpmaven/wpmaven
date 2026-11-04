@@ -1,0 +1,6 @@
+.container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 16px; text-align: center; }
+.icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--glass); margin-bottom: 16px; color: var(--text-dim); }
+.icon svg { width: 24px; height: 24px; }
+.title { font-size: 14px; font-weight: 500; color: var(--text); margin: 0; }
+.description { font-size: 13px; color: var(--text-dim); margin: 4px 0 0; max-width: 320px; }
+.action { margin-top: 16px; }

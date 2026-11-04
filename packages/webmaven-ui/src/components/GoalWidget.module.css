@@ -1,0 +1,46 @@
+.container { display: flex; flex-direction: column; gap: 12px; }
+
+.goal {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--glass-border);
+  /* No-op outside a snap container; lets parents enable item-by-item
+     snap-scroll with `scroll-snap-type: y mandatory` on an ancestor. */
+  scroll-snap-align: start;
+}
+.goal:last-child { border-bottom: none; }
+
+.goalHeader { display: flex; justify-content: space-between; align-items: baseline; }
+.goalName { font-size: 13px; font-weight: 600; color: var(--text); }
+.goalCount { font-size: 13px; color: var(--text-dim); }
+.goalTarget { font-weight: 600; color: var(--text); }
+
+.progressBar {
+  height: 6px; border-radius: 3px;
+  background: var(--glass); overflow: hidden;
+}
+.progressFill {
+  height: 100%; border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.green { background: var(--cyan); }
+.amber { background: var(--peach); }
+.red { background: var(--rose); }
+
+.periodLabel { font-size: 11px; color: var(--text-dim); }
+
+.prompt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; cursor: pointer;
+  transition: background 0.15s;
+  border-radius: var(--r-md, 8px);
+}
+.prompt:hover { background: var(--glass); }
+.prompt:focus-visible { outline: 2px solid var(--n-900); outline-offset: 2px; }
+:global([data-theme='dark']) .prompt:focus-visible { outline-color: var(--n-0); }
+/* No handler: plain text, not a control. */
+.promptStatic { cursor: default; }
+.promptStatic:hover { background: transparent; }
+.promptIcon { font-size: 18px; }
+.promptText { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+.promptExample { color: var(--purple); font-style: italic; }

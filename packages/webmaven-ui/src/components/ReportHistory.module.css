@@ -1,0 +1,29 @@
+.list { display: flex; flex-direction: column; gap: 1px; }
+
+.item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-raised); border: 1px solid var(--glass-border);
+  border-radius: var(--r-md, 8px);
+  transition: background 0.15s;
+}
+.item:hover { background: var(--glass); }
+
+.icon { font-size: 18px; flex-shrink: 0; opacity: 0.6; }
+.info { flex: 1; min-width: 0; }
+.period { font-size: 13px; font-weight: 600; color: var(--text); }
+/* The recap under the period: three lines, then an ellipsis. */
+.summary {
+  margin: 2px 0;
+  font-size: 12px; line-height: 1.45; color: var(--text-dim);
+  display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3; line-clamp: 3;
+  overflow: hidden;
+}
+.date { font-size: 11px; color: var(--text-dim); }
+.actions { display: flex; gap: 8px; flex-shrink: 0; white-space: nowrap; }
+
+.title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
+}
