@@ -4,7 +4,7 @@ Tags: ai, woocommerce, seo, website builder, assistant
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.10.0
+Stable tag: 1.10.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -112,5 +112,5 @@ An add-on from wpmaven.ai for sites that WPMaven builds: it installs the design 
 
 == Changelog ==
 
-= 1.10.0 =
+= 1.10.1 =
 * First release in the WordPress.org directory.

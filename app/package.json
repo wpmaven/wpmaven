@@ -1,8 +1,35 @@
 {
   "name": "wpmaven-admin-app",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "private": true,
-  "description": "The admin app of the WPMaven plugin for WordPress.",
+  "description": "The AI Business Creator and Manager for WordPress. Describe your business in a sentence, and WPMaven creates it, runs it and grows it.",
+  "keywords": [
+    "wordpress",
+    "wordpress-plugin",
+    "ai",
+    "ai-agents",
+    "ai-website-builder",
+    "website-builder",
+    "business",
+    "small-business",
+    "woocommerce",
+    "ecommerce",
+    "marketing",
+    "ugc",
+    "social-media",
+    "whatsapp",
+    "seo"
+  ],
+  "homepage": "https://wpmaven.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wpmaven/wpmaven.git",
+    "directory": "app"
+  },
+  "bugs": {
+    "url": "https://wordpress.org/support/plugin/wpmaven/"
+  },
+  "author": "WPMaven (https://wpmaven.ai)",
   "license": "GPL-2.0-or-later",
   "scripts": {
     "build": "NODE_ENV=production WPMAVEN_EDITION=wporg WEBMAVEN_UI_SRC=../packages/webmaven-ui webpack --mode production"

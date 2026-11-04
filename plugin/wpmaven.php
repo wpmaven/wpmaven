@@ -3,11 +3,10 @@
  * Plugin Name:       WPMaven
  * Plugin URI:        https://wpmaven.ai
  * Description:       An AI team for your WordPress site: your store, content, search visibility and messages in one place, and a new site built for you if you want one.
- * Version:           1.10.0
+ * Version:           1.10.1
  * Requires at least: 6.5
  * Requires PHP:      8.0
  * Author:            WPMaven
- * Author URI:        https://wpmaven.ai
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       wpmaven

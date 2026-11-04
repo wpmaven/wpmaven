@@ -12,7 +12,8 @@
 # packages/webmaven-ui/  the shared interface packages the app compiles
 #                        from their source
 #
-# Needs Node.js 20 or later, npm, and zip.
+# Needs Node.js 20 or later, npm, and zip: on Linux and macOS as they are,
+# on Windows inside WSL (the npm build sets its variables the Unix way).
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -48,8 +49,10 @@ cp -r app/assets/* "$OUT/assets/"
 
 echo "🔧 Copying the plugin..."
 cp -r plugin/. "$OUT/"
-# The directory reads the release from readme.txt's Stable tag.
-sed -i -E "s/^(Stable tag:[[:space:]]*).*/\1${VERSION}/" "$OUT/readme.txt"
+# The directory reads the release from readme.txt's Stable tag. (No sed -i:
+# macOS's sed would take -E as a backup suffix and leave readme.txt-E in the zip.)
+sed -E "s/^(Stable tag:[[:space:]]*).*/\1${VERSION}/" "$OUT/readme.txt" > "$OUT/readme.txt.new"
+mv "$OUT/readme.txt.new" "$OUT/readme.txt"
 
 echo "📦 Creating the zip..."
 (cd dist && zip -9 -X -r -q wpmaven.zip wpmaven -x "*.DS_Store" "*/README.md" "*/CHANGELOG.md")
