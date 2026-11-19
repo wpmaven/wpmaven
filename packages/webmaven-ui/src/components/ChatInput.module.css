@@ -145,7 +145,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .attachBtn {
@@ -211,8 +211,8 @@
 /* "Shift + Enter for a new line": the same quiet text (never fainter, it
    stays readable at AA), always on the right. */
 .hint {
-  margin-left: auto;
-  text-align: right;
+  margin-inline-start: auto;
+  text-align: end;
   white-space: nowrap;
 }
 

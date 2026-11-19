@@ -118,6 +118,66 @@ export interface WizardTransport {
    * language without its Change.
    */
   setSiteLanguage?(sessionId: string, language: string): Promise<SiteLanguageAnswer>;
+  /**
+   * A site in several languages (multilingual sites, phase 6): what the
+   * confirm step's Change panel lists, GET /api/onboarding/site-languages/
+   * :sessionId: the session's languages (the rule table's decision, the
+   * owner's choice), every language a site can be written in, the limit.
+   * Optional: without it (and setSiteLanguages), the step shows one language.
+   */
+  getSiteLanguages?(sessionId: string): Promise<SiteLanguagesOptions>;
+  /**
+   * The owner's languages and main language, PUT /api/onboarding/
+   * site-languages/:sessionId with { languages, main }. Resolves with the
+   * session's languages and, when the main language changed, the confirm
+   * step's texts written again in it. Rejects with the API's refusal
+   * (response.data.code: LOCKED, MAIN_LOCKED, LIMIT, BLOCKED,
+   * UNKNOWN_LANGUAGE), which the panel words in the screen language.
+   */
+  setSiteLanguages?(sessionId: string, choice: { languages: string[]; main: string }): Promise<SiteLanguagesAnswer>;
+}
+
+/** One language of the rule table's decision (the API's resolver). */
+export interface DecidedSiteLanguage {
+  tag: string;
+  /** main, default, legal, always, owner, national, requested, trigger:<fact>. */
+  origin: string;
+  locked: boolean;
+  /** The law puts it first: the main language cannot change. */
+  first?: boolean;
+  reason: string | null;
+  check?: boolean;
+  blockedFrom?: string;
+}
+
+/** The session's languages (analysis.siteLanguages). */
+export interface SiteLanguagesState {
+  decision: {
+    main: string;
+    languages: DecidedSiteLanguage[];
+    optIn: Array<{ tag: string; origin: string; share: { first?: number; offered?: number; n: number } | null; line: string; blockedFrom?: string; check?: boolean }>;
+    blocked?: Array<{ tag: string; reason: string; from: string }>;
+    question: { options: string[]; why: string } | null;
+    cap?: number;
+  };
+  chosen: string[];
+  main: string;
+  overrides?: Array<{ op: string; tag: string; at: string }>;
+  questionAnswered?: boolean;
+}
+
+/** GET /api/onboarding/site-languages/:sessionId. */
+export interface SiteLanguagesOptions {
+  siteLanguages: SiteLanguagesState;
+  available: Array<{ tag: string; nativeName: string; name: string }>;
+  max: number;
+}
+
+/** PUT /api/onboarding/site-languages/:sessionId: the languages saved, and the step's texts when the main language changed. */
+export interface SiteLanguagesAnswer extends SiteLanguageAnswer {
+  siteLanguages: SiteLanguagesState;
+  available?: SiteLanguagesOptions['available'];
+  max?: number;
 }
 
 /** What the API answers to a site language change (WizardTransport.setSiteLanguage). */
@@ -235,8 +295,13 @@ export type WizardOutcome =
   | { kind: 'published'; sessionId: string; siteUrl: string | null }
   /** The build waiting list (high demand). */
   | { kind: 'waitlisted'; sessionId: string | null }
-  /** The plugin: the owner's own site became their business as it is (Keep, Fix and improve). */
-  | { kind: 'kept'; sessionId: string | null };
+  /**
+   * The plugin: the owner's own site became their business as it is (Keep,
+   * Fix and improve). `open: 'waiting'`: the check's recommendations were
+   * just filed, so the app opens on Waiting for you where a host can (absent:
+   * its first page).
+   */
+  | { kind: 'kept'; sessionId: string | null; open?: 'waiting' };
 
 // ── pieces the host draws ────────────────────────────────────────────────
 

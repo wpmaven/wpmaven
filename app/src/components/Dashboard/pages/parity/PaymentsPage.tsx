@@ -80,7 +80,11 @@ interface StoreCurrencyPayments {
 interface Gateways {
   woocommerce: boolean;
   wpmaven: { enabled: boolean };
-  gateways: Array<{ id: string; title: string; connected: 'connected' | 'pending' | 'none'; enabled: boolean; active: boolean; setupUrl: string | null }>;
+  gateways: Array<{
+    id: string; title: string; connected: 'connected' | 'pending' | 'none'; enabled: boolean; active: boolean; setupUrl: string | null;
+    /** A local payment service (2026-11-16), and whether its keys are live or test ones. */
+    local?: boolean; mode?: 'live' | 'test';
+  }>;
   printedProducts: boolean;
   manageUrl: string | null;
   /** Null when the store's currency is not one the table covers: every way is offered then. */
@@ -321,6 +325,12 @@ const TOGGLE: React.CSSProperties = {
   cursor: 'pointer', fontSize: 13, color: 'var(--text-dim)', textAlign: 'left', fontFamily: 'inherit',
 };
 
+/** A local payment service's line: where the money goes, and test keys said plainly. */
+export function localBlurb(g: Gateways['gateways'][number]): string {
+  const test = g.mode === 'test' && g.connected !== 'none' ? ' It uses test keys, so it takes no real money yet.' : '';
+  return `Your buyers pay with ${g.title}, and the money goes to your own ${g.title} account.${test}`;
+}
+
 function OtherWays({ site, status, q }: { site: SiteState; status: PaymentsStatus | null; q: ProxyQueryResult<Gateways> }) {
   // The providers of the owner's own, folded while WPMaven Payments is on offer.
   const [othersOpen, setOthersOpen] = useState(false);
@@ -341,8 +351,13 @@ function OtherWays({ site, status, q }: { site: SiteState; status: PaymentsStatu
   const wpmavenOffered = site.payments.available && wpmavenHere;
   const folded = otherWaysFolded(ours, wpmavenOffered, g.gateways);
   const wpmavenOption = PAYMENT_OPTIONS.find((o) => o.id === 'webmaven_payments')!;
-  const providers = PAYMENT_OPTIONS.filter((o) => o.id !== 'webmaven_payments'
-    && (!offer || offer.services.includes(o.id) || (byId.get(o.id)?.connected ?? 'none') !== 'none'));
+  const providers = [
+    ...PAYMENT_OPTIONS.filter((o) => o.id !== 'webmaven_payments'
+      && (!offer || offer.services.includes(o.id) || (byId.get(o.id)?.connected ?? 'none') !== 'none')),
+    // The local payment services the route lists for the store's currency and
+    // country, or whose plugin already runs here (2026-11-16).
+    ...g.gateways.filter((x) => x.local).map((x) => ({ id: x.id, title: x.title, blurb: localBlurb(x) })),
+  ];
   // No way can pay a business in it (the rupee): the note says why, while nothing takes money.
   const noWay = offer && !offer.services.length && !offer.wpmavenPayments && !g.wpmaven.enabled
     && !g.gateways.some((x) => x.connected === 'connected') ? offer.note : null;

@@ -39,14 +39,13 @@
 .full .above > * {
   width: 100%;
   max-width: 820px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline: auto;
 }
 
 /* The editor's panel: flush against its edges, tighter. */
 .sidebar {
   border: none;
-  border-left: 1px solid var(--glass-border);
+  border-inline-start: 1px solid var(--glass-border);
   border-radius: 0;
   box-shadow: none;
 }
@@ -219,7 +218,7 @@
 
 .switcherIcon {
   position: absolute;
-  right: 8px;
+  inset-inline-end: 8px;
   pointer-events: none;
   color: inherit;
 }
@@ -341,8 +340,8 @@
 
 /* A turn that did not finish: marked in the danger colour beside its words, which stay readable. */
 .failed {
-  border-left: 3px solid var(--danger);
-  padding-left: 10px;
+  border-inline-start: 3px solid var(--danger);
+  padding-inline-start: 10px;
 }
 
 .thread .errorText {
@@ -365,7 +364,7 @@
 
 .underOwner {
   align-self: flex-end;
-  text-align: right;
+  text-align: end;
   max-width: 85%;
 }
 
@@ -396,9 +395,9 @@
 /* A sub-run's step (the Co-CEO's own work while the lead asked it),
    indented under the step that asked (2026-10-17). */
 .nested {
-  margin-left: 24px;
-  padding-left: 10px;
-  border-left: 2px solid var(--glass-border);
+  margin-inline-start: 24px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--glass-border);
 }
 
 /* What another member said to the lead (the Co-CEO's answer): a small

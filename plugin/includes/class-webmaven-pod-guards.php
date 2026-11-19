@@ -2,12 +2,12 @@
 /**
  * Printed products and order statuses (2026-10-05).
  *
- * WPMaven prints a printed product (meta _wm_pod_product) when someone buys
+ * WPMaven prints a printed product (meta _webmaven_pod_product) when someone buys
  * it, so three rules hold whatever door a change comes through:
  *
  *  - The price floor. The API works out the lowest price of each option
  *    (printing, shipping and the payment fee) and keeps it in
- *    _wm_price_floor ({minor, currency, at}) on the variation, or on the
+ *    _webmaven_price_floor ({minor, currency, at}) on the variation, or on the
  *    product (a simple product, or every option without its own). A floor in
  *    another currency than the store's is left out until the API writes a
  *    new one. A regular or sale price that changes to under the floor is put
@@ -44,11 +44,11 @@ if (!defined('ABSPATH')) {
 
 final class WebMaven_Pod_Guards {
 
-    const POD_PRODUCT_META = '_wm_pod_product';
-    const SAMPLE_META = '_wm_sample_product';
-    const FLOOR_META = '_wm_price_floor';
+    const POD_PRODUCT_META = '_webmaven_pod_product';
+    const SAMPLE_META = '_webmaven_sample_product';
+    const FLOOR_META = '_webmaven_price_floor';
     /** Order meta: every shipment the API reported (capabilities/payments.php). */
-    const TRACKING_META = '_wm_tracking';
+    const TRACKING_META = '_webmaven_tracking';
     /** WebMaven_Payments::GATEWAY_ID, kept here so the guards stand alone. */
     const GATEWAY_ID = 'webmaven_payments';
 
@@ -464,7 +464,7 @@ final class WebMaven_Pod_Guards {
         self::notice($text);
     }
 
-    /** Keeps a sentence for the signed-in user's next WP-admin screen (never outside WP admin). */
+    /** Keeps a sentence for the signed-in user's next product screen in WP admin (never outside WP admin). */
     public static function notice(string $text): void {
         $user = function_exists('get_current_user_id') ? (int) get_current_user_id() : 0;
         if ($user <= 0 || !function_exists('is_admin') || !is_admin()) {
@@ -478,9 +478,18 @@ final class WebMaven_Pod_Guards {
         update_user_meta($user, self::NOTICES_META, array_slice($list, -self::NOTICES_MAX));
     }
 
+    /**
+     * admin_notices: what a save left aside, on the product screens only
+     * (the next one the user opens keeps them until then), dismissible.
+     */
     public static function admin_notices(): void {
         $user = (int) get_current_user_id();
         if ($user <= 0) {
+            return;
+        }
+        // Only on a product screen: a screen WordPress cannot name is not one.
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if (!is_object($screen) || (string) ($screen->post_type ?? '') !== 'product') {
             return;
         }
         $list = get_user_meta($user, self::NOTICES_META, true);
@@ -607,7 +616,7 @@ final class WebMaven_Pod_Guards {
         if (!is_object($screen) || (string) ($screen->post_type ?? '') !== 'shop_coupon' || !self::store_has_printed_products()) {
             return;
         }
-        echo '<div class="notice notice-info"><p>' . esc_html(self::COUPON_SCREEN_NOTE) . '</p></div>';
+        echo '<div class="notice notice-info is-dismissible"><p>' . esc_html(self::COUPON_SCREEN_NOTE) . '</p></div>';
     }
 
     private static function store_has_printed_products(): bool {
@@ -617,7 +626,7 @@ final class WebMaven_Pod_Guards {
         return (bool) get_posts([
             'post_type' => 'product',
             'post_status' => ['publish', 'private', 'draft'],
-            'meta_key' => self::POD_PRODUCT_META,
+            'meta_key' => self::POD_PRODUCT_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- whether any product is printed, by WPMaven's own meta key, which postmeta indexes; one id
             'posts_per_page' => 1,
             'fields' => 'ids',
             'no_found_rows' => true,

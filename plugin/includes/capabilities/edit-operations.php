@@ -3,8 +3,8 @@
  * The edit engine's site commands (2026-10-05). The API's edit service
  * changes a genstudio site through these, page by page, theme file by theme
  * file and menu by menu, and reads back what the site holds, so a publish
- * never overwrites a change made elsewhere. Theme files (wm_theme_patch)
- * are WPMaven Agent's (capabilities/theme-files.php there); these read them.
+ * never overwrites a change made elsewhere. This edition reads the theme's
+ * files and writes none (wm_theme_patch answers REQUIRES_AGENT).
  *
  *   wm_page_update   {post_id, content, title?, expect_sha256?}
  *                    -> {post_id, sha256, modified_gmt}
@@ -50,10 +50,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 require_once dirname(__DIR__) . '/class-webmaven-designed-blocks.php';
 
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
@@ -93,7 +89,7 @@ final class WebMaven_Cap_Edit_Operations {
     const NEW_PAGE_STATUSES = ['draft', 'publish'];
 
     /** Marks a page wm_page_create made: a retried create updates it instead of adding a second page. */
-    const EDIT_PAGE_META = '_wm_edit_page';
+    const EDIT_PAGE_META = '_webmaven_edit_page';
 
     /** Largest page content one create takes (the preview staging's own cap). */
     const MAX_PAGE_BYTES = 3145728; // 3 MB
@@ -114,7 +110,7 @@ final class WebMaven_Cap_Edit_Operations {
         $post_id = self::positive_int($params['post_id'] ?? null);
         $post = $post_id > 0 ? get_post($post_id) : null;
         if (!$post || $post->post_type !== 'page' || $post->post_status === 'trash') {
-            throw self::error('NOT_FOUND', 'Page ' . $post_id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Page ' . $post_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $content = $params['content'] ?? null;
         if (!is_string($content) || trim($content) === '') {
@@ -122,7 +118,7 @@ final class WebMaven_Cap_Edit_Operations {
         }
         $title = null;
         if (array_key_exists('title', $params) && $params['title'] !== null) {
-            $title = trim(wp_strip_all_tags((string) $params['title']));
+            $title = sanitize_text_field($params['title']);
             if ($title === '') {
                 throw self::error('VALIDATION', 'The page title cannot be empty.');
             }
@@ -133,7 +129,7 @@ final class WebMaven_Cap_Edit_Operations {
                 throw self::error('VALIDATION', 'expect_sha256 must be a sha256 in hex.');
             }
             if (!hash_equals(strtolower($expect), self::page_sha((string) $post->post_content))) {
-                throw self::error('DRIFT', 'The page "' . self::title_of($post) . '" was changed on the site after this change was prepared.');
+                throw self::error('DRIFT', 'The page "' . self::title_of($post) . '" was changed on the site after this change was prepared.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
 
@@ -141,7 +137,7 @@ final class WebMaven_Cap_Edit_Operations {
         $anchors = null;
         $saved = self::commands()->rewrite_fullhtml_page($post_id, $content, $title, self::keeper($current, $post_id, $anchors));
         if (is_wp_error($saved)) {
-            throw self::error('WRITE_FAILED', 'The page "' . self::title_of($post) . '" could not be saved: ' . wp_strip_all_tags($saved->get_error_message()));
+            throw self::error('WRITE_FAILED', 'The page "' . self::title_of($post) . '" could not be saved: ' . wp_strip_all_tags($saved->get_error_message())); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         self::remember_anchors($post_id, $anchors);
         self::purge_post_caches($post_id);
@@ -165,7 +161,7 @@ final class WebMaven_Cap_Edit_Operations {
     }
 
     /** Where the owner's blocks of a page were before a write moved them (WebMaven_Designed_Blocks::merge). */
-    const OWNER_ANCHORS_META = '_wm_owner_anchors';
+    const OWNER_ANCHORS_META = '_webmaven_owner_anchors';
 
     /** The owner's blocks' sections a page remembers. */
     public static function owner_anchors(int $post_id): array {
@@ -202,8 +198,8 @@ final class WebMaven_Cap_Edit_Operations {
     /**
      * A page the edit engine adds (add_page). The content is cleaned exactly
      * as wm_page_update and create_page clean it (sanitize_page_content: the
-     * same kses allowlist, inline scripts moved to the page's script file),
-     * and the page is a designed page of its planned slug (_wm_page,
+     * same kses allowlist, inline scripts taken out),
+     * and the page is a designed page of its planned slug (_webmaven_page,
      * _webmaven_fullhtml, the AI marker). It starts as a draft (a connected
      * site, where the owner publishes it) or published (a hosted site). A
      * slug already taken gets WordPress's next free one: the answer's
@@ -218,7 +214,7 @@ final class WebMaven_Cap_Edit_Operations {
         if (!is_string($wm_page) || !preg_match('/^[a-z0-9][a-z0-9_-]{0,80}$/', $wm_page)) {
             throw self::error('VALIDATION', 'wm_page must be the slug of the page in the site plan.');
         }
-        $title = trim(wp_strip_all_tags((string) ($params['title'] ?? '')));
+        $title = sanitize_text_field($params['title'] ?? '');
         if ($title === '' || strlen($title) > 200) {
             throw self::error('VALIDATION', 'The new page needs a title of at most 200 characters.');
         }
@@ -240,14 +236,17 @@ final class WebMaven_Cap_Edit_Operations {
         $meta_description = is_string($params['meta_description'] ?? null) ? sanitize_text_field($params['meta_description']) : '';
         $parent = self::parent_page($params['parent'] ?? null);
 
+        // A site in several languages (an add-on answers): the language of the
+        // page ('' for the main language): its own version, at the same address word.
+        $lang = (string) apply_filters('webmaven_post_language', '', $params);
         $commands = self::commands();
-        $existing = self::edit_page_for($wm_page);
+        $existing = self::edit_page_for($wm_page, $lang);
         if ($existing) {
             $post_id = (int) $existing->ID;
             $anchors = null;
             $saved = $commands->rewrite_fullhtml_page($post_id, $content, $title, self::keeper((string) $existing->post_content, $post_id, $anchors));
             if (is_wp_error($saved)) {
-                throw self::error('WRITE_FAILED', 'The page "' . self::plain($title) . '" could not be saved: ' . wp_strip_all_tags($saved->get_error_message()));
+                throw self::error('WRITE_FAILED', 'The page "' . self::plain($title) . '" could not be saved: ' . wp_strip_all_tags($saved->get_error_message())); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             self::remember_anchors($post_id, $anchors);
             $move = [];
@@ -260,34 +259,42 @@ final class WebMaven_Cap_Edit_Operations {
             if ($move) {
                 $moved = wp_update_post(wp_slash(['ID' => $post_id] + $move), true);
                 if (is_wp_error($moved) || !$moved) {
-                    throw self::error('WRITE_FAILED', 'The page "' . self::plain($title) . '" was saved but its status or the page it goes under could not be set.');
+                    throw self::error('WRITE_FAILED', 'The page "' . self::plain($title) . '" was saved but its status or the page it goes under could not be set.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
         } else {
             list($clean, $scripts) = $commands->sanitize_page_content($content);
-            $created = wp_insert_post(wp_slash([
-                'post_type' => 'page',
-                'post_status' => $status,
-                'post_title' => $title,
-                'post_name' => $slug,
-                'post_content' => $clean,
-                'post_parent' => $parent ?? 0,
-            ]), true);
+            do_action('webmaven_post_save_start', $lang);
+            try {
+                $created = wp_insert_post(wp_slash([
+                    'post_type' => 'page',
+                    'post_status' => $status,
+                    'post_title' => $title,
+                    'post_name' => $slug,
+                    'post_content' => $clean,
+                    'post_parent' => $parent ?? 0,
+                ]), true);
+            } finally {
+                do_action('webmaven_post_save_end');
+            }
+            if ($lang !== '' && !is_wp_error($created) && (int) $created > 0) {
+                do_action('webmaven_post_language_saved', (int) $created, $lang);
+            }
             if (is_wp_error($created) || (int) $created <= 0) {
-                throw self::error('WRITE_FAILED', 'The page "' . self::plain($title) . '" could not be created: '
-                    . (is_wp_error($created) ? wp_strip_all_tags($created->get_error_message()) : 'WordPress gave no page id') . '.');
+                throw self::error('WRITE_FAILED', 'The page "' . self::plain($title) . '" could not be created: ' // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
+                    . (is_wp_error($created) ? wp_strip_all_tags($created->get_error_message()) : 'WordPress gave no page id') . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $post_id = (int) $created;
             update_post_meta($post_id, '_webmaven_fullhtml', 1);
             WebMaven_AI_Marking::mark_post($post_id);
             update_post_meta($post_id, self::EDIT_PAGE_META, 1);
             if (!empty($scripts)) {
-                // The page's script file is WPMaven Agent's (capabilities/page-scripts.php).
+                // The inline scripts taken out, for webmaven_page_scripts (this edition keeps none).
                 do_action('webmaven_page_scripts', $post_id, $scripts);
             }
         }
         // The planned page this is, so the theme finds its styles (as create_page writes it).
-        update_post_meta($post_id, '_wm_page', $wm_page);
+        update_post_meta($post_id, '_webmaven_page', $wm_page);
         if ($meta_description !== '') {
             update_post_meta($post_id, '_yoast_wpseo_metadesc', $meta_description);
             update_post_meta($post_id, '_webmaven_meta_description', $meta_description);
@@ -321,19 +328,21 @@ final class WebMaven_Cap_Edit_Operations {
         return $parent && $parent->post_type === 'page' && in_array((string) $parent->post_status, self::LIVE_STATUSES, true) ? $id : null;
     }
 
-    /** The page wm_page_create made for this planned slug, when it is still on the site (never one in the trash). */
-    private static function edit_page_for(string $wm_page) {
-        $found = get_posts([
+    /** The page wm_page_create made for this planned slug, when it is still on the site (never one in the trash); on a site in several languages (an add-on answers), the one of $lang (the main language's by default). */
+    private static function edit_page_for(string $wm_page, string $lang = '') {
+        $args = [
             'post_type' => 'page',
             'post_status' => self::LIVE_STATUSES,
-            'meta_query' => [
-                ['key' => '_wm_page', 'value' => $wm_page],
+            'meta_query' => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- finds the page WPMaven made for this planned page, by its own keys (indexed in postmeta); one id
+                ['key' => '_webmaven_page', 'value' => $wm_page],
                 ['key' => self::EDIT_PAGE_META, 'value' => '1'],
             ],
             'numberposts' => 1,
             'orderby' => 'ID',
             'order' => 'ASC',
-        ]);
+        ];
+        $args = (array) apply_filters('webmaven_edit_page_query_args', $args, $lang);
+        $found = get_posts($args);
         return $found ? $found[0] : null;
     }
 
@@ -349,7 +358,7 @@ final class WebMaven_Cap_Edit_Operations {
         $id = self::positive_int($params['media_id'] ?? null);
         $post = $id > 0 ? get_post($id) : null;
         if (!$post || $post->post_type !== 'attachment') {
-            throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.');
+            throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $max = self::MEDIA_DEFAULT_BYTES;
         if (array_key_exists('max_bytes', $params) && $params['max_bytes'] !== null) {
@@ -361,19 +370,19 @@ final class WebMaven_Cap_Edit_Operations {
         }
         $mime = strtolower((string) get_post_mime_type($id));
         if (!in_array($mime, self::MEDIA_MIMES, true)) {
-            throw self::error('VALIDATION', '"' . self::title_of($post) . '" is not a JPEG, PNG, WebP or GIF image.');
+            throw self::error('VALIDATION', '"' . self::title_of($post) . '" is not a JPEG, PNG, WebP or GIF image.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $file = get_attached_file($id);
         if (!is_string($file) || $file === '' || !is_file($file) || !is_readable($file)) {
-            throw self::error('NOT_FOUND', 'The file of image ' . $id . ' is missing on the site.');
+            throw self::error('NOT_FOUND', 'The file of image ' . $id . ' is missing on the site.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $size = (int) filesize($file);
         if ($size > $max) {
-            throw self::error('TOO_LARGE', 'This image is too large to use here. Choose one under ' . max(1, (int) floor($max / 1048576)) . ' MB.');
+            throw self::error('TOO_LARGE', 'This image is too large to use here. Choose one under ' . max(1, (int) floor($max / 1048576)) . ' MB.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $data = file_get_contents($file);
         if ($data === false) {
-            throw self::error('NOT_FOUND', 'The file of image ' . $id . ' could not be read.');
+            throw self::error('NOT_FOUND', 'The file of image ' . $id . ' could not be read.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $meta = wp_get_attachment_metadata($id);
         return [
@@ -409,10 +418,10 @@ final class WebMaven_Cap_Edit_Operations {
             $remove = $raw === 0 || $raw === '0';
             $id = $remove ? 0 : self::positive_int($raw);
             if (!$remove && $id <= 0) {
-                throw self::error('VALIDATION', $key . ' must be the id of an image, or 0 to remove it.');
+                throw self::error('VALIDATION', $key . ' must be the id of an image, or 0 to remove it.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if ($id > 0 && !self::is_library_image($id)) {
-                throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.');
+                throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $set[$key] = $id;
         }
@@ -456,7 +465,7 @@ final class WebMaven_Cap_Edit_Operations {
         return $post && $post->post_type === 'attachment' && wp_attachment_is_image($id);
     }
 
-    // ── Theme paths (wm_theme_patch is WPMaven Agent's: capabilities/theme-files.php) ──
+    // ── Theme paths (for reading the theme's files) ──
 
     /**
      * A theme-relative path: no absolute path, no "..", no null byte, no
@@ -469,16 +478,16 @@ final class WebMaven_Cap_Edit_Operations {
         $shown = self::plain($path);
         if (strpos($path, "\0") !== false || strpos($path, '\\') !== false || strpos($path, '..') !== false
             || strpos($path, ':') !== false || $path[0] === '/' || preg_match('/[\x00-\x1F\x7F]/', $path)) {
-            throw self::error('BAD_PATH', 'The path ' . $shown . ' is not a file inside the theme.');
+            throw self::error('BAD_PATH', 'The path ' . $shown . ' is not a file inside the theme.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         foreach (explode('/', $path) as $segment) {
             if ($segment === '' || $segment === '.' || $segment[0] === '.') {
-                throw self::error('BAD_PATH', 'The path ' . $shown . ' is not a file inside the theme.');
+                throw self::error('BAD_PATH', 'The path ' . $shown . ' is not a file inside the theme.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         if (!in_array($ext, self::THEME_EXTENSIONS, true)) {
-            throw self::error('BAD_PATH', 'The theme cannot hold ' . $shown . ': only ' . implode(', ', self::THEME_EXTENSIONS) . ' files are written.');
+            throw self::error('BAD_PATH', 'The theme cannot hold ' . $shown . ': only ' . implode(', ', self::THEME_EXTENSIONS) . ' files are written.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $path;
     }
@@ -492,7 +501,7 @@ final class WebMaven_Cap_Edit_Operations {
         $folder = WebMaven_Self_Protect::resolve_real_path(dirname($dir . '/' . $rel));
         $folder = rtrim(str_replace('\\', '/', $folder), '/');
         if ($folder === '' || ($folder !== $dir && strpos($folder, $dir . '/') !== 0)) {
-            throw self::error('BAD_PATH', 'The path ' . self::plain($rel) . ' leads outside the theme.');
+            throw self::error('BAD_PATH', 'The path ' . self::plain($rel) . ' leads outside the theme.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
     }
 
@@ -519,7 +528,7 @@ final class WebMaven_Cap_Edit_Operations {
         }
 
         $active = (string) get_stylesheet();
-        $slug = isset($params['theme_slug']) && $params['theme_slug'] !== '' ? (string) $params['theme_slug'] : $active;
+        $slug = isset($params['theme_slug']) && $params['theme_slug'] !== '' ? sanitize_text_field($params['theme_slug']) : $active;
         $dir = self::theme_dir($slug);
         $theme_files = [];
         if (isset($params['theme_files']) && $params['theme_files'] !== null) {
@@ -566,12 +575,12 @@ final class WebMaven_Cap_Edit_Operations {
     /** The real folder of an installed theme; NOT_FOUND when there is none. */
     public static function theme_dir(string $slug): string {
         if (!preg_match('/^[A-Za-z0-9_-][A-Za-z0-9._-]{0,99}$/', $slug) || strpos($slug, '..') !== false) {
-            throw self::error('VALIDATION', 'The theme name ' . self::plain($slug) . ' is not valid.');
+            throw self::error('VALIDATION', 'The theme name ' . self::plain($slug) . ' is not valid.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $theme = wp_get_theme($slug);
         $dir = ($theme && $theme->exists()) ? realpath((string) $theme->get_stylesheet_directory()) : false;
         if ($dir === false || !is_dir($dir)) {
-            throw self::error('NOT_FOUND', 'The theme ' . $slug . ' is not installed on this site.');
+            throw self::error('NOT_FOUND', 'The theme ' . $slug . ' is not installed on this site.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return rtrim(str_replace('\\', '/', $dir), '/');
     }
@@ -639,10 +648,10 @@ final class WebMaven_Cap_Edit_Operations {
     // ── wm_menu_get ─────────────────────────────────────────────────────────
 
     public static function menu_get($params = [], $step_id = null) {
-        $only = isset($params['location']) && $params['location'] !== '' ? (string) $params['location'] : null;
+        $only = isset($params['location']) && $params['location'] !== '' ? sanitize_text_field($params['location']) : null;
         $registered = (array) get_registered_nav_menus();
         if ($only !== null && !isset($registered[$only])) {
-            throw self::error('NOT_FOUND', 'This theme has no menu location named ' . self::plain($only) . '.');
+            throw self::error('NOT_FOUND', 'This theme has no menu location named ' . self::plain($only) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $assigned = (array) get_nav_menu_locations();
         $locations = [];
@@ -732,10 +741,10 @@ final class WebMaven_Cap_Edit_Operations {
     // ── wm_menu_set ─────────────────────────────────────────────────────────
 
     public static function menu_set($params = [], $step_id = null) {
-        $location = is_string($params['location'] ?? null) ? $params['location'] : '';
+        $location = is_string($params['location'] ?? null) ? sanitize_text_field($params['location']) : '';
         $registered = (array) get_registered_nav_menus();
         if ($location === '' || !isset($registered[$location])) {
-            throw self::error('NOT_FOUND', 'This theme has no menu location named ' . self::plain($location) . '.');
+            throw self::error('NOT_FOUND', 'This theme has no menu location named ' . self::plain($location) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $input = $params['items'] ?? null;
         if (!is_array($input) || ($input && array_keys($input) !== range(0, count($input) - 1))) {
@@ -802,11 +811,11 @@ final class WebMaven_Cap_Edit_Operations {
         }
         foreach (array_keys($entry) as $key) {
             if (!in_array($key, self::MENU_ITEM_KEYS, true)) {
-                throw self::error('VALIDATION', 'Unknown menu item field: ' . self::plain((string) $key) . '.');
+                throw self::error('VALIDATION', 'Unknown menu item field: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         if (++$count > self::MAX_MENU_ITEMS) {
-            throw self::error('TOO_MANY_ITEMS', 'A menu holds at most ' . self::MAX_MENU_ITEMS . ' items.');
+            throw self::error('TOO_MANY_ITEMS', 'A menu holds at most ' . self::MAX_MENU_ITEMS . ' items.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if ($depth > 0 && !empty($entry['children'])) {
             throw self::error('DEPTH', 'Menu items go one level deep: an item under another cannot have its own items.');
@@ -814,10 +823,10 @@ final class WebMaven_Cap_Edit_Operations {
         if (isset($entry['children']) && !is_array($entry['children'])) {
             throw self::error('VALIDATION', 'children must be a list of menu items.');
         }
-        $label = is_string($entry['label'] ?? null) ? trim(wp_strip_all_tags($entry['label'])) : '';
+        $label = is_string($entry['label'] ?? null) ? sanitize_text_field($entry['label']) : '';
         $length = function_exists('mb_strlen') ? mb_strlen($label, 'UTF-8') : strlen($label);
         if ($length < 1 || $length > self::MAX_LABEL_CHARS) {
-            throw self::error('VALIDATION', 'A menu label has 1 to ' . self::MAX_LABEL_CHARS . ' characters.');
+            throw self::error('VALIDATION', 'A menu label has 1 to ' . self::MAX_LABEL_CHARS . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $id = null;
         if (isset($entry['id']) && $entry['id'] !== null) {
@@ -826,7 +835,7 @@ final class WebMaven_Cap_Edit_Operations {
                 throw self::error('VALIDATION', 'A menu item id must be a positive number.');
             }
             if (isset($seen_ids[$id])) {
-                throw self::error('VALIDATION', 'The menu item ' . $id . ' is listed twice.');
+                throw self::error('VALIDATION', 'The menu item ' . $id . ' is listed twice.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $seen_ids[$id] = true;
         }
@@ -862,7 +871,7 @@ final class WebMaven_Cap_Edit_Operations {
                 $id = self::positive_int($link[$key] ?? null);
                 $post = $id > 0 ? get_post($id) : null;
                 if (!$post || $post->post_type !== $link['kind'] || in_array($post->post_status, ['trash', 'auto-draft'], true)) {
-                    throw self::error('NOT_FOUND', ucfirst($link['kind']) . ' ' . $id . ' was not found.');
+                    throw self::error('NOT_FOUND', ucfirst($link['kind']) . ' ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 return ['menu-item-type' => 'post_type', 'menu-item-object' => $link['kind'], 'menu-item-object-id' => $id, 'menu-item-url' => ''];
             case 'term':
@@ -873,7 +882,7 @@ final class WebMaven_Cap_Edit_Operations {
                 $term_id = self::positive_int($link['termId'] ?? null);
                 $term = $term_id > 0 ? get_term($term_id, $taxonomy) : null;
                 if (!$term || is_wp_error($term)) {
-                    throw self::error('NOT_FOUND', 'Category ' . $term_id . ' was not found.');
+                    throw self::error('NOT_FOUND', 'Category ' . $term_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 return ['menu-item-type' => 'taxonomy', 'menu-item-object' => $taxonomy, 'menu-item-object-id' => $term_id, 'menu-item-url' => ''];
             case 'shop':
@@ -908,7 +917,7 @@ final class WebMaven_Cap_Edit_Operations {
         }
         $clean = esc_url_raw($url, ['http', 'https', 'mailto', 'tel']);
         if ($clean === '' && $url[0] !== '#' && $url[0] !== '/') {
-            throw self::error('BAD_LINK', 'The menu link ' . self::plain($url) . ' is not a valid address.');
+            throw self::error('BAD_LINK', 'The menu link ' . self::plain($url) . ' is not a valid address.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $clean !== '' ? $clean : $url;
     }
@@ -936,7 +945,7 @@ final class WebMaven_Cap_Edit_Operations {
         }
         $menu_id = wp_create_nav_menu($name);
         if (is_wp_error($menu_id) || (int) $menu_id <= 0) {
-            throw self::error('WRITE_FAILED', 'A menu for ' . self::plain($base) . ' could not be created.');
+            throw self::error('WRITE_FAILED', 'A menu for ' . self::plain($base) . ' could not be created.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $locations = get_theme_mod('nav_menu_locations', []);
         $locations = is_array($locations) ? $locations : [];
@@ -972,7 +981,7 @@ final class WebMaven_Cap_Edit_Operations {
         ];
         $id = wp_update_nav_menu_item($menu_id, $current ? (int) $current->ID : 0, wp_slash($args));
         if (is_wp_error($id) || (int) $id <= 0) {
-            throw self::error('WRITE_FAILED', 'The menu item "' . self::plain($node['label']) . '" could not be saved.');
+            throw self::error('WRITE_FAILED', 'The menu item "' . self::plain($node['label']) . '" could not be saved.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if (!$current && class_exists('WebMaven_AI_Marking')) {
             // Ours: a later build on a connected site tells our items from the owner's.
@@ -988,14 +997,18 @@ final class WebMaven_Cap_Edit_Operations {
         foreach (['pages', 'products', 'forms', 'assets'] as $key) {
             $value = $params[$key] ?? [];
             if (!is_array($value) || count($value) > 500) {
-                throw self::error('VALIDATION', $key . ' must be a list of at most 500 names.');
+                throw self::error('VALIDATION', $key . ' must be a list of at most 500 names.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
+            $names = [];
             foreach ($value as $name) {
-                if (!is_string($name) || $name === '' || strlen($name) > 200) {
-                    throw self::error('VALIDATION', $key . ' must hold names.');
+                // A name is one line of text (a plan slug, a form name, an asset file such as kit/logo.png).
+                $name = is_string($name) ? sanitize_text_field($name) : '';
+                if ($name === '' || strlen($name) > 200) {
+                    throw self::error('VALIDATION', $key . ' must hold names.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
+                $names[] = $name;
             }
-            $lists[$key] = array_values(array_unique($value));
+            $lists[$key] = array_values(array_unique($names));
         }
 
         $pages = [];
@@ -1027,7 +1040,7 @@ final class WebMaven_Cap_Edit_Operations {
         }
 
         $active = (string) get_stylesheet();
-        $slug = isset($params['theme_slug']) && $params['theme_slug'] !== '' ? (string) $params['theme_slug'] : $active;
+        $slug = isset($params['theme_slug']) && $params['theme_slug'] !== '' ? sanitize_text_field($params['theme_slug']) : $active;
         $dir = self::theme_dir($slug);
 
         return [
@@ -1042,7 +1055,7 @@ final class WebMaven_Cap_Edit_Operations {
     }
 
     /**
-     * The page a plan slug became: the one marked with it (_wm_page), else
+     * The page a plan slug became: the one marked with it (_webmaven_page), else
      * (for the homepage, 'index') the front page when it is a full-HTML page,
      * else by name: the slug or "<slug>-wpmaven" (the draft a connected site
      * gets beside the owner's page), "<slug>-new" on a branded site. A page
@@ -1052,8 +1065,8 @@ final class WebMaven_Cap_Edit_Operations {
         $marked = get_posts([
             'post_type' => 'page',
             'post_status' => self::LIVE_STATUSES,
-            'meta_key' => '_wm_page',
-            'meta_value' => $slug,
+            'meta_key' => '_webmaven_page', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the page WPMaven made for this planned page, by its own key (indexed in postmeta); one id
+            'meta_value' => $slug, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the page WPMaven made for this planned page, by its own key (indexed in postmeta); one id
             'numberposts' => 1,
             'orderby' => 'ID',
             'order' => 'ASC',
@@ -1101,7 +1114,7 @@ final class WebMaven_Cap_Edit_Operations {
             'orderby' => 'ID',
             'order' => 'ASC',
         ];
-        $found = get_posts($query + ['meta_key' => '_wm_product_slug', 'meta_value' => $slug]);
+        $found = get_posts($query + ['meta_key' => '_webmaven_product_slug', 'meta_value' => $slug]); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the product WPMaven made for this planned product, by its own key (indexed in postmeta); one id
         if (empty($found)) {
             $found = get_posts($query + ['name' => sanitize_title($slug)]);
         }
@@ -1119,10 +1132,10 @@ final class WebMaven_Cap_Edit_Operations {
         ];
     }
 
-    /** {id, shortcode} of the form create_form registered under this name (wm_form_<name>), or null. */
+    /** {id, shortcode} of the form create_form registered under this name (webmaven_form_<name>), or null. */
     private static function probe_form(string $name) {
         $key = sanitize_key($name);
-        $id = $key !== '' ? (int) get_option('wm_form_' . $key, 0) : 0;
+        $id = $key !== '' ? (int) get_option('webmaven_form_' . $key, 0) : 0;
         $post = $id > 0 ? get_post($id) : null;
         if (!$post || $post->post_status === 'trash') {
             return null;
@@ -1138,15 +1151,15 @@ final class WebMaven_Cap_Edit_Operations {
 
     /**
      * The library file an asset became: the one upload_media marked with its
-     * name (_wm_asset_name), else the newest file with the same stem
+     * name (_webmaven_asset_name), else the newest file with the same stem
      * ("story-farm.png" finds story-farm.jpg, "kit/logo.png" finds logo.webp).
      */
     private static function probe_media(string $file): int {
         $marked = get_posts([
             'post_type' => 'attachment',
             'post_status' => 'inherit',
-            'meta_key' => '_wm_asset_name',
-            'meta_value' => $file,
+            'meta_key' => '_webmaven_asset_name', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the picture WPMaven uploaded under this name, by its own key (indexed in postmeta); one id
+            'meta_value' => $file, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the picture WPMaven uploaded under this name, by its own key (indexed in postmeta); one id
             'numberposts' => 1,
             'orderby' => 'ID',
             'order' => 'DESC',
@@ -1164,7 +1177,7 @@ final class WebMaven_Cap_Edit_Operations {
             'numberposts' => 50,
             'orderby' => 'ID',
             'order' => 'DESC',
-            'meta_query' => [['key' => '_wp_attached_file', 'value' => $stem, 'compare' => 'LIKE']],
+            'meta_query' => [['key' => '_wp_attached_file', 'value' => $stem, 'compare' => 'LIKE']], // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- pictures whose file name holds this name, by WordPress's _wp_attached_file key (indexed in postmeta); 50 at most
         ]);
         foreach ((array) $candidates as $attachment) {
             $attached = (string) get_post_meta($attachment->ID, '_wp_attached_file', true);
@@ -1195,8 +1208,17 @@ final class WebMaven_Cap_Edit_Operations {
 
     // ── Caches ──────────────────────────────────────────────────────────────
 
-    /** No visitor sees the old page from a page cache. */
+    /** No visitor sees the old page from a page cache (nor its other languages' versions, where an add-on lists them: they share its address word and its design). */
     private static function purge_post_caches(int $post_id) {
+        foreach ((array) apply_filters('webmaven_related_post_ids', [], $post_id) as $other) {
+            if ((int) $other !== $post_id) {
+                self::purge_one((int) $other);
+            }
+        }
+        self::purge_one($post_id);
+    }
+
+    private static function purge_one(int $post_id) {
         clean_post_cache($post_id);
         if (function_exists('wp_cache_post_change')) {
             wp_cache_post_change($post_id); // WP Super Cache
@@ -1210,7 +1232,7 @@ final class WebMaven_Cap_Edit_Operations {
         if (function_exists('wpfc_clear_post_cache_by_id')) {
             wpfc_clear_post_cache_by_id($post_id);
         }
-        do_action('litespeed_purge_post', $post_id);
+        do_action('litespeed_purge_post', $post_id); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- LiteSpeed Cache's public action to clear its copy of the page
     }
 
     /** A theme file or a menu shows on every page: every page cache goes. */
@@ -1227,7 +1249,7 @@ final class WebMaven_Cap_Edit_Operations {
         if (function_exists('wpfc_clear_all_cache')) {
             wpfc_clear_all_cache();
         }
-        do_action('litespeed_purge_all');
+        do_action('litespeed_purge_all'); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- LiteSpeed Cache's public action to clear its copies of the site
         // Never wp_cache_flush(): with a persistent object cache it would drop
         // every transient (the webhook's replay protection among them) and,
         // on a shared cache, other sites' entries. WordPress clears what a

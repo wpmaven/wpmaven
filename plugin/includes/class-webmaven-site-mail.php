@@ -2,7 +2,7 @@
 /**
  * The site's mail, as WPMaven reads it: whether an SMTP plugin delivers it,
  * and the month's email being used up (429 SITE_MAIL_MONTHLY_CAP), which the
- * account's reply route and WPMaven Agent's mail relay both answer.
+ * account's reply route answers (and a mail relay, where one is set up).
  */
 
 if (!defined('ABSPATH')) {

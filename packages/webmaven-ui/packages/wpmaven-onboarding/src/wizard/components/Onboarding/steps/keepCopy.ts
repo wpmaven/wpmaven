@@ -4,7 +4,7 @@
  * findings each step lists. Pure, so each host's tests read the same lines.
  */
 import { localized } from '@yotako/webmaven-ui';
-import type { SiteCheckFinding } from '../../../../api/onboarding';
+import type { AdviceReason, SiteCheckFinding } from '../../../../api/onboarding';
 import type { SiteProfile, WizardSite } from '../../../../host/types';
 
 export const KEEP_COPY_EN = {
@@ -27,6 +27,14 @@ export const KEEP_COPY_EN = {
   waitingPlan: 'Your plans page is open in a new tab. Once your plan is on, your team starts here.',
   nothingTicked: 'Tick at least one, or choose Not now.',
   open: (productName: string) => `Open ${productName}`,
+  /** "What we recommend": the check's findings the owner does, when the team can fix none of them on this site. */
+  adviceEyebrow: 'Your recommendations',
+  /** Files the recommendations as Waiting for you items, each with its steps, and opens the app. */
+  seeInWaiting: 'See them in Waiting for you',
+  /** Under the recommendations, once, when the product's Agent and a plan would let the team do them ("With WPMaven Agent and a plan, ..."). */
+  quietAgent: (productName: string) => `With ${productName} Agent and a plan, your team does this for you.`,
+  /** Under the recommendations, once, when a plan alone would let the team do them. */
+  quietPlan: 'With a plan, your team does this for you.',
 } as const;
 
 /** "Your business" and "What your team fixes" in the page's language (KEEP_COPY_EN; French in src/i18n, namespace 'keep'). */
@@ -65,8 +73,57 @@ export function keptSiteType(values: Pick<KeepValues, 'store'>, profile: Pick<Si
   return c && c.posts >= 5 && c.posts > c.pages ? 'blog' : 'business';
 }
 
-/** The findings the team fixes once the owner says yes (ticked by default), and those that need the owner. Pure. */
+/**
+ * Whether the team fixes this finding on this site: the api's fixMode, and,
+ * from an older api that sends none, who handles it. Pure.
+ */
+export function teamFixes(f: Pick<SiteCheckFinding, 'handledBy' | 'fixMode'>): boolean {
+  return f.handledBy === 'team' && f.fixMode !== 'advice';
+}
+
+/**
+ * The findings the team fixes once the owner says yes (ticked by default),
+ * and those that need the owner: the guidance they always were, and every fix
+ * the team can only advise on here (no plan, or one that needs WPMaven
+ * Agent). A feature that keeps something right from today is in neither. Pure.
+ */
 export function fixLists(findings: SiteCheckFinding[]): { team: SiteCheckFinding[]; withYou: SiteCheckFinding[] } {
-  const open = findings.filter((f) => f.level !== 'ok');
-  return { team: open.filter((f) => f.handledBy === 'team'), withYou: open.filter((f) => f.handledBy === 'with_you') };
+  const open = findings.filter((f) => f.level !== 'ok' && f.handledBy !== 'kept');
+  return {
+    team: open.filter(teamFixes),
+    withYou: open.filter((f) => !teamFixes(f) && (f.handledBy === 'with_you' || f.fixMode === 'advice')),
+  };
+}
+
+/**
+ * The step is the list of recommendations: the api says how each finding is
+ * handled on this site, the team can fix none of them, and some need the
+ * owner. An older api, or a check with team fixes, keeps the step as it was. Pure.
+ */
+export function recommendsOnly(findings: SiteCheckFinding[]): boolean {
+  const { team, withYou } = fixLists(findings);
+  return team.length === 0 && withYou.length > 0 && findings.some((f) => f.fixMode !== undefined);
+}
+
+/** Some findings are advice to file as Waiting for you items with their steps. Pure. */
+export function hasAdvice(findings: SiteCheckFinding[]): boolean {
+  return fixLists(findings).withYou.some((f) => f.fixMode === 'advice');
+}
+
+/** The line under a finding's title: its advice in one or two sentences, else "What happens". Pure. */
+export function findingLine(f: Pick<SiteCheckFinding, 'advice' | 'happens'>): string | null {
+  const summary = typeof f.advice?.summary === 'string' ? f.advice.summary.trim() : '';
+  return summary || f.happens?.trim() || null;
+}
+
+/**
+ * What would let the team do the recommendations, said once under them: the
+ * product's Agent and a plan when any needs Agent, else a plan when any needs
+ * one, else nothing (no tool can do it yet). Pure.
+ */
+export function quietLine(findings: Array<{ adviceReason?: AdviceReason }>, productName: string): string | null {
+  const reasons = findings.map((f) => f.adviceReason);
+  if (reasons.some((r) => r === 'agent' || r === 'agent_and_plan')) return KEEP_COPY.quietAgent(productName);
+  if (reasons.includes('plan')) return KEEP_COPY.quietPlan;
+  return null;
 }

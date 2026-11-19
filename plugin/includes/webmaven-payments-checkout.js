@@ -11,6 +11,9 @@
  *
  * The order-received page ([data-wm-pay-status]): polls the order's status
  * until the API has marked it paid (or failed), then reloads.
+ *
+ * Its words come in the site's language from the page (data-wm-words, set
+ * when the language is not English); English otherwise.
  */
 (function () {
   function ready(fn) {
@@ -18,15 +21,24 @@
     else fn();
   }
 
+  function words(box) {
+    try {
+      return JSON.parse(box.getAttribute('data-wm-words') || '{}') || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
   function payPage(box) {
     var button = box.querySelector('.wm-pay__submit');
     var error = box.querySelector('.wm-pay__error');
+    var w = words(box);
     function show(message) {
-      error.textContent = message || 'Your payment did not go through. Please try again.';
+      error.textContent = message || w.failed || 'Your payment did not go through. Please try again.';
       error.hidden = false;
     }
     if (typeof window.Stripe !== 'function') {
-      show('The payment form could not load. Please refresh the page.');
+      show(w.load_failed || 'The payment form could not load. Please refresh the page.');
       return;
     }
     var account = box.getAttribute('data-stripe-account');
@@ -54,6 +66,7 @@
   function statusPage(box) {
     var url = box.getAttribute('data-wm-pay-status');
     var detail = box.querySelector('.wm-pay-confirming__detail');
+    var w = words(box);
     var tries = 0;
     function poll() {
       tries += 1;
@@ -67,7 +80,7 @@
           if (tries < 60) {
             setTimeout(poll, tries < 10 ? 2000 : 5000);
           } else if (detail) {
-            detail.textContent = 'This is taking longer than usual. We will email you as soon as your payment is confirmed.';
+            detail.textContent = w.slow || 'This is taking longer than usual. We will email you as soon as your payment is confirmed.';
           }
         })
         .catch(function () {

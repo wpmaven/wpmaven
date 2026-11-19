@@ -36,14 +36,23 @@
  *
  * The rules live here and the components (YouTubeUploadSection.tsx,
  * YouTubeVisibilityChoice.tsx) only draw them. No runtime imports beyond
- * ./targets (which has none), so the node unit tests load this file as it is.
- * The API holds the same rules.
+ * ./targets and the kit's language helper, so the node unit tests load this
+ * file as it is. The API holds the same rules.
+ *
+ * The words are in the page's language: English is the source; the French is
+ * written by hand (src/i18n/fr.json, namespaces screensYouTubeVisibility and
+ * screensYouTubeUpload), the other languages by the dashboard's
+ * translation script. YouTube's own
+ * names (Public, Unlisted, Private, made for kids, altered or synthetic
+ * content) are said as YouTube writes them in that language.
  */
 
 import type {
   OperatorApproval, TikTokConsentInput, TikTokDraftInput, YouTubePrivacy, YouTubeUploadInput,
 } from './types';
+import { localized } from '@yotako/webmaven-ui';
 import { approvalGoesToYouTube, approvalTargets } from './targets';
+import { formatTag } from '../copyLanguage';
 
 export const YOUTUBE_PRIVACY_VALUES: readonly YouTubePrivacy[] = ['public', 'unlisted', 'private'];
 
@@ -51,75 +60,128 @@ export const YOUTUBE_PRIVACY_VALUES: readonly YouTubePrivacy[] = ['public', 'unl
 export const YOUTUBE_TITLE_MAX_CHARS = 100;
 export const YOUTUBE_DESCRIPTION_MAX_BYTES = 5000;
 
-/** The words, so a test can pin them without copying them. */
-export const YOUTUBE_VISIBILITY_COPY = {
+/**
+ * "Who can see this video on YouTube?" on an approval that uploads to the
+ * owner's YouTube channel (namespace 'screensYouTubeVisibility'). The words,
+ * so a test can pin them without copying them.
+ */
+export const YOUTUBE_VISIBILITY_COPY_EN = {
+  /** The question above the three choices (a required radio group). */
   question: 'Who can see this video on YouTube?',
-  labels: { public: 'Public', unlisted: 'Unlisted', private: 'Private' } as Record<YouTubePrivacy, string>,
-  /** What each choice means, after "<label>: ". */
+  /** The choices, as YouTube names them in this language (a video's visibility). */
+  labels: {
+    /** Anyone can find it. */
+    public: 'Public',
+    /** Only people with the link. */
+    unlisted: 'Unlisted',
+    /** Only the owner. */
+    private: 'Private',
+  } as Record<YouTubePrivacy, string>,
+  /** What each choice means, after "<label>: ", starting in lower case. */
   hints: {
+    /** After "Public: ". */
     public: 'anyone can find and watch it.',
+    /** After "Unlisted: ". */
     unlisted: 'only people with the link.',
+    /** After "Private: ". */
     private: 'only you.',
   } as Record<YouTubePrivacy, string>,
+  /** A choice with what it means; {0} its label (drawn in bold, so it stays first), {1} what it means. */
+  optionLine: (label: string, hint: string) => `${label}: ${hint}`,
   /** Beside a disabled Approve until a choice is made. */
   approveBlocked: 'Choose who can see this video on YouTube to approve.',
   /** The same item in the Post to TikTok screen's checklist. */
   todo: 'Choose who can see this video on YouTube',
   /** Staff viewing as the owner (the API answers 409 YOUTUBE_OWNER_ONLY). */
   staffRefusal: 'Only the owner can approve an upload to their YouTube channel.',
-  /** The one-click surfaces (Home) send the owner to the card instead. */
+  /** The one-click surfaces (Home): the button that sends the owner to the card instead. */
   routeButton: 'Review and post to YouTube',
+  /** Beside that button. */
   routeFirst: 'Check its YouTube title and description and choose the settings first.',
   /** The staff console: approving for the owner is refused. */
   staffConsoleApprove: "This uploads to the customer's YouTube channel: only the owner can approve it",
-  /** The hint line: a visibility the owner chose themselves (their own request filed the row). */
+  /** The hint line above the choices: a visibility the owner chose themselves; {0} the choice's label ("Unlisted"). */
   hintOwner: (label: string) => `You asked for ${label}.`,
   /**
    * The hint line: a visibility the AI team passed, shown only when the API
-   * found it in the owner's own messages in that conversation
-   * (suggestedFromOwnerWords). A card once said this to an owner who had
-   * never named one (2026-09-29).
+   * found it in the owner's own messages in that conversation; {0} the
+   * choice's label.
    */
   hintTeam: (label: string) => `Your team noted you asked for ${label} in the chat.`,
   /** Next to the choice: Unlisted or Private on a row that also posts to other networks. */
   notLinked: 'Private and unlisted videos are not linked from your other networks.',
 } as const;
 
+export const YOUTUBE_VISIBILITY_COPY = localized(YOUTUBE_VISIBILITY_COPY_EN, 'screensYouTubeVisibility');
+
 /**
- * The rest of the "Post to YouTube" section. Plain American English, no em
- * dashes, in the tone of the Post to TikTok screen. A problem with a text
- * says what is wrong (the API's own sentences, services/youtubeUpload.ts),
- * never what WPMaven would change.
+ * The rest of the "Post to YouTube" section (namespace
+ * 'screensYouTubeUpload'). Plain American English, no em dashes, in the tone
+ * of the Post to TikTok screen. A problem with a text says what is wrong (the
+ * API's own sentences, services/youtubeUpload.ts), never what the app would
+ * change.
  */
-export const YOUTUBE_UPLOAD_COPY = {
+export const YOUTUBE_UPLOAD_COPY_EN = {
+  /** The section's heading. */
   heading: 'Post to YouTube',
+  /** Under it. */
   intro: 'YouTube gets exactly what you see here. Nothing is sent until you approve.',
+  /** The video title field's label. */
   titleLabel: 'Title',
+  /** Under the title field. */
   titleHelper: 'This is exactly what YouTube will show as the title.',
+  /** The description field's label. */
   descriptionLabel: 'Description',
+  /** Under the description field: its limit is counted in bytes. */
   descriptionHelper: 'This is exactly what YouTube will show under the video. Emoji and accented letters count as more than 1 byte.',
+  /** The required question (YouTube's own, as YouTube asks it in this language). */
   kidsQuestion: 'Is this video made for kids?',
+  /** An answer. */
   kidsYes: 'Yes, it is made for kids',
+  /** An answer. */
   kidsNo: 'No, it is not made for kids',
+  /** Under the question. */
   kidsHelper: 'YouTube asks this for every video. Videos made for kids have some features turned off, such as comments.',
+  /** A video made with AI ("altered or synthetic content" is YouTube's own label, as YouTube writes it in this language). */
   aiDisclosure: 'This video was made with AI. YouTube will show it as altered or synthetic content.',
+  /** Under the title field: what YouTube refuses. */
   titleEmpty: 'The title is empty. YouTube needs one.',
+  /** Under the title field. */
   titleLineBreak: 'The title has a line break. A YouTube title is one line.',
+  /** Under the title field: the characters < and >. */
   titleAngle: 'The title has < or >, which YouTube does not allow.',
+  /** Under the title field. */
   titleUnreadable: 'The title has a character YouTube cannot read.',
-  titleTooLong: (chars: number) => `The title is ${chars} characters. YouTube allows up to ${YOUTUBE_TITLE_MAX_CHARS}.`,
+  /** Under the title field; {0} its characters, {1} the most YouTube allows. */
+  titleTooLong: (chars: number, max: number) => `The title is ${chars} characters. YouTube allows up to ${max}.`,
+  /** Under the description field: the characters < and >. */
   descriptionAngle: 'The description has < or >, which YouTube does not allow.',
+  /** Under the description field. */
   descriptionUnreadable: 'The description has a character YouTube cannot read.',
-  descriptionTooLong: (bytes: number) => `The description is ${bytes.toLocaleString('en-US')} bytes. `
-    + `YouTube allows up to ${YOUTUBE_DESCRIPTION_MAX_BYTES.toLocaleString('en-US')}.`,
-  /** Beside a disabled Approve, and their Post to TikTok checklist items. */
+  /** Under the description field; {0} its bytes ("5,120"), {1} the most YouTube allows ("5,000"). */
+  descriptionTooLong: (bytes: string, max: string) => `The description is ${bytes} bytes. YouTube allows up to ${max}.`,
+  /** The description's counter; {0} the bytes used ("1,234"), {1} the most YouTube allows ("5,000"). */
+  byteCount: (used: string, max: string) => `${used}/${max} bytes`,
+  /** Beside a disabled Approve. */
   titleBlocked: 'Fix the YouTube title to approve.',
+  /** Its Post to TikTok checklist item. */
   titleTodo: 'Fix the YouTube title',
+  /** Beside a disabled Approve. */
   descriptionBlocked: 'Fix the YouTube description to approve.',
+  /** Its Post to TikTok checklist item. */
   descriptionTodo: 'Fix the YouTube description',
+  /** Beside a disabled Approve. */
   kidsBlocked: 'Choose whether this video is made for kids to approve.',
+  /** Its Post to TikTok checklist item. */
   kidsTodo: 'Choose whether the video is made for kids',
 } as const;
+
+export const YOUTUBE_UPLOAD_COPY = localized(YOUTUBE_UPLOAD_COPY_EN, 'screensYouTubeUpload');
+
+/** A count of characters or bytes as the page's language writes it ("5,000"). */
+export function youtubeCount(n: number): string {
+  return new Intl.NumberFormat(formatTag('en-US')).format(n);
+}
 
 /** The API's error codes for an approve without the YouTube values: the card asks. */
 export const YOUTUBE_PRIVACY_REQUIRED = 'YOUTUBE_PRIVACY_REQUIRED';
@@ -163,7 +225,7 @@ export function youtubeTitleProblem(title: string): string | null {
   if (/[<>]/.test(title)) return c.titleAngle;
   if (!wellFormed(title)) return c.titleUnreadable;
   const chars = youtubeTitleLength(title);
-  if (chars > YOUTUBE_TITLE_MAX_CHARS) return c.titleTooLong(chars);
+  if (chars > YOUTUBE_TITLE_MAX_CHARS) return c.titleTooLong(chars, YOUTUBE_TITLE_MAX_CHARS);
   return null;
 }
 
@@ -173,7 +235,7 @@ export function youtubeDescriptionProblem(description: string): string | null {
   if (/[<>]/.test(description)) return c.descriptionAngle;
   if (!wellFormed(description)) return c.descriptionUnreadable;
   const bytes = youtubeDescriptionBytes(description);
-  if (bytes > YOUTUBE_DESCRIPTION_MAX_BYTES) return c.descriptionTooLong(bytes);
+  if (bytes > YOUTUBE_DESCRIPTION_MAX_BYTES) return c.descriptionTooLong(youtubeCount(bytes), youtubeCount(YOUTUBE_DESCRIPTION_MAX_BYTES));
   return null;
 }
 
@@ -313,12 +375,12 @@ export function youtubeOptions(a: YouTubeSource): YouTubeOption[] {
     if (!value || seen.has(value)) continue;
     seen.add(value);
     const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : c.labels[value];
-    out.push({ value, label, line: `${label}: ${c.hints[value]}` });
+    out.push({ value, label, line: c.optionLine(label, c.hints[value]) });
   }
   // YouTube's policy is the three of them: an answer missing one is not what
   // the owner is shown.
   if (out.length !== YOUTUBE_PRIVACY_VALUES.length) {
-    return YOUTUBE_PRIVACY_VALUES.map((value) => ({ value, label: c.labels[value], line: `${c.labels[value]}: ${c.hints[value]}` }));
+    return YOUTUBE_PRIVACY_VALUES.map((value) => ({ value, label: c.labels[value], line: c.optionLine(c.labels[value], c.hints[value]) }));
   }
   return out;
 }

@@ -14,8 +14,15 @@
  * that does not (it reads the same fields from params, mirroring the API's
  * sitePreviewParts in services/sitePreview.ts), and builds the document the
  * frame shows. Pure, no DOM: the node tests load it.
+ *
+ * What a change does with a page is said in the page's language
+ * (SITE_STATUS_COPY; English is the source, the French is written by hand in
+ * src/i18n/fr.json, namespace screensSiteStatus, the other languages by the
+ * dashboard's translation script). The API's own statusLabel
+ * is already in the page's language.
  */
 
+import { localized } from '@yotako/webmaven-ui';
 import { readableText } from './previewData';
 
 export type SitePreviewKind = 'post' | 'page' | 'update' | 'translation' | 'product';
@@ -87,11 +94,59 @@ export function httpUrl(v: unknown): string | null {
 }
 
 /**
+ * What a change does with a post, a page, a product or a translation on the
+ * owner's site, in a chip beside what it is (namespace 'screensSiteStatus'):
+ * what it will do while it waits for the owner's yes, what it did once it ran.
+ * Same words as the API.
+ */
+export const SITE_STATUS_COPY_EN = {
+  /** It waits: the change publishes it. */
+  willPublish: 'Will be published',
+  /** It waits, or it ran: scheduled to publish later. */
+  scheduled: 'Scheduled',
+  /** It waits: saved as private. */
+  private: 'Private',
+  /** It waits: a draft that waits for review. */
+  pendingReview: 'Draft, waiting for review',
+  /** It waits: a draft. */
+  draft: 'Draft',
+  /** It waits: an update of a page that is there now. */
+  changesExisting: 'Changes what is there now',
+  /**
+   * It waits: a translation saved with overwrite and no status; the plugin
+   * rewrites the one there now and keeps its status (a live one stays live);
+   * only a new one starts as a draft.
+   */
+  translationKeepsStatus: 'Replaces the one there now and keeps its status (a new one starts as a draft)',
+  /** It ran: published. */
+  published: 'Published',
+  /** It ran: saved as private. */
+  savedPrivate: 'Saved as private',
+  /** It ran: saved as a draft that waits for review. */
+  savedForReview: 'Saved as a draft for review',
+  /** It ran: saved as a draft. */
+  savedDraft: 'Saved as a draft',
+  /** It ran: an update of a page. */
+  changedOnSite: 'Changed on your site',
+  /** It ran: a translation. */
+  translationSaved: 'Translation saved',
+  /** It ran, with no status known. */
+  saved: 'Saved',
+  /** It never ran (rejected, expired, or changes were asked for). */
+  notMade: 'Not made',
+  /** It never ran because it failed. */
+  notMadeFailed: 'Not made, it failed',
+};
+
+export const SITE_STATUS_COPY = localized(SITE_STATUS_COPY_EN, 'screensSiteStatus');
+
+/**
  * A translation saved with overwrite and no status: the plugin rewrites the
  * one there now and keeps its status (a live one stays live); only a new one
- * starts as a draft. Same words as the API.
+ * starts as a draft. Same words as the API. In English, for importers; a chip
+ * reads SITE_STATUS_COPY.translationKeepsStatus when it is drawn.
  */
-export const TRANSLATION_KEEPS_STATUS_LABEL = 'Replaces the one there now and keeps its status (a new one starts as a draft)';
+export const TRANSLATION_KEEPS_STATUS_LABEL = SITE_STATUS_COPY_EN.translationKeepsStatus;
 
 /** `overwrite` as the plugin reads it (PHP !empty). Without it the plugin never touches a translation that exists. */
 export function overwriteSet(v: unknown): boolean {
@@ -101,31 +156,33 @@ export function overwriteSet(v: unknown): boolean {
 
 /** The owner's words for a status. Same sentences as the API. */
 export function statusLabelFor(kind: SitePreviewKind, status: string | null): string {
+  const c = SITE_STATUS_COPY;
   switch (status) {
-    case 'publish': return 'Will be published';
-    case 'future': return 'Scheduled';
-    case 'private': return 'Private';
-    case 'pending': return 'Draft, waiting for review';
-    case 'draft': return 'Draft';
+    case 'publish': return c.willPublish;
+    case 'future': return c.scheduled;
+    case 'private': return c.private;
+    case 'pending': return c.pendingReview;
+    case 'draft': return c.draft;
     default:
-      return kind === 'update' ? 'Changes what is there now'
-        : kind === 'translation' ? TRANSLATION_KEEPS_STATUS_LABEL
-          : 'Draft';
+      return kind === 'update' ? c.changesExisting
+        : kind === 'translation' ? c.translationKeepsStatus
+          : c.draft;
   }
 }
 
 /** What an executed change did, in the past tense. */
 export function madeLabelFor(kind: SitePreviewKind, status: string | null): string {
+  const c = SITE_STATUS_COPY;
   switch (status) {
-    case 'publish': return 'Published';
-    case 'future': return 'Scheduled';
-    case 'private': return 'Saved as private';
-    case 'pending': return 'Saved as a draft for review';
-    case 'draft': return 'Saved as a draft';
+    case 'publish': return c.published;
+    case 'future': return c.scheduled;
+    case 'private': return c.savedPrivate;
+    case 'pending': return c.savedForReview;
+    case 'draft': return c.savedDraft;
     default:
-      return kind === 'update' ? 'Changed on your site'
-        : kind === 'translation' ? 'Translation saved'
-          : 'Saved';
+      return kind === 'update' ? c.changedOnSite
+        : kind === 'translation' ? c.translationSaved
+          : c.saved;
   }
 }
 
@@ -143,8 +200,8 @@ export function statusChipFor(
     case 'EXECUTED': return madeLabelFor(preview.kind, preview.status);
     case 'REJECTED':
     case 'EXPIRED':
-    case 'CHANGES_REQUESTED': return 'Not made';
-    case 'FAILED': return 'Not made, it failed';
+    case 'CHANGES_REQUESTED': return SITE_STATUS_COPY.notMade;
+    case 'FAILED': return SITE_STATUS_COPY.notMadeFailed;
     default: return preview.statusLabel;
   }
 }

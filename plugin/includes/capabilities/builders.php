@@ -9,6 +9,7 @@
  *   wm_builder_write {post_id, expect_sha256, texts?: [{path, text}], link?: {path, url},
  *                     image?: {slot, id?, url?, alt?}} | {post_id, expect_sha256, restore: raw}
  *                    -> {post_id, sha256}
+ *                    (restore: an undo, the words, links and pictures only)
  *
  * A write over a page changed since (another sha) answers DRIFT. After each
  * write Elementor's caches of the page go (its element cache and its CSS
@@ -107,8 +108,13 @@ final class WebMaven_Cap_Builders {
             if (!is_string($params['restore'])) {
                 throw new Exception('VALIDATION: restore is what the page held.');
             }
-            WebMaven_Builder_Content::elementor_tree($params['restore']);
-            return $params['restore'];
+            // An undo comes from the call like any change: only the words,
+            // links and pictures may differ from the page as it is, cleaned
+            // as a write cleans them (styles kept, never a script).
+            $asked = WebMaven_Builder_Content::elementor_tree($params['restore']);
+            $clean = WebMaven_Builder_Content::restore_tree(WebMaven_Builder_Content::elementor_tree($raw), $asked, [__CLASS__, 'clean_text']);
+            // Nothing cleaned away: the page gets back exactly what it held.
+            return $clean === $asked ? $params['restore'] : WebMaven_Builder_Content::encode($clean);
         }
         $tree = WebMaven_Builder_Content::apply(WebMaven_Builder_Content::elementor_tree($raw), [
             'texts' => $params['texts'] ?? [],
@@ -116,6 +122,11 @@ final class WebMaven_Cap_Builders {
             'image' => $params['image'] ?? null,
         ]);
         return WebMaven_Builder_Content::encode($tree);
+    }
+
+    /** A text of a widget, cleaned like a designed page's markup. */
+    public static function clean_text(string $html): string {
+        return class_exists('WebMaven_Cap_Blocks') ? WebMaven_Cap_Blocks::clean($html) : wp_kses_post($html);
     }
 
     public static function builder_write(array $params): array {

@@ -1,15 +1,18 @@
 /**
  * The business's site, as a picture (moved from the dashboard's Home,
  * 2026-10-17): the dashboard's Home and the plugin's Overview draw this
- * card at the top of their side column.
+ * card at the top of their side column. Its words are in the page's language
+ * (homeCopy.ts, SITE_PREVIEW_COPY).
  */
 import React, { useState } from 'react';
 import { GlassCard } from '@yotako/webmaven-ui';
 import { HiOutlineArrowTopRightOnSquare } from 'react-icons/hi2';
 import type { ScreensHost } from '../host/types';
 import { useHomeSectionStyles } from './styles';
+import { SITE_PREVIEW_COPY, SITE_PREVIEW_COPY_EN } from './homeCopy';
 
-export const SITE_PREVIEW_TEXT = 'Visit your site';
+/** The veil's words in English, for importers; the card reads SITE_PREVIEW_COPY.visit when it draws. */
+export const SITE_PREVIEW_TEXT = SITE_PREVIEW_COPY_EN.visit;
 
 export interface SitePreviewCardProps {
   siteUrl?: string | null;
@@ -44,16 +47,16 @@ export const SitePreviewCard: React.FC<SitePreviewCardProps> = ({ siteUrl, thumb
         target="_blank"
         rel="noopener noreferrer"
         className="wms-site-preview-link"
-        aria-label={`${SITE_PREVIEW_TEXT}, ${name}. Opens the live site in a new tab`}
+        aria-label={SITE_PREVIEW_COPY.linkLabel(name)}
         onClick={() => host?.track?.('instances', 'action', 'open_site_home_preview')}
       >
-        <img src={thumbnailUrl} alt={`Your site, ${name}`} loading="lazy" onError={() => setBroken(true)} />
+        <img src={thumbnailUrl} alt={SITE_PREVIEW_COPY.alt(name)} loading="lazy" onError={() => setBroken(true)} />
         <span className="wms-site-preview-veil" aria-hidden="true">
-          {SITE_PREVIEW_TEXT}
+          {SITE_PREVIEW_COPY.visit}
           <HiOutlineArrowTopRightOnSquare style={{ width: 18, height: 18 }} />
         </span>
         <span className="wms-site-preview-tag" aria-hidden="true">
-          Visit site
+          {SITE_PREVIEW_COPY.visitShort}
           <HiOutlineArrowTopRightOnSquare style={{ width: 14, height: 14 }} />
         </span>
       </a>

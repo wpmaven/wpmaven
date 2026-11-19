@@ -47,8 +47,8 @@ export const HOME_SECTIONS_CSS = `
 .wms-ms-main { flex: 1 1 0; min-width: 80px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
 .wms-ms-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .wms-ms-progress { flex: none; display: inline-flex; align-items: center; gap: 6px; }
-.wms-ms-actions { flex: none; margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.wms-ms-share-note { flex-basis: 100%; min-width: 0; padding-left: 30px; }
+.wms-ms-actions { flex: none; margin-inline-start: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.wms-ms-share-note { flex-basis: 100%; min-width: 0; padding-inline-start: 30px; }
 .wms-ms-btn-full { display: none; }
 .wms-ms-row--two .wms-ms-btn-short { display: none; }
 .wms-ms-row .wms-ms-btn { padding: 0 9px; gap: 5px; }
@@ -76,7 +76,7 @@ export const HOME_SECTIONS_CSS = `
 .wms-site-preview-link:hover .wms-site-preview-veil,
 .wms-site-preview-link:focus-visible .wms-site-preview-veil { opacity: 1; }
 .wms-site-preview-tag {
-  position: absolute; right: 10px; bottom: 10px; display: none; align-items: center; gap: 4px;
+  position: absolute; inset-inline-end: 10px; bottom: 10px; display: none; align-items: center; gap: 4px;
   padding: 4px 10px; border-radius: 999px; background: rgba(14, 15, 19, 0.72); color: #fff;
   font-size: var(--text-meta); font-weight: 600;
 }
@@ -96,7 +96,7 @@ export const HOME_SECTIONS_CSS = `
 .wms-getpaid-others-toggle {
   display: flex; align-items: center; gap: 6px;
   padding: 0; border: 0; background: none; cursor: pointer;
-  font-family: inherit; font-size: 12px; color: var(--text-dim); text-align: left;
+  font-family: inherit; font-size: 12px; color: var(--text-dim); text-align: start;
 }
 .wms-getpaid-others-toggle:hover { color: var(--text); }
 .wms-getpaid-others-toggle:focus-visible { outline: 2px solid var(--accent, #6962AD); outline-offset: 2px; border-radius: 4px; }

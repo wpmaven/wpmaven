@@ -52,20 +52,20 @@ class WebMaven_Leads_Metrics implements WebMaven_Metrics_Adapter {
         if (!get_option(self::DB_VERSION_OPTION)) {
             return null;
         }
-        $first = $wpdb->get_var($wpdb->prepare('SELECT MIN(created_at) FROM %i', $this->table()));
+        $first = $wpdb->get_var($wpdb->prepare('SELECT MIN(created_at) FROM %i', $this->table())); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads; counts read for the reports, which need today's figures, so nothing is cached
         return is_string($first) && $first !== '' ? substr($first, 0, 10) : null;
     }
 
     private function count_day(string $date): array {
         global $wpdb;
         $table = $this->table();
-        $rows = $wpdb->get_results($wpdb->prepare(
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads; counts read for the reports, which need today's figures, so nothing is cached
             "SELECT source, form_id, MAX(form_title) AS title, COUNT(*) AS submissions
-             FROM {$table}
+             FROM %i
              WHERE created_at >= %s AND created_at <= %s AND status <> %s
              GROUP BY source, form_id
              ORDER BY submissions DESC",
-            $date . ' 00:00:00',
+            $table, $date . ' 00:00:00',
             $date . ' 23:59:59',
             'spam'
         ), ARRAY_A);
@@ -86,9 +86,9 @@ class WebMaven_Leads_Metrics implements WebMaven_Metrics_Adapter {
         $plugin = $by_source ? (self::PLUGINS[(string) key($by_source)] ?? 'wpmaven') : $this->latest_plugin();
 
         $ts = strtotime($date . ' 00:00:00 UTC');
-        $week = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE created_at >= %s AND created_at <= %s AND status <> %s",
-            gmdate('Y-m-d', $ts - 7 * 86400) . ' 00:00:00',
+        $week = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads; counts read for the reports, which need today's figures, so nothing is cached
+            "SELECT COUNT(*) FROM %i WHERE created_at >= %s AND created_at <= %s AND status <> %s",
+            $table, gmdate('Y-m-d', $ts - 7 * 86400) . ' 00:00:00',
             gmdate('Y-m-d', $ts - 86400) . ' 23:59:59',
             'spam'
         ));
@@ -112,7 +112,7 @@ class WebMaven_Leads_Metrics implements WebMaven_Metrics_Adapter {
         if (!get_option(self::DB_VERSION_OPTION)) {
             return 'wpmaven';
         }
-        $source = $wpdb->get_var($wpdb->prepare('SELECT source FROM %i ORDER BY id DESC LIMIT 1', $this->table()));
+        $source = $wpdb->get_var($wpdb->prepare('SELECT source FROM %i ORDER BY id DESC LIMIT 1', $this->table())); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads; counts read for the reports, which need today's figures, so nothing is cached
         return self::PLUGINS[(string) $source] ?? 'wpmaven';
     }
 

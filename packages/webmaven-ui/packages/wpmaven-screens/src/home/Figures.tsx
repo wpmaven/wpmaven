@@ -9,6 +9,8 @@ import { figureLayout, type FigureLayoutOptions } from './figureLayout';
  */
 
 export interface Figure {
+  /** The figure's name for test ids ("visitors"), the same in every language; absent: its label. */
+  id?: string;
   value: string;
   label: string;
   /** A second, quieter line under the label (the assistants behind "AI reads"). */

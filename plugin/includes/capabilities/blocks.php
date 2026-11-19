@@ -83,10 +83,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
     $handlers['wm_blocks_read'] = ['WebMaven_Cap_Blocks', 'blocks_read'];
     $handlers['wm_blocks_write'] = ['WebMaven_Cap_Blocks', 'blocks_write'];
@@ -300,7 +296,7 @@ final class WebMaven_Block_Tree {
             $index = (int) $index;
         }
         if (!is_int($index) || $index >= $count || $index < ($allow_start ? -1 : 0)) {
-            throw new Exception('NOT_FOUND: Block ' . (is_scalar($index) ? $index : '?') . ' is not on this content.');
+            throw new Exception('NOT_FOUND: Block ' . (is_scalar($index) ? $index : '?') . ' is not on this content.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $index;
     }
@@ -372,12 +368,12 @@ final class WebMaven_Cap_Blocks {
         $post = $id > 0 ? get_post($id) : null;
         if ($has[0] === 'navigation_id') {
             if (!$post || $post->post_type !== 'wp_navigation' || $post->post_status === 'trash') {
-                throw self::error('NOT_FOUND', 'Navigation ' . $id . ' was not found.');
+                throw self::error('NOT_FOUND', 'Navigation ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             return ['kind' => 'navigation', 'key' => ['navigation_id' => $id], 'post' => $post, 'raw' => (string) $post->post_content, 'markup' => (string) $post->post_content];
         }
         if (!$post || !in_array($post->post_type, self::POST_TYPES, true) || in_array($post->post_status, ['trash', 'auto-draft'], true)) {
-            throw self::error('NOT_FOUND', 'Post ' . $id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Post ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return ['kind' => 'post', 'key' => ['post_id' => $id], 'post' => $post, 'post_type' => $post->post_type,
             'raw' => (string) $post->post_content, 'markup' => self::resolve_patterns((string) $post->post_content)];
@@ -399,7 +395,7 @@ final class WebMaven_Cap_Blocks {
         }
         $file = function_exists('get_block_file_template') ? get_block_file_template(get_stylesheet() . '//' . $slug, 'wp_template_part') : null;
         if (!$file) {
-            throw self::error('NOT_FOUND', 'This theme has no template part named ' . $slug . '.');
+            throw self::error('NOT_FOUND', 'This theme has no template part named ' . $slug . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return ['kind' => 'part', 'key' => ['part' => $slug], 'slug' => $slug, 'post' => null,
             'customized' => $theme_file ? self::customized_part($slug) !== null : false,
@@ -415,7 +411,7 @@ final class WebMaven_Cap_Blocks {
             'name' => $slug,
             'posts_per_page' => 1,
             'no_found_rows' => true,
-            'tax_query' => [[
+            'tax_query' => [[ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- the theme's customized part, found through the wp_theme term as WordPress itself finds it; one post
                 'taxonomy' => 'wp_theme',
                 'field' => 'name',
                 'terms' => get_stylesheet(),
@@ -468,7 +464,7 @@ final class WebMaven_Cap_Blocks {
             throw self::error('VALIDATION', 'expect_sha256 must be the sha256 (hex) of what was read.');
         }
         if (!hash_equals(strtolower($expect), self::sha($current))) {
-            throw self::error('DRIFT', $what . ' was changed on the site after this change was prepared.');
+            throw self::error('DRIFT', $what . ' was changed on the site after this change was prepared.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
     }
 
@@ -771,7 +767,7 @@ final class WebMaven_Cap_Blocks {
             $post_id = (int) $t['post']->ID;
             $saved = wp_update_post(wp_slash(['ID' => $post_id, 'post_content' => $new]), true);
             if (is_wp_error($saved) || !$saved) {
-                throw self::error('WRITE_FAILED', self::describe($t) . ' could not be saved' . (is_wp_error($saved) ? ': ' . wp_strip_all_tags($saved->get_error_message()) : '.'));
+                throw self::error('WRITE_FAILED', self::describe($t) . ' could not be saved' . (is_wp_error($saved) ? ': ' . wp_strip_all_tags($saved->get_error_message()) : '.')); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         clean_post_cache($post_id);
@@ -793,7 +789,7 @@ final class WebMaven_Cap_Blocks {
             $id = (int) $t['post']->ID;
             $saved = wp_update_post(wp_slash(['ID' => $id, 'post_content' => $markup]), true);
             if (is_wp_error($saved) || !$saved) {
-                throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not be saved.');
+                throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not be saved.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             clean_post_cache($id);
             return $id;
@@ -814,7 +810,7 @@ final class WebMaven_Cap_Blocks {
             'post_content' => $markup,
         ]), true);
         if (is_wp_error($id) || (int) $id <= 0) {
-            throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not be saved' . (is_wp_error($id) ? ': ' . wp_strip_all_tags($id->get_error_message()) : '.'));
+            throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not be saved' . (is_wp_error($id) ? ': ' . wp_strip_all_tags($id->get_error_message()) : '.')); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         // Terms set directly: tax_input is skipped for a user who cannot assign terms.
         wp_set_object_terms((int) $id, get_stylesheet(), 'wp_theme');
@@ -856,11 +852,13 @@ final class WebMaven_Cap_Blocks {
             }
         }
         if (array_key_exists('restore', $params)) {
-            // An undo: the markup the site held before, written back as it was.
+            // An undo: the markup the site held before, written back. It
+            // comes from the call like any new markup, so it is cleaned the
+            // same way: styles kept, never a script.
             if (!is_string($params['restore'])) {
                 throw self::error('VALIDATION', 'restore is the markup to write back.');
             }
-            $new = $params['restore'];
+            $new = self::clean($params['restore']);
         } else {
             $replace = $params['replace'] ?? [];
             $insert = $params['insert'] ?? [];
@@ -921,10 +919,30 @@ final class WebMaven_Cap_Blocks {
         if (!is_array($data) || array_diff(array_keys($data), ['settings', 'styles'])) {
             throw self::error('VALIDATION', 'styles.user_data holds settings and styles.');
         }
-        return [
+        $staged = [
             'settings' => is_array($data['settings'] ?? null) ? $data['settings'] : [],
             'styles' => is_array($data['styles'] ?? null) ? $data['styles'] : [],
         ];
+        self::refuse_markup_in_styles($staged);
+        return $staged;
+    }
+
+    /**
+     * Global styles are names and values (colours, sizes, font stacks,
+     * custom CSS) that WordPress prints inside a stylesheet. Every name and
+     * every text value is checked for markup (the test WordPress's own
+     * styles endpoint makes on custom CSS), so nothing in them can close the
+     * stylesheet. Valid styles pass unchanged.
+     */
+    private static function refuse_markup_in_styles(array $data) {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                self::refuse_markup_in_styles($value);
+            }
+            if ((is_string($key) && preg_match('#</?\w+#', $key)) || (is_string($value) && preg_match('#</?\w+#', $value))) {
+                throw self::error('VALIDATION', 'Markup is not allowed in the site\'s styles.');
+            }
+        }
     }
 
     // ── wm_part_reset ───────────────────────────────────────────────────────
@@ -944,14 +962,14 @@ final class WebMaven_Cap_Blocks {
         $id = (int) $t['post']->ID;
         if (!empty($params['keep'])) {
             if (!wp_trash_post($id)) {
-                throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not go back to the theme\'s version.');
+                throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not go back to the theme\'s version.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             clean_post_cache($id);
             return ['reset' => true, 'trashed' => $id];
         }
         $deleted = wp_delete_post($id, true);
         if (!$deleted) {
-            throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not go back to the theme\'s version.');
+            throw self::error('WRITE_FAILED', 'The ' . $t['slug'] . ' part could not go back to the theme\'s version.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return ['reset' => true];
     }
@@ -962,19 +980,19 @@ final class WebMaven_Cap_Blocks {
         $slug = (string) ($params['part'] ?? '');
         $t = self::part_target($slug);
         if ($t['customized']) {
-            throw self::error('DRIFT', 'The ' . $slug . ' part was changed in WordPress since it went back to the theme\'s version.');
+            throw self::error('DRIFT', 'The ' . $slug . ' part was changed in WordPress since it went back to the theme\'s version.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $id = self::positive_int($params['post_id'] ?? null);
         $post = $id > 0 ? get_post($id) : null;
         if (!$post || $post->post_type !== 'wp_template_part' || $post->post_status !== 'trash') {
-            throw self::error('NOT_FOUND', 'The ' . $slug . ' part is no longer in the trash.');
+            throw self::error('NOT_FOUND', 'The ' . $slug . ' part is no longer in the trash.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $keep = function () { return 'publish'; };
         add_filter('wp_untrash_post_status', $keep);
         $back = wp_untrash_post($id);
         remove_filter('wp_untrash_post_status', $keep);
         if (!$back) {
-            throw self::error('WRITE_FAILED', 'The ' . $slug . ' part could not be brought back.');
+            throw self::error('WRITE_FAILED', 'The ' . $slug . ' part could not be brought back.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         clean_post_cache($id);
         $fresh = get_post($id);
@@ -985,7 +1003,7 @@ final class WebMaven_Cap_Blocks {
             $fresh = get_post($id);
         }
         if (!$fresh || $fresh->post_status !== 'publish' || $fresh->post_name !== $slug) {
-            throw self::error('WRITE_FAILED', 'The ' . $slug . ' part could not be brought back.');
+            throw self::error('WRITE_FAILED', 'The ' . $slug . ' part could not be brought back.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return ['sha256' => self::sha((string) $fresh->post_content), 'post_id' => $id];
     }
@@ -1062,9 +1080,11 @@ final class WebMaven_Cap_Blocks {
     public static function styles_write($params = [], $step_id = null) {
         $params = is_array($params) ? $params : [];
         $data = $params['user_data'] ?? null;
-        if (!is_array($data) || array_diff(array_keys($data), ['settings', 'styles'])) {
+        if (!is_array($data) || array_diff(array_keys($data), ['settings', 'styles'])
+            || (!empty($data['settings']) && !is_array($data['settings'])) || (!empty($data['styles']) && !is_array($data['styles']))) {
             throw self::error('VALIDATION', 'user_data holds settings and styles.');
         }
+        self::refuse_markup_in_styles($data);
         $post = self::styles_post();
         self::check_sha($params, (string) ($post['post_content'] ?? ''), 'The site\'s styles');
         $created = false;
@@ -1138,7 +1158,7 @@ final class WebMaven_Cap_Blocks {
         $t = self::part_target($slug);
         $nav = self::nth_navigation($t['markup'], $index);
         if ($nav === null) {
-            throw self::error('NOT_FOUND', 'The ' . $slug . ' part has no navigation.');
+            throw self::error('NOT_FOUND', 'The ' . $slug . ' part has no navigation.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $part = ['slug' => $slug, 'sha256_before' => self::sha($t['raw']), 'sha256' => self::sha($t['raw']), 'created' => false];
         if (!empty($nav['attrs']['ref'])) {
@@ -1153,7 +1173,7 @@ final class WebMaven_Cap_Blocks {
             $inner = self::inner_of_navigation($t['markup'], $nav);
             $inner_end = $nav['end'] + strlen($inner);
             if (!preg_match('/<!--\s+\/wp:navigation\s+-->/', $t['markup'], $close, PREG_OFFSET_CAPTURE, $inner_end) || $close[0][1] !== $inner_end) {
-                throw self::error('WRITE_FAILED', 'The ' . $slug . ' menu could not be read.');
+                throw self::error('WRITE_FAILED', 'The ' . $slug . ' menu could not be read.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $inner_end += strlen($close[0][0]);
             $title = ucfirst($slug) . ' navigation' . ($index > 0 ? ' ' . ($index + 1) : '');
@@ -1201,7 +1221,7 @@ final class WebMaven_Cap_Blocks {
         if ($t['customized']) {
             $saved = wp_update_post(wp_slash(['ID' => (int) $t['post']->ID, 'post_content' => $markup]), true);
             if (is_wp_error($saved) || !$saved) {
-                throw self::error('WRITE_FAILED', 'The ' . $slug . ' part could not be saved.');
+                throw self::error('WRITE_FAILED', 'The ' . $slug . ' part could not be saved.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $part_id = (int) $t['post']->ID;
         } else {
@@ -1250,7 +1270,7 @@ final class WebMaven_Cap_Blocks {
         $count = count(self::navigations($t['markup']));
         $nav = self::nth_navigation($t['markup'], $index);
         if ($nav === null) {
-            throw self::error('NOT_FOUND', 'The ' . $slug . ' part has no navigation.');
+            throw self::error('NOT_FOUND', 'The ' . $slug . ' part has no navigation.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $part = ['slug' => $slug, 'sha256' => self::sha($t['raw']), 'customized' => $t['customized']];
         if (!$nav['void'] && empty($nav['attrs']['ref'])) {
@@ -1372,7 +1392,7 @@ final class WebMaven_Cap_Blocks {
      */
     public static function page_create($params = [], $step_id = null) {
         $params = is_array($params) ? $params : [];
-        $title = trim(wp_strip_all_tags((string) ($params['title'] ?? '')));
+        $title = sanitize_text_field($params['title'] ?? '');
         if ($title === '' || strlen($title) > 200) {
             throw self::error('VALIDATION', 'The new page needs a title of at most 200 characters.');
         }
@@ -1396,10 +1416,10 @@ final class WebMaven_Cap_Blocks {
             'post_parent' => $parent && $parent->post_type === 'page' && $parent->post_status !== 'trash' ? $parent_id : 0,
         ]), true);
         if (is_wp_error($id) || (int) $id <= 0) {
-            throw self::error('WRITE_FAILED', 'The page "' . $title . '" could not be created.');
+            throw self::error('WRITE_FAILED', 'The page "' . $title . '" could not be created.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $id = (int) $id;
-        update_post_meta($id, '_wm_block_page', 1);
+        update_post_meta($id, '_webmaven_block_page', 1);
         clean_post_cache($id);
         $post = get_post($id);
         return ['post_id' => $id, 'slug' => (string) $post->post_name, 'link' => (string) get_permalink($id), 'sha256' => self::sha((string) $post->post_content)];
@@ -1413,7 +1433,7 @@ final class WebMaven_Cap_Blocks {
         if (!$post || $post->post_type !== 'page') {
             return ['deleted' => true];
         }
-        if ((int) get_post_meta($id, '_wm_block_page', true) !== 1) {
+        if ((int) get_post_meta($id, '_webmaven_block_page', true) !== 1) {
             throw self::error('VALIDATION', 'WPMaven did not add this page.');
         }
         self::check_sha($params, (string) $post->post_content, 'The page "' . wp_strip_all_tags((string) $post->post_title) . '"');
@@ -1718,7 +1738,7 @@ final class WebMaven_Cap_Blocks {
         try {
             if (!did_action('wp_enqueue_scripts')) {
                 ob_start();
-                do_action('wp_enqueue_scripts');
+                do_action('wp_enqueue_scripts'); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress's own action, run once to gather the inline styles the theme's front end prints
                 ob_end_clean();
             }
             $styles = function_exists('wp_styles') ? wp_styles() : null;

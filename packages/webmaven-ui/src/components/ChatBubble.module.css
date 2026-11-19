@@ -60,7 +60,7 @@
 .channelIcon {
   position: absolute;
   top: 6px;
-  right: 8px;
+  inset-inline-end: 8px;
   color: var(--text-dim);
   opacity: 0.5;
   line-height: 0;

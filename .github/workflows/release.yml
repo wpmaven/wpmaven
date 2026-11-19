@@ -6,7 +6,8 @@
 # a secret scan). This workflow then, in public:
 #   1. builds dist/wpmaven.zip with build.sh, from the public npm registry;
 #   2. checks that every file in it is the one those checks passed
-#      (SHA256SUMS, in the release's commit);
+#      (SHA256SUMS, in the release's commit), and runs Plugin Check on it
+#      again, where any error or warning stops the release;
 #   3. publishes the zip as the tag's GitHub Release, with its checksum and
 #      a signed build attestation;
 #   4. once a maintainer approves it (the wordpress.org environment), puts
@@ -66,6 +67,17 @@ jobs:
             exit 1
           fi
           (cd dist && sha256sum wpmaven.zip > wpmaven.zip.sha256)
+
+      # Plugin Check, as WordPress.org runs it, on the plugin just compared:
+      # any error or warning stops the release (strict). One code is
+      # accepted: trademarked_term, since the name WPMaven starts with "wp".
+      # It is our own brand, and we ask the directory to keep it.
+      - name: Plugin Check
+        uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: dist/check/wpmaven
+          strict: true
+          ignore-codes: trademarked_term
 
       # GitHub signs attestations for public repositories.
       - name: Attestation

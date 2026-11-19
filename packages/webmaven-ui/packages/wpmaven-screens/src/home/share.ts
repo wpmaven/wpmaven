@@ -1,6 +1,16 @@
+/**
+ * Share the business the owner built (Share your site on Home, the
+ * milestones' share button): the public message the owner shares about
+ * their own site, the control's words, and what the owner is told about the
+ * referral link that rides along. In the page's language (SHARE_COPY,
+ * namespace screensShare).
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { localized } from '@yotako/webmaven-ui';
+import { productName } from '@yotako/wpmaven-onboarding/shared';
 import type { ScreensHost, ScreensTransport, SiteShare, SiteShareHook } from '../host/types';
 import { useOptionalScreensHost } from '../host/HostContext';
+import { formatTag } from '../copyLanguage';
 
 /**
  * Share the business the owner built (moved from the dashboard's Home,
@@ -41,6 +51,10 @@ import { useOptionalScreensHost } from '../host/HostContext';
  *
  * NOT A NAG, ever. No counter, no badge, no "you have not shared yet", no
  * reminder, no second ask.
+ *
+ * In the page's language (SHARE_COPY): English is the source; the French is
+ * written by hand (src/i18n/fr.json, namespace screensShare), the other
+ * languages by the dashboard's translation script. The message the owner shares is in the page's language too.
  */
 
 /**
@@ -56,9 +70,47 @@ export function prettyHost(url: string): string {
   return url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 }
 
+/**
+ * Sharing the owner's own site from Home (Share your site, the milestones'
+ * share button): the message they share, the control's words, and what
+ * the owner is told about the referral link that rides along (namespace
+ * 'screensShare'). "AI actions" are the plan's units of work; the referral
+ * figures come from the program and are never promised.
+ */
+export const SHARE_COPY_EN = {
+  /** Under the control after the message was copied. */
+  copied: 'Copied. Paste it wherever you want to show people.',
+  /** Under the control when the browser cannot copy: the message shows below it. */
+  unavailable: 'Copying is not available in this browser. Select the message below to copy it by hand.',
+  /** The control once the message is copied (short). */
+  copiedLabel: 'Copied',
+  /** The control where the browser has a share sheet. */
+  shareSite: 'Share your site',
+  /** The control where it does not: it copies the message. */
+  copySiteLink: 'Copy your site link',
+  /** The public message the owner shares, in their own voice (first person); {0} their site's address. */
+  message: (siteUrl: string) => `I built my business. Here it is: ${siteUrl}`,
+  /** The message's second paragraph when a referral link goes along: it says the link is a referral link; {0} the product's name, {1} the link. */
+  referralLine: (product: string, link: string) => `Built with ${product}. Here is my referral link if you want the same for yours: ${link}`,
+  /** Next to the control: the referral link goes with the message. */
+  noteLead: 'Your referral link goes with it.',
+  /** Then, when referrals add nothing to the owner's balance now; {0} the AI actions the referred person gets (up to). */
+  noteTheirsOnly: (give: number) => `Someone who starts from that link gets up to ${give} AI actions, added only when they pay their first full-price invoice. Nothing is added at signup, and the $1 first week does not count. Referrals are not adding actions to your own balance right now.`,
+  /** Then, at this month's limit; {0} the AI actions the referred person gets, {1} the month's limit of referrals, {2} the day the count resets ("December 1"). */
+  noteAtCap: (give: number, cap: number, resets: string) => `Someone who starts from that link gets up to ${give} AI actions when they pay their first full-price invoice. You have reached this month's limit of ${cap} referrals that earn you actions, so you earn none until the count resets on ${resets}.`,
+  /** Then, while the owner earns; {0} the AI actions the referred person gets, {1} the AI actions the owner gets, {2} why the owner's half waits (waitReason). */
+  noteEarns: (give: number, get: number, wait: string) => `Someone who starts from that link gets up to ${give} AI actions when they pay their first full-price invoice, and you get up to ${get} AI actions when their first 14 days as a paying customer are over. Nothing is added at signup, and the $1 first week does not count. ${wait} Referral actions go to your prepaid balance, and actions over that balance's cap are not added.`,
+  /** Why the referrer's half waits: the referred person may withdraw and be refunded in their first 14 days. */
+  waitReason: 'Your half waits for their first 14 days, because until then they can still withdraw and be refunded. If they do, that referral adds nothing.',
+  /** The note's last sentence. */
+  noteTail: 'The message you share names the link as your referral link and says nothing about these actions.',
+};
+
+export const SHARE_COPY = localized(SHARE_COPY_EN, 'screensShare');
+
 /** What the shared message says without a referral link. */
 export function basicShareMessage(siteUrl: string): string {
-  return `I built my business. Here it is: ${siteUrl}`;
+  return SHARE_COPY.message(siteUrl);
 }
 
 /**
@@ -70,15 +122,9 @@ export function basicShareMessage(siteUrl: string): string {
 export function buildShareMessage(siteUrl: string, referralUrl: string | null): string {
   const mine = basicShareMessage(siteUrl);
   return referralUrl
-    ? `${mine}\n\nBuilt with WPMaven. Here is my referral link if you want the same for yours: `
-      + referralUrl
+    ? `${mine}\n\n${SHARE_COPY.referralLine(productName(), referralUrl)}`
     : mine;
 }
-
-export const SHARE_COPY = {
-  copied: 'Copied. Paste it wherever you want to show people.',
-  unavailable: 'Copying is not available in this browser. Select the message below to copy it by hand.',
-};
 
 // ── The referral link (GET /referrals/me) ────────────────────────────────
 
@@ -96,10 +142,8 @@ export interface ShareReferral {
   vestedThisMonth: number;
 }
 
-/** Why the referrer's half waits: the sentence every referral surface uses. */
-export const REFERRAL_WAIT_REASON =
-  'Your half waits for their first 14 days, because until then they can still withdraw and be '
-  + 'refunded. If they do, that referral adds nothing.';
+/** Why the referrer's half waits: the sentence every referral surface uses. In English, for importers; the note reads SHARE_COPY.waitReason. */
+export const REFERRAL_WAIT_REASON = SHARE_COPY_EN.waitReason;
 
 /**
  * When the monthly cap counter goes back to zero: the first day of the next
@@ -154,29 +198,18 @@ export function referralNote(r: ShareReferral, now: Date = new Date()): string {
   const ownerEarns = r.monthlyVestCap > 0;
   const atCap = r.vestedThisMonth >= r.monthlyVestCap;
   // The API counts the cap from the first of the calendar month in UTC.
-  const resetLabel = capResetsAt(now).toLocaleDateString('en-US', {
+  const resetLabel = capResetsAt(now).toLocaleDateString(formatTag('en-US'), {
     month: 'long', day: 'numeric', timeZone: 'UTC',
   });
-  const lead = 'Your referral link goes with it.';
+  const c = SHARE_COPY;
   // "up to", on BOTH numbers: the engine clamps both against the same
   // prepaid-balance ceiling, and grants none with no subscription row.
   const core = !ownerEarns
-    ? `${lead} Someone who starts from that link gets up to ${r.giveActions} AI actions, added only `
-      + 'when they pay their first full-price invoice. Nothing is added at signup, and the $1 first '
-      + 'week does not count. Referrals are not adding actions to your own balance right now.'
+    ? c.noteTheirsOnly(r.giveActions)
     : atCap
-      ? `${lead} Someone who starts from that link gets up to ${r.giveActions} AI actions when they `
-        + `pay their first full-price invoice. You have reached this month's limit of `
-        + `${r.monthlyVestCap} referrals that earn you actions, so you earn none until the count `
-        + `resets on ${resetLabel}.`
-      : `${lead} Someone who starts from that link gets up to ${r.giveActions} AI actions when they `
-        + `pay their first full-price invoice, and you get up to ${r.getActions} AI actions when `
-        + 'their first 14 days as a paying customer are over. Nothing is added at signup, and the $1 '
-        + `first week does not count. ${REFERRAL_WAIT_REASON} `
-        + 'Referral actions go to your prepaid balance, and actions over that balance\'s cap are '
-        + 'not added.';
-  return `${core} The message you share names the link as your referral link and says nothing `
-    + 'about these actions.';
+      ? c.noteAtCap(r.giveActions, r.monthlyVestCap, resetLabel)
+      : c.noteEarns(r.giveActions, r.getActions, c.waitReason);
+  return `${c.noteLead} ${core} ${c.noteTail}`;
 }
 
 // ── The share ────────────────────────────────────────────────────────────

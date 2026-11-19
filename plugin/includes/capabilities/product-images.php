@@ -6,7 +6,7 @@
  * Stores published before photos travelled by attachment id lost them: the
  * site refused to download its own image address (a private or loopback
  * address) and the product went live without a photo, while the photo sat in
- * the media library. A staff repair names the product and the attachment.
+ * the media library. A repair names the product and the attachment.
  * Only a product WPMaven made (_webmaven_product_key) and only one without a
  * photo: the owner's products and photos are never touched.
  *
@@ -31,8 +31,8 @@ class WebMaven_Cap_Product_Images {
 
     public static function set_if_missing($params = [], $step_id = null) {
         $params = is_array($params) ? $params : [];
-        $product_id = (int) ($params['product_id'] ?? 0);
-        $attachment_id = (int) ($params['attachment_id'] ?? 0);
+        $product_id = isset($params['product_id']) && is_scalar($params['product_id']) ? (int) $params['product_id'] : 0;
+        $attachment_id = isset($params['attachment_id']) && is_scalar($params['attachment_id']) ? (int) $params['attachment_id'] : 0;
         $answer = function ($set, $reason = null) use ($product_id) {
             $out = ['success' => true, 'product_id' => $product_id, 'image_set' => $set];
             if ($reason !== null) {

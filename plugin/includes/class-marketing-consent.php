@@ -7,35 +7,48 @@
  *
  *  - WooCommerce checkout: an UNCHECKED box, "Email me news and offers from
  *    <site>. Unsubscribe anytime.", on the classic checkout and on the block
- *    checkout. A ticked box is stored on the order (_wm_marketing_optin = yes,
- *    _wm_marketing_optin_at) and pushed to WPMaven by the contact sync.
+ *    checkout. A ticked box is stored on the order (_webmaven_marketing_optin = yes,
+ *    _webmaven_marketing_optin_at) and pushed to WPMaven by the contact sync.
  *  - Forms WPMaven creates (WPForms or Contact Form 7): a newsletter form
  *    carries a required consent box, every other form an optional one, never
  *    ticked in advance. A submission with the box ticked (or a signup on a
  *    newsletter form made before the box existed, whose only purpose is the
  *    newsletter) is queued to WPMaven with the form and the page as evidence.
  *
- * Off with the option webmaven_marketing_optin = 'off' or the filter
- * webmaven_marketing_optin_enabled. Nothing here may break a checkout or a
- * form: every handler bails quietly.
+ * The boxes show only once the owner chose to copy the store's customers for
+ * email campaigns (WebMaven_Choices, contact_sync_enabled), unless the
+ * option webmaven_marketing_optin says 'on' or 'off', and the filter
+ * webmaven_marketing_optin_enabled has the last word. Nothing is queued or
+ * sent without that choice (WebMaven_Contact_Sync). Nothing here may break
+ * a checkout or a form: every handler bails quietly.
+ *
+ * The box reads the site's language (WebMaven_Visitor_Words):
+ * a form stores the words of the language it was made in, and prints them in
+ * the page's language, the business's name kept; words an owner changed
+ * stay theirs.
  */
 
 if (!defined('ABSPATH')) exit;
 
 require_once __DIR__ . '/class-webmaven-log.php';
+require_once __DIR__ . '/class-webmaven-visitor-words.php';
+require_once __DIR__ . '/class-webmaven-choices.php';
 
 class WebMaven_Marketing_Consent {
 
-    const META_OPTIN = '_wm_marketing_optin';
-    const META_OPTIN_AT = '_wm_marketing_optin_at';
+    const META_OPTIN = '_webmaven_marketing_optin';
+    const META_OPTIN_AT = '_webmaven_marketing_optin_at';
     const BLOCK_FIELD = 'wpmaven/marketing-optin';
-    const CLASSIC_FIELD = 'wm_marketing_optin';
+    const CLASSIC_FIELD = 'webmaven_marketing_optin';
     const FORM_FIELD_CSS = 'wm-marketing-consent';
     const CF7_FIELD = 'wm-marketing-consent';
-    const FORM_INTENT_OPTION = 'wm_form_intent_';
+    const FORM_INTENT_OPTION = 'webmaven_form_intent_';
     const EVIDENCE_MAX = 300;
 
     public static function init() {
+        // A box already in a form reads the page's language, on or off.
+        add_filter('wpforms_frontend_form_data', [__CLASS__, 'wpforms_words'], 20);
+        add_filter('wpcf7_form_elements', [__CLASS__, 'cf7_words'], 20);
         if (!self::enabled()) return;
         // WooCommerce checkout (the handlers bail without WooCommerce).
         add_action('woocommerce_review_order_before_submit', [__CLASS__, 'render_classic_checkbox']);
@@ -47,28 +60,114 @@ class WebMaven_Marketing_Consent {
         add_action('wpcf7_mail_sent', [__CLASS__, 'on_cf7_submit'], 10, 1);
     }
 
+    /**
+     * Whether the boxes show: the owner's own setting when they made one
+     * ('on' or 'off'), otherwise their contact sync choice, so a site whose
+     * owner never chose shows no box.
+     */
     public static function enabled() {
-        $on = get_option('webmaven_marketing_optin', 'on') !== 'off';
+        $set = get_option('webmaven_marketing_optin', '');
+        if ($set === 'on' || $set === 'off') {
+            $on = $set === 'on';
+        } else {
+            $on = class_exists('WebMaven_Choices') && WebMaven_Choices::on('contact_sync_enabled');
+        }
         return (bool) apply_filters('webmaven_marketing_optin_enabled', $on);
     }
 
-    /** The box's words, naming the business. */
-    public static function label($also = false) {
+    /** The box's words, naming the business, in the site's language or the one given. */
+    public static function label($also = false, $language = '') {
         $name = trim(wp_strip_all_tags((string) get_bloginfo('name')));
-        if ($name === '') $name = 'us';
-        return $also
-            ? sprintf('Also email me news and offers from %s. Unsubscribe anytime.', $name)
-            : sprintf('Email me news and offers from %s. Unsubscribe anytime.', $name);
+        if ($name === '') {
+            return WebMaven_Visitor_Words::get($also ? 'consent_also_us' : 'consent_us', (string) $language);
+        }
+        return WebMaven_Visitor_Words::with($also ? 'consent_also' : 'consent', $name, (string) $language);
     }
 
-    /** The consent field create_form adds: required on a newsletter form, optional elsewhere. */
-    public static function form_field($intent) {
+    /** The consent field create_form adds: required on a newsletter form, optional elsewhere; its words in the form's language. */
+    public static function form_field($intent, $language = '') {
         $newsletter = ($intent === 'newsletter');
         return [
-            'label' => self::label(!$newsletter),
+            'label' => self::label(!$newsletter, $language),
             'type' => 'consent',
             'required' => $newsletter,
         ];
+    }
+
+    /**
+     * Our words as a form stored them, in any language: [key, name] (name ''
+     * for the words without one), or null for words an owner wrote.
+     */
+    public static function stored_words($text) {
+        $text = trim((string) $text);
+        if ($text === '') return null;
+        foreach (['consent_us', 'consent_also_us'] as $key) {
+            if (in_array($text, WebMaven_Visitor_Words::all($key), true)) return [$key, ''];
+        }
+        foreach (['consent', 'consent_also'] as $key) {
+            foreach (WebMaven_Visitor_Words::all($key) as $words) {
+                $parts = explode('%s', $words, 2);
+                if (count($parts) === 2 && preg_match('/^' . preg_quote($parts[0], '/') . '(.+)' . preg_quote($parts[1], '/') . '$/su', $text, $m)) {
+                    return [$key, $m[1]];
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Stored words of ours in the page's language ('' when they are not ours or already read so). */
+    public static function words_now($text) {
+        $found = self::stored_words($text);
+        if ($found === null) return '';
+        [$key, $name] = $found;
+        $now = $name === '' ? WebMaven_Visitor_Words::get($key) : WebMaven_Visitor_Words::with($key, $name);
+        return $now !== trim((string) $text) ? $now : '';
+    }
+
+    /**
+     * wpforms_frontend_form_data: the consent box of a form (its sentence and
+     * its hidden label) in the page's language. The visitor still sends the
+     * sentence the form stores, which WPForms checks against the stored form.
+     */
+    public static function wpforms_words($form_data) {
+        try {
+            if (!is_array($form_data) || !isset($form_data['fields']) || !is_array($form_data['fields'])) return $form_data;
+            foreach ($form_data['fields'] as $fid => $field) {
+                if (!is_array($field) || strpos((string) ($field['css'] ?? ''), self::FORM_FIELD_CSS) === false) continue;
+                $label = (string) ($field['label'] ?? '');
+                if ($label !== '' && in_array($label, WebMaven_Visitor_Words::all('consent_box'), true)) {
+                    $form_data['fields'][$fid]['label'] = WebMaven_Visitor_Words::get('consent_box');
+                }
+                if (!isset($field['choices']) || !is_array($field['choices'])) continue;
+                foreach ($field['choices'] as $cid => $choice) {
+                    if (!is_array($choice)) continue;
+                    $now = self::words_now($choice['label'] ?? '');
+                    if ($now === '') continue;
+                    if (empty($field['show_values'])) {
+                        $form_data['fields'][$fid]['choices'][$cid]['value'] = (string) $choice['label'];
+                        $form_data['fields'][$fid]['show_values'] = '1';
+                    }
+                    $form_data['fields'][$fid]['choices'][$cid]['label'] = $now;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Never break a form.
+        }
+        return $form_data;
+    }
+
+    /** wpcf7_form_elements: the consent box of a Contact Form 7 form in the page's language. */
+    public static function cf7_words($html) {
+        try {
+            if (!is_string($html) || strpos($html, self::CF7_FIELD) === false) return $html;
+            return preg_replace_callback('/(<span class="wpcf7-list-item-label">)([^<]*)(<\/span>)/u', function ($m) {
+                $text = html_entity_decode($m[2], ENT_QUOTES, 'UTF-8');
+                $now = self::words_now($text);
+                return $now === '' ? $m[0] : $m[1] . esc_html($now) . $m[3];
+            }, $html);
+        } catch (\Throwable $e) {
+            return $html;
+        }
     }
 
     /** Whether a field list already carries the consent box. */
@@ -96,7 +195,7 @@ class WebMaven_Marketing_Consent {
     public static function save_classic($order, $data = null) {
         try {
             // WooCommerce verified the checkout nonce before this hook runs.
-            // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- WooCommerce verified the checkout nonce before this hook runs
             $raw = isset($_POST[self::CLASSIC_FIELD]) ? sanitize_text_field(wp_unslash((string) $_POST[self::CLASSIC_FIELD])) : '';
             if ($raw === '1') self::mark_order($order);
         } catch (\Throwable $e) {

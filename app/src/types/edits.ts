@@ -358,7 +358,39 @@ export interface SiteMap {
   styles?: { canWrite: boolean; fonts: string[]; reason?: string };
   posts?: Array<{ postId: number; title: string; url: string }>;
   classicTheme?: { menus: Array<{ location: string; label: string }>; widgetAreas: Array<{ id: string; name: string }> };
+  /** A site in several languages (absent for one language): the main one and each language's address prefix. */
+  languages?: SiteMapLanguages;
 }
+
+/**
+ * A site in several languages (multilingual sites, design 8.4 and 19.5):
+ * the main language at the root, each other one under its prefix ("/ca/"),
+ * with the same page addresses in every language. name is the language's
+ * own name ("Català").
+ */
+export interface SiteMapLanguage {
+  tag: string;
+  name: string;
+  /** "/ca/"; empty for the main language. */
+  prefix: string;
+  main: boolean;
+  pages: number;
+  /** Some of its texts are still being written after an edit (it follows in a few minutes). */
+  behind?: boolean;
+}
+
+export interface SiteMapLanguages {
+  main: string;
+  list: SiteMapLanguage[];
+}
+
+/**
+ * The language a design change is made in (phase 5, design 19.1): lang, the
+ * language of the page the owner looks at (left out for the main one);
+ * langScope 'language' changes that language's words alone ("only in
+ * Català"). A site in one language leaves both out.
+ */
+export interface DesignLanguage { lang?: string; langScope?: 'site' | 'language' }
 
 /** A designed form, as the editor's form panel reads it. */
 export interface SiteMapForm {

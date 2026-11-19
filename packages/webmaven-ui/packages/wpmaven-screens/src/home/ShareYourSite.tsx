@@ -13,7 +13,7 @@
 import React from 'react';
 import { HiOutlineCheck, HiOutlineClipboardDocument, HiOutlineShare } from 'react-icons/hi2';
 import type { ScreensHost } from '../host/types';
-import { SHARE_ROW_GAP, useHostSiteShare } from './share';
+import { SHARE_COPY, SHARE_ROW_GAP, useHostSiteShare } from './share';
 
 export type ShareVariant = 'banner' | 'quiet';
 
@@ -38,8 +38,8 @@ export const ShareYourSite: React.FC<ShareYourSiteProps> = ({ host = null, siteU
   // browser: a native sheet where there is one, the clipboard where there is
   // not. It never says "share" and then silently copy.
   const label = state === 'copied'
-    ? 'Copied'
-    : canNative ? 'Share your site' : 'Copy your site link';
+    ? SHARE_COPY.copiedLabel
+    : canNative ? SHARE_COPY.shareSite : SHARE_COPY.copySiteLink;
 
   const hasDetail = !!status || !!note || state === 'unavailable';
   const detailSize = isBanner ? 'var(--text-data)' : 'var(--text-meta)';

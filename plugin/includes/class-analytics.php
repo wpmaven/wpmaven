@@ -2,7 +2,8 @@
 /**
  * WebMaven Analytics
  * Adds the lightweight tracker to the site's pages, once the owner turned
- * visitor statistics on (WebMaven_Choices). The tracker ships in the plugin
+ * visitor statistics on (WebMaven_Choices), while the site is connected to a
+ * WPMaven account (a disconnect stops it). The tracker ships in the plugin
  * (assets/tracker.js) and only sends its counts to the API: WordPress is not
  * in the data path, and no code is loaded from WPMaven's servers.
  */
@@ -32,14 +33,15 @@ class WebMaven_Analytics {
         add_action('woocommerce_thankyou', [$this, 'print_order_context'], 10, 1);
     }
 
+    /** The thank-you page's order, until the tracker's handle can carry it. */
+    private $order_context = null;
+
     /**
      * Inject the tracker script on frontend pages.
      */
     public function inject_tracker() {
-        $tracking_id = get_option('webmaven_wp_tracking_id', '');
-        if (!$tracking_id) return;
-
-        if (!WebMaven_Choices::on('analytics_enabled')) return;
+        $tracking_id = self::tracking_id();
+        if ($tracking_id === '') return;
 
         $settings = get_option('webmaven_wp_settings', []);
         $api_url = $settings['browser_api_base_url'] ?? WEBMAVEN_WP_BROWSER_API_BASE_URL;
@@ -49,23 +51,22 @@ class WebMaven_Analytics {
             'id' => (string) $tracking_id,
             'collect' => rtrim((string) $api_url, '/') . '/analytics/collect',
         ]) . ';', 'before');
+        $this->add_order_context();
     }
 
     /**
-     * Print the real order context on the WooCommerce thank-you page so the
+     * The real order context on the WooCommerce thank-you page, so the
      * tracker can send an 'order' event with the exact total (numbers, not
-     * formatted strings). Only fires on woocommerce_thankyou, only when the
-     * order exists, and only when the tracker itself would be injected.
+     * formatted strings), set before the tracker runs. Only fires on
+     * woocommerce_thankyou, only when the order exists, and only when the
+     * tracker itself would be injected.
      */
     public function print_order_context($order_id) {
         if (!class_exists('WooCommerce') || !function_exists('wc_get_order')) return;
         if (!$order_id) return;
 
         // Same gates as inject_tracker: no tracker means no consumer for this.
-        $tracking_id = get_option('webmaven_wp_tracking_id', '');
-        if (!$tracking_id) return;
-
-        if (!WebMaven_Choices::on('analytics_enabled')) return;
+        if (self::tracking_id() === '') return;
 
         $order = wc_get_order($order_id);
         if (!$order) return;
@@ -76,6 +77,34 @@ class WebMaven_Analytics {
             'currency' => $order->get_currency(),
         ];
 
-        echo '<script>window.__wpmavenOrder = ' . wp_json_encode($context) . ';</script>' . "\n";
+        $this->order_context = $context;
+        $this->add_order_context();
+    }
+
+    /**
+     * The tracking id when the tracker may run: the owner turned visitor
+     * statistics on, and the site is connected (its instance id is there,
+     * which a disconnect deletes). '' otherwise.
+     */
+    private static function tracking_id(): string {
+        if (!WebMaven_Choices::on('analytics_enabled') || get_option('webmaven_wp_instance_id', '') === '') {
+            return '';
+        }
+        $id = get_option('webmaven_wp_tracking_id', '');
+        return is_string($id) ? $id : '';
+    }
+
+    /**
+     * The order context as inline code before the tracker (in the footer).
+     * A block theme draws the page's content before wp_enqueue_scripts, so
+     * the thank-you hook can come first: the context then waits for the
+     * tracker's handle.
+     */
+    private function add_order_context() {
+        if ($this->order_context === null || !wp_script_is('webmaven-tracker', 'registered')) {
+            return;
+        }
+        wp_add_inline_script('webmaven-tracker', 'window.__wpmavenOrder = ' . wp_json_encode($this->order_context) . ';', 'before');
+        $this->order_context = null;
     }
 }

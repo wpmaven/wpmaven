@@ -2,6 +2,8 @@
  * One approval, the same card in both apps and on both of the dashboard's
  * surfaces (2026-10-16): Waiting for you, the plugin's Waiting for you, and
  * the dashboard's Your team > Approvals, which drew a second card of its own.
+ * An advice item (kind 'advice') is drawn by AdviceCard: its steps, "Done"
+ * and "Not for me", nothing that changes the site.
  *
  * Who on the team asks (and, in the dashboard's account view, for which
  * business), the title, the real content (ApprovalPreview), what it does,
@@ -17,6 +19,8 @@
  * person may not decide shows the API's sentence (ownerOnlyText) instead of
  * the decision; a held change says the site's held sentence, with Open
  * billing and Cancel this change.
+ *
+ * Its words are in the page's language (approvalCardCopy.ts).
  */
 import React, { useState } from 'react';
 import {
@@ -41,7 +45,10 @@ import { approvalByTitle, approvalTitle, canRevise, factsOf, sentenceOf, sentenc
 import { HostLink } from '../host/HostLink';
 import { useOptionalScreensHost } from '../host/HostContext';
 import { PageButton } from './ReceiptNote';
+import { AdviceCard } from './AdviceCard';
+import { ADVICE_COPY, isAdviceApproval } from './advice';
 import { TYPE, small } from './styles';
+import { APPROVAL_CARD_COPY, APPROVAL_CARD_COPY_EN } from './approvalCardCopy';
 
 /** A card's status, in words and in one of the badge colours (Your team's history). */
 export interface ApprovalCardStatus {
@@ -176,14 +183,18 @@ export function isHeldRow(a: Pick<OperatorApproval, 'status'> & Partial<Pick<Ope
   return a.status === 'NEEDS_ACTIONS' || a.held === true;
 }
 
-/** The sentence a site's money card says when this person may not decide it (the API's own, else this). */
-export const OWNER_ONLY_TEXT = "Only the account's owner decides payments.";
+/**
+ * The sentence a site's money card says when this person may not decide it
+ * (the API's own, else this). English, for importers: the card reads
+ * APPROVAL_CARD_COPY.ownerOnly when it draws.
+ */
+export const OWNER_ONLY_TEXT = APPROVAL_CARD_COPY_EN.ownerOnly;
 
-/** The sentence a site's TikTok or YouTube card says (the API's own, else this). */
-export const APPROVE_IN_DASHBOARD_TEXT = 'Posts to TikTok and uploads to YouTube are approved in your dashboard, where their settings are chosen.';
+/** The sentence a site's TikTok or YouTube card says (the API's own, else this; the card reads APPROVAL_CARD_COPY.approveInDashboard). */
+export const APPROVE_IN_DASHBOARD_TEXT = APPROVAL_CARD_COPY_EN.approveInDashboard;
 
-/** The sentence a site's held card says (the API's own, else this). */
-export const SITE_HELD_TEXT = "This waits for your plan's actions. See your dashboard.";
+/** The sentence a site's held card says (the API's own, else this; the card reads APPROVAL_CARD_COPY.siteHeld). */
+export const SITE_HELD_TEXT = APPROVAL_CARD_COPY_EN.siteHeld;
 
 export const ApprovalCard: React.FC<ApprovalCardProps> = ({
   approval: a, businessName = null, tourAnchor = false, deciding, locked = false,
@@ -197,6 +208,34 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
   const host = useOptionalScreensHost();
   const siteView = host?.scope.kind === 'site';
   const [full, setFull] = useState(false);
+  /*
+   * Advice (what the team cannot fix on this site): its own card, with the
+   * steps, "Done" and "Not for me". Both only settle the item; nothing runs,
+   * so there is nothing to preview, no Action details and no approve of a
+   * change, whatever words a surface gives its buttons.
+   */
+  if (isAdviceApproval(a)) {
+    return (
+      <AdviceCard
+        approval={a}
+        businessName={businessName}
+        tourAnchor={tourAnchor}
+        deciding={deciding}
+        ownerOnlyText={siteView && a.decidable === false ? (a.ownerOnlyText || ADVICE_COPY.ownerOnly) : null}
+        onDone={onApprove}
+        onNotForMe={onReject}
+        status={status}
+        when={when}
+        confirmation={confirmation}
+        extra={extra}
+        decideBlock={decideBlock}
+        decideError={decideError}
+        frame={frame}
+        heading={heading}
+        decisionRow={decisionRow}
+      />
+    );
+  }
   const pending = a.status === 'PENDING' && !a.held;
   const held = treatAsHeld || isHeldRow(a);
   /*
@@ -262,7 +301,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
           aria-describedby={approveBlock ? whyId : undefined}
           onClick={onApprove}
         >
-          {deciding ? 'Working…' : (labels?.approve ?? 'Approve')}
+          {deciding ? APPROVAL_CARD_COPY.working : (labels?.approve ?? APPROVAL_CARD_COPY.approve)}
         </Button>
       )}
       {!videoChoice && canRevise(a) && (
@@ -273,7 +312,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
           disabled={deciding || !!decideBlock}
           onClick={onToggleNote}
         >
-          Request changes
+          {APPROVAL_CARD_COPY.requestChanges}
         </Button>
       )}
       {/* The API refuses a staff decision on a TikTok row either way. */}
@@ -288,7 +327,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
         onClick={onReject}
       >
         {/* Decline, as the plugin says it: the owner turns down their own team's work. */}
-        {labels?.reject ?? rejectLabelFor(a, 'Decline')}
+        {labels?.reject ?? rejectLabelFor(a, APPROVAL_CARD_COPY.decline)}
       </Button>
       {openFull && (
         <Button
@@ -297,7 +336,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
           data-testid="waiting-open-full"
           onClick={openTheFull}
         >
-          <span style={{ whiteSpace: 'nowrap' }}>Open in full</span>
+          <span style={{ whiteSpace: 'nowrap' }}>{APPROVAL_CARD_COPY.openFull}</span>
         </Button>
       )}
       {/* What unlocks Approve, beside it: the YouTube section above, or the role. */}
@@ -313,7 +352,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
               account's view, for which business. */}
           <span data-testid="waiting-by" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-dim)', minWidth: 0 }}>
             <OperatorAvatar id={a.operatorId} title={by} presence={pending ? 'waiting' : 'still'} size={OPERATOR_AVATAR_SIZES.card} decorative />
-            <span>Your {by}</span>
+            <span>{APPROVAL_CARD_COPY.yourMember(by)}</span>
             {businessName && (
               <span data-testid="waiting-business" style={{ overflowWrap: 'anywhere' }}>
                 <span aria-hidden="true">{'· '}</span>{businessName}
@@ -335,7 +374,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
         </span>
       )}
       {partOf && a.task?.title && (
-        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Part of: <OperatorInline text={a.task.title} /></span>
+        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{APPROVAL_CARD_COPY.partOf} <OperatorInline text={a.task.title} /></span>
       )}
       {/* Under a heading that names the kind, what the change does comes first. */}
       {heading && sentence}
@@ -358,11 +397,11 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
       )}
       {a.revisionRound > 0 && (
         <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-          Version {a.revisionRound + 1}, rewritten after your notes.
+          {APPROVAL_CARD_COPY.version(a.revisionRound + 1)}
         </span>
       )}
       {a.revisionNote && (
-        <span style={{ fontSize: 13, color: 'var(--text)', opacity: 0.8 }}>You asked for: “{a.revisionNote}”</span>
+        <span style={{ fontSize: 13, color: 'var(--text)', opacity: 0.8 }}>{APPROVAL_CARD_COPY.youAskedFor(a.revisionNote)}</span>
       )}
       {a.error && (
         <OperatorInline text={a.error} style={{ fontSize: 13, color: 'var(--danger)' }} />
@@ -380,13 +419,13 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
       {extra}
       {pending && decision === 'dashboard' && (
         <InDashboard
-          text={a.approveInDashboardText || APPROVE_IN_DASHBOARD_TEXT}
+          text={a.approveInDashboardText || APPROVAL_CARD_COPY.approveInDashboard}
           to={a.dashboardPath || (toYouTube ? approvalPath(a.id) : null)}
         />
       )}
       {pending && decision === 'owner-only' && (
         <p data-testid="waiting-owner-only" role="note" style={{ margin: 0, fontSize: 13, color: 'var(--text)' }}>
-          {a.ownerOnlyText || OWNER_ONLY_TEXT}
+          {a.ownerOnlyText || APPROVAL_CARD_COPY.ownerOnly}
         </p>
       )}
       {asksYouTube && (
@@ -411,7 +450,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
       {pending && openFull && !showDecision && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button size="sm" variant="ghost" data-testid="waiting-open-full" onClick={openTheFull}>
-            <span style={{ whiteSpace: 'nowrap' }}>Open in full</span>
+            <span style={{ whiteSpace: 'nowrap' }}>{APPROVAL_CARD_COPY.openFull}</span>
           </Button>
         </div>
       )}
@@ -453,7 +492,7 @@ function NoteBox({ id, note, sending, error, onChange, onSend, onCancel }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <label htmlFor={`wnote-${id}`} style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-        What should be different? Write it the way you would say it.
+        {APPROVAL_CARD_COPY.noteLabel}
       </label>
       <textarea
         id={`wnote-${id}`}
@@ -462,7 +501,7 @@ function NoteBox({ id, note, sending, error, onChange, onSend, onCancel }: {
         value={note}
         maxLength={2000}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Shorter, and mention that we open on Saturdays."
+        placeholder={APPROVAL_CARD_COPY.notePlaceholder}
         style={{
           boxSizing: 'border-box', width: '100%', padding: 10, borderRadius: 8, margin: 0,
           border: '1px solid var(--glass-border)', background: 'var(--bg-raised)',
@@ -478,12 +517,12 @@ function NoteBox({ id, note, sending, error, onChange, onSend, onCancel }: {
           aria-describedby={!sending && empty ? `wnote-why-${id}` : undefined}
           onClick={onSend}
         >
-          {sending ? 'Sending…' : 'Send to your team'}
+          {sending ? APPROVAL_CARD_COPY.sending : APPROVAL_CARD_COPY.sendToTeam}
         </Button>
         <Button size="sm" variant="ghost" disabled={sending} onClick={onCancel}>
-          Cancel
+          {APPROVAL_CARD_COPY.cancel}
         </Button>
-        <WhyDisabled id={`wnote-why-${id}`} reason={!sending && empty ? 'Write what should be different, then send it.' : null} />
+        <WhyDisabled id={`wnote-why-${id}`} reason={!sending && empty ? APPROVAL_CARD_COPY.noteWhy : null} />
       </div>
     </div>
   );
@@ -501,7 +540,7 @@ function InDashboard({ text, to }: { text: string; to: string | null }) {
       <span style={{ fontSize: 13, color: 'var(--text)', flex: '1 1 260px' }}>{text}</span>
       {to && (
         <HostLink to={to} style={{ fontSize: 13, fontWeight: 600, color: 'var(--purple)', textDecoration: 'underline' }} testId="waiting-open-dashboard">
-          Open in your dashboard
+          {APPROVAL_CARD_COPY.openInDashboard}
         </HostLink>
       )}
     </div>
@@ -531,7 +570,7 @@ function HeldBlock({ approval: a, siteView, hideLine, wayOut, locked, onCancel }
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const line = siteView ? (a.heldText || SITE_HELD_TEXT) : heldLine(a, tiktok);
+  const line = siteView ? (a.heldText || APPROVAL_CARD_COPY.siteHeld) : heldLine(a, tiktok);
   const cancellable = !!onCancel && (canCancelHeld(a) || a.held === true);
   const staffBlocked = locked && tiktok;
   const confirm = async () => {
@@ -541,7 +580,7 @@ function HeldBlock({ approval: a, siteView, hideLine, wayOut, locked, onCancel }
       await onCancel?.();
       setAsking(false);
     } catch (e) {
-      setFailure(e instanceof Error && e.message ? e.message : 'That did not go through. Reload and try again.');
+      setFailure(e instanceof Error && e.message ? e.message : APPROVAL_CARD_COPY.cancelFailed);
     } finally {
       setBusy(false);
     }
@@ -554,7 +593,7 @@ function HeldBlock({ approval: a, siteView, hideLine, wayOut, locked, onCancel }
       {(wayOut !== null || cancellable) && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {wayOut !== undefined ? wayOut : (
-            <PageButton to={a.dashboardPath || '/billing'} source="held" testId="held-open-billing">Open billing</PageButton>
+            <PageButton to={a.dashboardPath || '/billing'} source="held" testId="held-open-billing">{APPROVAL_CARD_COPY.openBilling}</PageButton>
           )}
           {cancellable && (
             <Button
@@ -613,8 +652,8 @@ export const ApprovalDetail: React.FC<ApprovalDetailProps> = ({ approval: a, onC
   return (
     <Modal isOpen onClose={onClose} title={approvalTitle(a)} size="lg">
       <ModalScrollBody
-        label="The approval in full"
-        footer={<Button size="sm" variant="outline" onClick={onClose}>Close</Button>}
+        label={APPROVAL_CARD_COPY.fullLabel}
+        footer={<Button size="sm" variant="outline" onClick={onClose}>{APPROVAL_CARD_COPY.close}</Button>}
       >
         {under && (
           <OperatorInline text={under} style={underTitleStyle(a)} />

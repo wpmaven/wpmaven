@@ -40,10 +40,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
     $handlers['media_list'] = ['WebMaven_Cap_Media_Library', 'media_list'];
     $handlers['media_usage'] = ['WebMaven_Cap_Media_Library', 'media_usage'];
@@ -119,7 +115,7 @@ final class WebMaven_Cap_Media_Library {
         $p = is_array($params) ? $params : [];
         $raw = $p['items'] ?? null;
         if (!is_array($raw) || $raw === [] || count($raw) > self::MAX_ALT_SET) {
-            throw self::error('VALIDATION', 'items must list 1 to ' . self::MAX_ALT_SET . ' pictures.');
+            throw self::error('VALIDATION', 'items must list 1 to ' . self::MAX_ALT_SET . ' pictures.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $dry = self::flag($p['dry_run'] ?? false);
         $items = [];
@@ -128,7 +124,7 @@ final class WebMaven_Cap_Media_Library {
             $alt = is_array($item) && isset($item['alt']) && is_string($item['alt']) ? $item['alt'] : '';
             $alt = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($alt)));
             if (strlen($alt) > self::ALT_MAX_LENGTH) {
-                throw self::error('VALIDATION', 'A description can have at most ' . self::ALT_MAX_LENGTH . ' characters.');
+                throw self::error('VALIDATION', 'A description can have at most ' . self::ALT_MAX_LENGTH . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $items[$id] = $alt;
         }
@@ -305,7 +301,7 @@ final class WebMaven_Cap_Media_Library {
         $id = self::attachment($params['media_id'] ?? null);
         $uses = WebMaven_Media_Usage::fresh_uses([$id])['uses'][$id] ?? [];
         if ($uses) {
-            throw self::error('IN_USE', WebMaven_Media_Usage::in_use_sentence($id, count($uses)));
+            throw self::error('IN_USE', WebMaven_Media_Usage::in_use_sentence($id, count($uses))); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if (!wp_delete_attachment($id, true)) {
             throw self::error('WRITE_FAILED', 'WordPress could not delete this file.');
@@ -325,12 +321,12 @@ final class WebMaven_Cap_Media_Library {
         foreach ($ids as $id) {
             $post = get_post($id);
             if (!$post || $post->post_type !== 'attachment') {
-                throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.');
+                throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $file = WebMaven_Media_Usage::readable_file($id);
             $bytes = $file ? @file_get_contents($file['path']) : false;
             if ($bytes === false || $bytes === '') {
-                throw self::error('VALIDATION', 'Image ' . $id . ' cannot be read: WPMaven reads JPEG, PNG, GIF and WebP pictures.');
+                throw self::error('VALIDATION', 'Image ' . $id . ' cannot be read: WPMaven reads JPEG, PNG, GIF and WebP pictures.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $images[] = [
                 'mediaId' => $id,
@@ -403,7 +399,7 @@ final class WebMaven_Cap_Media_Library {
         }
 
         // The blog cards' images (a JSON list of URLs, as the theme reads it).
-        $raw = get_option('wm_posts_imgs', '');
+        $raw = get_option('webmaven_posts_imgs', '');
         $urls = is_array($raw) ? $raw : json_decode((string) $raw, true);
         if (is_array($urls) && $urls) {
             $next = [];
@@ -411,7 +407,7 @@ final class WebMaven_Cap_Media_Library {
                 $next[] = is_string($url) ? WebMaven_Media_Usage::replace_in_text($url, $from, $to) : $url;
             }
             if ($next !== $urls) {
-                update_option('wm_posts_imgs', wp_json_encode(array_map('esc_url_raw', array_map('strval', $next))));
+                update_option('webmaven_posts_imgs', wp_json_encode(array_map('esc_url_raw', array_map('strval', $next))));
                 $note('blog-cards', null, 'setting');
             }
         }
@@ -452,7 +448,7 @@ final class WebMaven_Cap_Media_Library {
         }
         $result = wp_update_post(wp_slash(['ID' => $id, 'post_content' => $content, 'post_excerpt' => $excerpt]), true);
         if (is_wp_error($result) || !$result) {
-            throw self::error('WRITE_FAILED', 'WordPress could not save "' . WebMaven_Cap_Store_Catalog::text($post->post_title) . '".');
+            throw self::error('WRITE_FAILED', 'WordPress could not save "' . WebMaven_Cap_Store_Catalog::text($post->post_title) . '".'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return true;
     }
@@ -466,7 +462,7 @@ final class WebMaven_Cap_Media_Library {
             'fields' => 'ids',
             'orderby' => 'ID',
             'order' => 'ASC',
-            'meta_query' => [['key' => $key, 'value' => $value, 'compare' => $compare]],
+            'meta_query' => [['key' => $key, 'value' => $value, 'compare' => $compare]], // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the posts that use this picture as their featured image or in a gallery, by a meta key postmeta indexes; read when the team replaces a picture (media_replace_refs)
         ]);
         return array_map('intval', (array) $ids);
     }
@@ -482,7 +478,7 @@ final class WebMaven_Cap_Media_Library {
         $id = self::positive_int($raw);
         $post = $id > 0 ? get_post($id) : null;
         if (!$post || $post->post_type !== 'attachment') {
-            throw self::error('NOT_FOUND', 'File ' . $id . ' is not in the media library.');
+            throw self::error('NOT_FOUND', 'File ' . $id . ' is not in the media library.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $id;
     }
@@ -502,12 +498,12 @@ final class WebMaven_Cap_Media_Library {
 
     private static function text_value($value, string $what, int $min, int $max): string {
         if (!is_string($value)) {
-            throw self::error('VALIDATION', $what . ' must be text.');
+            throw self::error('VALIDATION', $what . ' must be text.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $text = trim(sanitize_text_field($value));
         $length = function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
         if ($length < $min || $length > $max) {
-            throw self::error('VALIDATION', $what . ' has ' . ($min > 0 ? $min . ' to ' : 'at most ') . $max . ' characters.');
+            throw self::error('VALIDATION', $what . ' has ' . ($min > 0 ? $min . ' to ' : 'at most ') . $max . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $text;
     }

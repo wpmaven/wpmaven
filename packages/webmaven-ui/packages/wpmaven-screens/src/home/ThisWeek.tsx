@@ -11,10 +11,13 @@ import {
   type PlanMilestones,
 } from './reads';
 import type { BusinessHome } from './useBusinessHome';
+import { THIS_WEEK_COPY } from './homeCopy';
+import { formatTag } from '../copyLanguage';
 
 /**
  * This week's milestone: the money goal, what actually arrived, and the work
- * that is moving it.
+ * that is moving it. Its words, dates and numbers are in the page's language
+ * (homeCopy.ts, THIS_WEEK_COPY).
  *
  * The card is deliberately short-sighted. It shows the week being lived, the
  * week just finished (collapsed, because it is context and not a task), and
@@ -27,12 +30,16 @@ import type { BusinessHome } from './useBusinessHome';
  * nothing at all.
  */
 
-const TASK_LABEL: Record<MilestoneTaskStatus, string> = {
-  done: '✓ done',
-  active: 'running now',
-  planned: 'planned',
-  paused: 'paused',
-};
+/** A task's state in words, read when it is drawn. */
+function taskLabel(status: MilestoneTaskStatus): string | undefined {
+  switch (status) {
+    case 'done': return THIS_WEEK_COPY.taskDone;
+    case 'active': return THIS_WEEK_COPY.taskActive;
+    case 'planned': return THIS_WEEK_COPY.taskPlanned;
+    case 'paused': return THIS_WEEK_COPY.taskPaused;
+    default: return undefined;
+  }
+}
 
 const TASK_COLOR: Record<MilestoneTaskStatus, string> = {
   done: 'var(--success)',
@@ -49,27 +56,30 @@ const label: React.CSSProperties = {
 /** "3 visitors, 1 converted, 1 bought": plural-safe, and only what we have. */
 function funnelLine(actual: MilestoneWeek['actual']): string | null {
   if (!actual) return null;
-  const n = (v: number, one: string, many: string) => `${v.toLocaleString('en-US')} ${v === 1 ? one : many}`;
-  return `${n(actual.visitors, 'visitor', 'visitors')}, ${actual.converted.toLocaleString('en-US')} converted, `
-    + `${actual.orders.toLocaleString('en-US')} bought`;
+  return THIS_WEEK_COPY.funnel(
+    THIS_WEEK_COPY.visitors(actual.visitors),
+    THIS_WEEK_COPY.converted(actual.converted),
+    THIS_WEEK_COPY.bought(actual.orders),
+  );
 }
 
 function contributionLine(c: MilestoneTask['contribution']): string | null {
   if (!c) return null;
   const parts: string[] = [];
-  if (c.visitors) parts.push(`${c.visitors.toLocaleString('en-US')} visitor${c.visitors === 1 ? '' : 's'}`);
-  if (c.purchases) parts.push(`${c.purchases.toLocaleString('en-US')} purchase${c.purchases === 1 ? '' : 's'}`);
-  return parts.length ? `brought ${parts.join(' and ')}` : null;
+  if (c.visitors) parts.push(THIS_WEEK_COPY.visitors(c.visitors));
+  if (c.purchases) parts.push(THIS_WEEK_COPY.purchases(c.purchases));
+  if (!parts.length) return null;
+  return THIS_WEEK_COPY.brought(parts.length > 1 ? THIS_WEEK_COPY.and(parts[0], parts[1]) : parts[0]);
 }
 
 const weekRange = (w: MilestoneWeek): string => {
   const fmt = (iso: string) => {
     const t = new Date(iso).getTime();
-    return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    return Number.isFinite(t) ? new Date(t).toLocaleDateString(formatTag('en-US'), { month: 'short', day: 'numeric' }) : '';
   };
   const from = fmt(w.start);
   const to = fmt(w.end);
-  return from && to ? `${from} to ${to}` : from || to;
+  return from && to ? THIS_WEEK_COPY.range(from, to) : from || to;
 };
 
 /**
@@ -116,7 +126,7 @@ export const ThisWeekMilestoneView: React.FC<{ data: PlanMilestones; now?: numbe
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-        <div style={label}>This week&apos;s milestone</div>
+        <div style={label}>{THIS_WEEK_COPY.title}</div>
         <span style={{ fontSize: 'var(--text-meta)', color: 'var(--text-dim)' }}>{weekRange(week)}</span>
       </div>
 
@@ -126,7 +136,7 @@ export const ThisWeekMilestoneView: React.FC<{ data: PlanMilestones; now?: numbe
             {money(week.actual?.revenueCents ?? 0)}
           </div>
           <div style={{ fontSize: 'var(--text-meta)', color: 'var(--text-dim)' }}>
-            so far, against an estimated goal of {money(week.goal.revenueCents)}
+            {THIS_WEEK_COPY.soFar(money(week.goal.revenueCents))}
           </div>
         </div>
       </div>
@@ -156,7 +166,7 @@ export const ThisWeekMilestoneView: React.FC<{ data: PlanMilestones; now?: numbe
                   )}
                 </span>
                 <span style={{ fontSize: 'var(--text-meta)', fontWeight: 600, color: TASK_COLOR[t.status] }}>
-                  {TASK_LABEL[t.status] ?? t.status}
+                  {taskLabel(t.status) ?? t.status}
                 </span>
               </div>
             );
@@ -166,7 +176,7 @@ export const ThisWeekMilestoneView: React.FC<{ data: PlanMilestones; now?: numbe
 
       {next && (
         <p style={{ margin: '10px 0 0', fontSize: 'var(--text-data)', color: 'var(--text-dim)' }}>
-          Next week&apos;s estimated goal: {money(next.goal.revenueCents)}.
+          {THIS_WEEK_COPY.nextGoal(money(next.goal.revenueCents))}
         </p>
       )}
 
@@ -178,13 +188,11 @@ export const ThisWeekMilestoneView: React.FC<{ data: PlanMilestones; now?: numbe
             aria-expanded={prevOpen}
             style={{ background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer', fontSize: 'var(--text-data)', color: 'var(--text-dim)', textDecoration: 'underline' }}
           >
-            {prevOpen ? 'Hide last week' : 'Last week'}
+            {prevOpen ? THIS_WEEK_COPY.hideLastWeek : THIS_WEEK_COPY.lastWeek}
           </button>
           {prevOpen && (
             <p style={{ margin: '2px 0 0', fontSize: 'var(--text-data)', color: 'var(--text-dim)' }}>
-              {weekRange(previous)}: {money(previous.actual?.revenueCents ?? 0)} against an estimated goal of{' '}
-              {money(previous.goal.revenueCents)}
-              {funnelLine(previous.actual) ? `. ${funnelLine(previous.actual)}.` : '.'}
+              {lastWeekLine(previous, money)}
             </p>
           )}
         </div>
@@ -192,6 +200,15 @@ export const ThisWeekMilestoneView: React.FC<{ data: PlanMilestones; now?: numbe
     </div>
   );
 };
+
+/** Last week's line: its dates, the money that came in against its estimated goal, and its funnel when there is one. */
+function lastWeekLine(previous: MilestoneWeek, money: (cents: number) => string): string {
+  const range = weekRange(previous);
+  const actual = money(previous.actual?.revenueCents ?? 0);
+  const goal = money(previous.goal.revenueCents);
+  const funnel = funnelLine(previous.actual);
+  return funnel ? THIS_WEEK_COPY.lastWeekFunnel(range, actual, goal, funnel) : THIS_WEEK_COPY.lastWeekLine(range, actual, goal);
+}
 
 export interface ThisWeekCardProps {
   /** The business's Home (useBusinessHome): the plan whose milestones it reads. */

@@ -235,9 +235,14 @@ module.exports = {
     // node_modules of its own.
     modules: [path.resolve(__dirname, 'node_modules'), 'node_modules'],
   },
+  // WordPress's own React, ReactDOM and JSX runtime (its 'react-jsx-runtime'
+  // script, WordPress 6.6 and later), never a copy in the bundle: the app,
+  // its lazy chunks and the shared packages compiled with it all take them
+  // from the page. marked is the plugin's vendored copy (assets/vendor/).
   externals: {
     'react': 'window.React',
     'react-dom': 'window.ReactDOM',
+    'react/jsx-runtime': 'window.ReactJSXRuntime',
     'marked': 'window.marked'
   },
   optimization: {

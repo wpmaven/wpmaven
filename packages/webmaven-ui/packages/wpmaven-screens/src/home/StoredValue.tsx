@@ -11,6 +11,9 @@ import { teamBusiness } from '../team/reads';
 import { readStoredValue, type StoredValueChannel, type StoredValueData } from './reads';
 import { Figures, type Figure } from './Figures';
 import type { BusinessHome } from './useBusinessHome';
+import { STORED_VALUE_COPY } from './storedValueCopy';
+import { PUBLISH_WORDS } from '../approvals/targets';
+import { formatTag } from '../copyLanguage';
 
 /**
  * The narrowest a figure here may be: its captions are longer than the ones
@@ -60,15 +63,14 @@ const label: React.CSSProperties = {
   textTransform: 'uppercase', color: 'var(--text-dim)',
 };
 
-/** "a, b and c" — a list a person would read out loud, not a CSV. */
+/** "a, b and c" — a list a person would read out loud, not a CSV, in the page's language. */
 const joinList = (parts: string[]): string =>
   (parts.length <= 1
     ? parts.join('')
-    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`);
+    : PUBLISH_WORDS.and(parts.slice(0, -1).join(', '), parts[parts.length - 1]));
 
-/** "3 decisions" / "1 decision" — the count always leads. */
-const plural = (n: number, one: string, many: string): string =>
-  `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+/** A count as the page's language writes it ("1,234"). */
+const count = (n: number): string => new Intl.NumberFormat(formatTag('en-US')).format(n);
 
 /** A date the owner would recognize; the year appears only when it is not this one. */
 function shortDate(iso: string | null): string | null {
@@ -79,7 +81,7 @@ function shortDate(iso: string | null): string | null {
   const opts: Intl.DateTimeFormatOptions = d.getFullYear() === new Date().getFullYear()
     ? { month: 'short', day: 'numeric' }
     : { month: 'short', day: 'numeric', year: 'numeric' };
-  return d.toLocaleDateString('en-US', opts);
+  return d.toLocaleDateString(formatTag('en-US'), opts);
 }
 
 /** The Connect Center's networks, which carry the API's own names for them. */
@@ -101,10 +103,16 @@ const FALLBACK_NAME: Record<string, string> = {
   gbp: 'Google Business Profile',
   x: 'X',
   twitter: 'X',
-  // Publication channels that are not social networks, so the Connect Center
-  // payload never names them. Both come from the metered ledger.
-  site: 'your site',
-  email: 'email',
+};
+
+/**
+ * Publication channels that are not social networks, so the Connect Center
+ * payload never names them. Both come from the metered ledger; their words
+ * are read in the page's language.
+ */
+const OWN_CHANNEL: Record<string, () => string> = {
+  site: () => STORED_VALUE_COPY.yourSite,
+  email: () => STORED_VALUE_COPY.email,
 };
 
 function channelNamer(networks: NetworkLabel[] | null | undefined) {
@@ -119,7 +127,8 @@ function channelNamer(networks: NetworkLabel[] | null | undefined) {
     // have never heard of still gets a row; it is never dropped.
     const words = platform.replace(/[_-]+/g, ' ').trim();
     return byId.get(key)
-      ?? FALLBACK_NAME[key]
+      ?? (Object.prototype.hasOwnProperty.call(FALLBACK_NAME, key) ? FALLBACK_NAME[key] : undefined)
+      ?? (Object.prototype.hasOwnProperty.call(OWN_CHANNEL, key) ? OWN_CHANNEL[key]() : undefined)
       ?? (words.charAt(0).toUpperCase() + words.slice(1));
   };
 }
@@ -134,15 +143,7 @@ function channelNamer(networks: NetworkLabel[] | null | undefined) {
  * called it one would be false. Unknown kinds are made readable rather than
  * dropped, so a kind added on the API side still shows up honestly here.
  */
-const TYPE_NAME: Record<string, { one: string; many: string }> = {
-  social_post: { one: 'social post', many: 'social posts' },
-  post: { one: 'site post', many: 'site posts' },
-  page: { one: 'page', many: 'pages' },
-  product: { one: 'product', many: 'products' },
-  translation: { one: 'translation', many: 'translations' },
-  email_campaign: { one: 'email campaign', many: 'email campaigns' },
-  gift_card_setup: { one: 'gift card setup', many: 'gift card setups' },
-};
+const TYPE_NAME = ['social_post', 'post', 'page', 'product', 'translation', 'email_campaign', 'gift_card_setup'] as const;
 
 /** English plural for an unknown snake_case noun. Never invents a word. */
 function pluralize(word: string): string {
@@ -151,11 +152,12 @@ function pluralize(word: string): string {
   return `${word}s`;
 }
 
-function typeName(type: string, n: number): string {
-  const known = TYPE_NAME[normalizeId(type)];
-  if (known) return n === 1 ? known.one : known.many;
+/** How many of a kind, as one phrase in the page's language ("21 social posts"); an unknown kind keeps its readable code. */
+function typeCount(type: string, n: number): string {
+  const id = normalizeId(type) as (typeof TYPE_NAME)[number];
+  if ((TYPE_NAME as readonly string[]).includes(id)) return STORED_VALUE_COPY.kinds[id](n);
   const words = type.replace(/[_-]+/g, ' ').trim().toLowerCase() || type;
-  return n === 1 ? words : pluralize(words);
+  return `${count(n)} ${n === 1 ? words : pluralize(words)}`;
 }
 
 /** Statuses that mean "this is connected and nothing needs doing". */
@@ -188,7 +190,7 @@ const ChannelChip: React.FC<{ channel: StoredValueChannel; name: string }> = ({ 
       }}
     >
       <span style={{ color: 'var(--text)', fontWeight: 600 }}>{name}</span>
-      {since ? ` · since ${since}` : ''}
+      {since ? ` · ${STORED_VALUE_COPY.since(since)}` : ''}
       {note ? <span style={{ color: 'var(--warning)' }}>{` · ${note}`}</span> : null}
     </span>
   );
@@ -240,12 +242,13 @@ export const StoredValueView: React.FC<{
 
   // The count tiles, in the same shape as the evidence tiles above them. Each
   // one appears only when it has something real to say.
+  const c = STORED_VALUE_COPY;
   const tiles: Figure[] = [];
   if (voice.corrections > 0) {
-    tiles.push({ value: voice.corrections.toLocaleString('en-US'), label: 'Corrections in your words' });
+    tiles.push({ value: count(voice.corrections), label: c.corrections });
   }
   if (channels.length > 0) {
-    tiles.push({ value: channels.length.toLocaleString('en-US'), label: 'Channels you connected' });
+    tiles.push({ value: count(channels.length), label: c.channels });
   }
   if (published.total > 0) {
     // NOT "Posts published". This total is every metered publication of every
@@ -254,18 +257,18 @@ export const StoredValueView: React.FC<{
     // also collide with the end-of-bridge panel, which shows a real "Posts
     // published" number computed from executed approvals. The kinds are named
     // on their own line below, from published.byType.
-    tiles.push({ value: published.total.toLocaleString('en-US'), label: 'Published by your team' });
+    tiles.push({ value: count(published.total), label: c.publishedByTeam });
   }
   if (history.weeks > 0) {
-    tiles.push({ value: history.weeks.toLocaleString('en-US'), label: 'Weeks of your history' });
+    tiles.push({ value: count(history.weeks), label: c.weeksOfHistory });
   }
 
   const decisionParts: string[] = [];
-  if (decisions.approved > 0) decisionParts.push(`${decisions.approved.toLocaleString('en-US')} approved`);
+  if (decisions.approved > 0) decisionParts.push(c.approved(decisions.approved));
   if (decisions.changesRequested > 0) {
-    decisionParts.push(`${decisions.changesRequested.toLocaleString('en-US')} you asked to change`);
+    decisionParts.push(c.askedToChange(decisions.changesRequested));
   }
-  if (decisions.rejected > 0) decisionParts.push(`${decisions.rejected.toLocaleString('en-US')} rejected`);
+  if (decisions.rejected > 0) decisionParts.push(c.rejected(decisions.rejected));
 
   const firstDecision = shortDate(decisions.firstDecisionAt);
   const firstPublished = shortDate(published.firstAt);
@@ -275,13 +278,13 @@ export const StoredValueView: React.FC<{
   const channelName = channelNamer(networks);
   const publishedLine = published.byChannel.length
     ? joinList(published.byChannel
-      .map((b) => `${b.count.toLocaleString('en-US')} on ${channelName(b.channel)}`))
+      .map((b) => c.onChannel(b.count, channelName(b.channel))))
     : null;
   // What those publications actually were. This is the line that keeps the
   // total above from being read as a post count.
   const typeLine = published.byType.length
     ? joinList(published.byType
-      .map((b) => `${b.count.toLocaleString('en-US')} ${typeName(b.type, b.count)}`))
+      .map((b) => typeCount(b.type, b.count)))
     : null;
 
   /*
@@ -295,14 +298,11 @@ export const StoredValueView: React.FC<{
     // Page". Both lists sum to the same total, so with a single entry each
     // there is nothing to split apart and "21 social posts: 21 on Facebook
     // Page" would just say the number twice.
-    const single = published.byType.length === 1 && published.byChannel.length === 1
-      ? `${typeName(published.byType[0].type, published.byType[0].count)} on ${channelName(published.byChannel[0].channel)}`
-      : null;
-    const body = single
-      ? `${published.byType[0].count.toLocaleString('en-US')} ${single}`
-      : (typeLine && publishedLine ? `${typeLine}: ${publishedLine}` : (typeLine ?? publishedLine));
+    const body = published.byType.length === 1 && published.byChannel.length === 1
+      ? c.kindOn(typeCount(published.byType[0].type, published.byType[0].count), channelName(published.byChannel[0].channel))
+      : (typeLine && publishedLine ? c.kindsByChannel(typeLine, publishedLine) : (typeLine ?? publishedLine));
     if (!body) return null;
-    return firstPublished ? `${body}. The first one went out ${firstPublished}.` : `${body}.`;
+    return firstPublished ? c.firstWentOut(body, firstPublished) : c.listLine(body);
   })();
 
   // True when the card has at least one thing to show. Derived from every
@@ -318,10 +318,10 @@ export const StoredValueView: React.FC<{
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
-        <div style={label}>What you have built here</div>
+        <div style={label}>{c.title}</div>
         {sinceDays != null && sinceDays > 0 && (
           <span style={{ fontSize: 'var(--text-meta)', color: 'var(--text-dim)' }}>
-            {plural(sinceDays, 'day', 'days')} with your team
+            {c.daysWithTeam(sinceDays)}
           </span>
         )}
       </div>
@@ -330,9 +330,7 @@ export const StoredValueView: React.FC<{
         // Day two. Nothing has accumulated yet, and saying so plainly is
         // better than an empty box or a number dressed up to look like one.
         <p style={{ margin: 0, fontSize: 'var(--text-body)', color: 'var(--text)', lineHeight: 'var(--leading-body)' }}>
-          Nothing has built up here yet. This fills as you go: every draft you approve or reject,
-          every change you ask for in your own words, each channel you connect, and everything
-          your team publishes.
+          {c.nothingYet}
         </p>
       )}
 
@@ -341,8 +339,7 @@ export const StoredValueView: React.FC<{
         // decided approval back into a later draft or prompt, so the second
         // sentence would be a capability claim the code does not keep.
         <p style={{ margin: 0, fontSize: 'var(--text-body)', color: 'var(--text)', lineHeight: 'var(--leading-body)' }}>
-          You have made {plural(decisionCount, 'decision', 'decisions')} on your team's work
-          {firstDecision ? ` since ${firstDecision}` : ''}.
+          {firstDecision ? c.decisionsSince(decisionCount, firstDecision) : c.decisions(decisionCount)}
         </p>
       )}
 
@@ -351,7 +348,7 @@ export const StoredValueView: React.FC<{
           total back. */}
       {decisionParts.length > 1 && (
         <p style={{ margin: '4px 0 0', fontSize: 'var(--text-data)', color: 'var(--text-dim)' }}>
-          {joinList(decisionParts)}.
+          {c.listLine(joinList(decisionParts))}
         </p>
       )}
 
@@ -385,14 +382,13 @@ export const StoredValueView: React.FC<{
 
       {history.weeks > 0 && (
         <p style={{ margin: '4px 0 0', fontSize: 'var(--text-data)', color: 'var(--text-dim)' }}>
-          Your team has measured {plural(history.weeks, 'week', 'weeks')} of your own history
-          {firstWeek ? `, starting the week of ${firstWeek}` : ''}.
+          {firstWeek ? c.historyFrom(history.weeks, firstWeek) : c.history(history.weeks)}
         </p>
       )}
 
       {notes.length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ ...label, marginBottom: 6 }}>In your own words</div>
+          <div style={{ ...label, marginBottom: 6 }}>{c.ownWords}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {notes.map((n, i) => {
               const at = shortDate(n.at);
@@ -400,7 +396,7 @@ export const StoredValueView: React.FC<{
                 <blockquote
                   key={`${n.at ?? 'note'}-${i}`}
                   style={{
-                    margin: 0, padding: '8px 12px', borderLeft: '3px solid var(--glass-border)',
+                    margin: 0, padding: '8px 12px', borderInlineStart: '3px solid var(--glass-border)',
                     fontSize: 'var(--text-body)', lineHeight: 'var(--leading-body)',
                     color: 'var(--text)', whiteSpace: 'pre-wrap',
                   }}

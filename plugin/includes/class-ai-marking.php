@@ -3,7 +3,7 @@
  * Invisible machine-readable AI-content marking (EU AI Act, Article 50).
  *
  * Every post or page the WPMaven agents create is stamped with the
- * `_wme_ai_generated` post meta, the same key the editor already writes on
+ * `_webmaven_ai_generated` post meta, the same key the editor already writes on
  * AI-generated images. On singular frontend views of marked content this
  * class emits three machine-readable markers, none of them visible text:
  *
@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) {
 class WebMaven_AI_Marking {
 
     /** Canonical AI-generated marker, shared with the editor's AI images. */
-    const META_KEY = '_wme_ai_generated';
+    const META_KEY = '_webmaven_ai_generated';
 
     /** Legacy flag create_post has always set on agent-created content. */
     const LEGACY_META_KEY = '_webmaven_fullhtml';

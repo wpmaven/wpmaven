@@ -1,8 +1,7 @@
 <?php
 /**
  * Signs of intrusion on this site, reported to WPMaven, so what the security
- * page promises is true. The API
- * turns each report into a staff alert.
+ * page promises is true. The API turns each report into an alert.
  *
  * What is looked for (event types):
  *   - core_file_modified / core_file_missing: every WordPress core file
@@ -21,9 +20,9 @@
  *     granted network super admin. Seen as it happens (decided at the end of
  *     the request, once whoever made the account has marked it) and by a
  *     daily compare with the administrators known before, which also sees a
- *     change written straight to the database. The accounts WPMaven's
- *     one-click sign-in makes (the owner's and the staff's, marked with
- *     WebMaven_Actor::MARKER_META) are never reported; one made by
+ *     change written straight to the database. An account carrying
+ *     WPMaven's sign-in marker (WebMaven_Actor::MARKER_META, made for the
+ *     owner through their WPMaven account) is never reported; one made by
  *     a WPMaven command is, with via "wpmaven".
  *   - login_failure_burst: LOGIN_THRESHOLD failed logins within LOGIN_WINDOW.
  *
@@ -48,9 +47,8 @@
  * errors, so a failed check never breaks a request or a cron run.
  *
  * Every option and transient here is WPMaven's own bookkeeping, written while
- * commands may be running: WebMaven_Self_Protect::VOLATILE_OPTIONS leaves
- * them out of its before/after check, which would otherwise put a write back
- * and fail the command.
+ * commands may be running: WebMaven_Self_Protect::VOLATILE_OPTIONS names
+ * them, so a before/after check of a command leaves them out.
  */
 
 if (!defined('ABSPATH')) {
@@ -361,8 +359,8 @@ class WebMaven_Intrusion_Detection {
 
     /**
      * Notes an administrator for the end of the request: by then whoever made
-     * the account has marked it (the one-click sign-in writes its marker right
-     * after wp_insert_user), so WPMaven's own accounts are told apart.
+     * the account has marked it (a sign-in marker is written right after
+     * wp_insert_user), so WPMaven's own accounts are told apart.
      */
     private static function note_admin($user_id, $change) {
         try {
@@ -432,7 +430,7 @@ class WebMaven_Intrusion_Detection {
         return $change === 'super_admin' && function_exists('is_super_admin') && is_super_admin($user->ID);
     }
 
-    /** An account WPMaven's one-click sign-in made (the owner's or a staff member's). */
+    /** An account carrying WPMaven's sign-in marker (WebMaven_Actor::MARKER_META). */
     private static function wpmaven_account($user_id) {
         $marker = class_exists('WebMaven_Actor') ? WebMaven_Actor::MARKER_META : '_webmaven_admin_login_created';
         return (bool) get_user_meta((int) $user_id, $marker, true);

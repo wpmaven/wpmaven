@@ -5,6 +5,7 @@ import EmbeddedChat from './EmbeddedChat';
 import { isSiteChatEnabled } from '../../utils/siteChat';
 import NextStepCard, { PausedBanner } from './NextStepCard';
 import DesignWayBackCard from './DesignWayBackCard';
+import ConnectionBlockedBanner from './ConnectionBlockedBanner';
 import WhatsAppSetupCard, { wpUserId } from './WhatsAppSetupCard';
 import {
   OverviewActivity, OverviewBuilt, OverviewBusinessDetails, OverviewFigures, OverviewGetPaid, OverviewGrowth, OverviewHealth,
@@ -87,8 +88,8 @@ function ChatBlock({ full, onToggleFull, fill = null }: ChatBlockProps) {
  *  1. WhatsApp, until it is linked (the owner can put it off);
  *  2. Welcome back, and nothing else on its row: the site and the "?" are
  *     in the top bar, the tours start by themselves or from the "?";
- *  3. what asks for something: a paused site, the next step, the design's
- *     way back;
+ *  3. what asks for something: a paused site, a security plugin that
+ *     blocks WPMaven's calls, the next step, the design's way back;
  *  4. on the right, the site, in the dashboard Home's side column and order
  *     (2026-10-17): its screenshot, Turn on a way to get paid, Check what
  *     your site says about you, Your website (the address, Share, Feature
@@ -162,6 +163,7 @@ function DashboardHome() {
           and an empty row takes no room. */}
       <div className="wm-home__notices" data-testid="wm-home-notices">
         <PausedBanner />
+        <ConnectionBlockedBanner />
         <NextStepCard />
         {owner && <DesignWayBackCard />}
       </div>

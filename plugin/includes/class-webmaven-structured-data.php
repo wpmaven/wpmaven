@@ -15,7 +15,7 @@
  * The business identity (schema @type, description, social sameAs, optional
  * address/phone/priceRange) is seeded into the `webmaven_structured_data` option
  * by the API at generation time, the same way `webmaven_llms_summary` is; the
- * SEO-Specialist operator can refresh it. Live site data (name, logo, products,
+ * AI team's SEO specialist can refresh it. Live site data (name, logo, products,
  * posts, menu) is read fresh on each render.
  *
  * Business details (2026-10-02): the owner's confirmed phone, email, postal
@@ -94,10 +94,13 @@ class WebMaven_Structured_Data {
             }
         }
 
+        // An add-on may add to the graph (each node's language).
+        $graph = (array) apply_filters('webmaven_structured_data_graph', $graph);
         $doc = ['@context' => 'https://schema.org', '@graph' => $graph];
         // Default (slash-escaping) wp_json_encode turns </script> into <\/script>,
-        // so no field value can break out of the script element.
-        echo "\n<script type=\"application/ld+json\">" . wp_json_encode($doc) . "</script>\n";
+        // and JSON_HEX_TAG every < and > into \u003C and \u003E, so no field
+        // value can break out of the script element.
+        wp_print_inline_script_tag(wp_json_encode($doc, JSON_HEX_TAG), ['type' => 'application/ld+json']);
     }
 
     /** The seeded identity config (@type, description, sameAs, optional local fields). */

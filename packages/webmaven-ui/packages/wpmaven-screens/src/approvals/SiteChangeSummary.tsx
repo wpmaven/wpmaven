@@ -8,7 +8,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Button } from '@yotako/webmaven-ui';
-import { clip, sitePreviewNoun, type SitePreviewData } from './sitePreview';
+import { clip, type SitePreviewData } from './sitePreview';
+import { SITE_POST_COPY } from './sitePostCopy';
 
 /** How much of the words a Home card shows; the rest is one tap away. */
 export const SUMMARY_CHARS = 180;
@@ -17,7 +18,6 @@ export function SiteChangeSummary({ site, onOpen }: { site: SitePreviewData; onO
   const image = site.images[0] ?? null;
   const [broken, setBroken] = useState(false);
   useEffect(() => { setBroken(false); }, [image]);
-  const noun = sitePreviewNoun(site.kind);
   return (
     <div
       data-testid="site-change-summary"
@@ -57,7 +57,7 @@ export function SiteChangeSummary({ site, onOpen }: { site: SitePreviewData; onO
         )}
         <div>
           <Button size="sm" variant="outline" onClick={onOpen}>
-            {`See the full ${noun}`}
+            {SITE_POST_COPY.seeFull[site.kind]}
           </Button>
         </div>
       </div>

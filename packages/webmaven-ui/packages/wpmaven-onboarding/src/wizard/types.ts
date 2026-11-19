@@ -34,6 +34,13 @@ export interface OnboardingAnalysis {
    * second), and goes on once one is chosen.
    */
   languageQuestion?: { options: string[] } | null;
+  /**
+   * A site in several languages (multilingual sites, phase 6): the rule
+   * table's decision and the owner's languages, main first. The confirm
+   * step shows "Site languages: ..." with Change (host transport
+   * setSiteLanguages), and asks for an unclear place (719 A, several answers).
+   */
+  siteLanguages?: import('../host/types').SiteLanguagesState | null;
   confidence: number;
   reasoning?: string;
 }

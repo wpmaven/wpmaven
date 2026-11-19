@@ -16,23 +16,19 @@
  * reads, the REST enrichment included (WebMaven_Store_Rest_Filters). They run
  * as the webhook's administrator. Counts use the same filters.
  *
- * store_product_find finds a product by its design key (_wm_product_slug)
+ * store_product_find finds a product by its design key (_webmaven_product_slug)
  * first, then by the name key woocommerce_create_product keeps
  * (_webmaven_product_key); a product found by its name key gets the design
  * key, so the next lookup finds it whatever its name becomes.
  *
  * Failures THROW "CODE: sentence" (NOT_FOUND, NO_STORE, VALIDATION). Never in
- * an answer: the _wm_ and _webmaven_ meta. Registered through the filter, so
+ * an answer: the _webmaven_ meta. Registered through the filter, so
  * the execute_command bridge (webhook_<name>) cannot reach these.
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 require_once dirname(__DIR__) . '/class-webmaven-hosting.php';
 require_once dirname(__DIR__) . '/class-webmaven-site-mail.php';
@@ -58,7 +54,7 @@ final class WebMaven_Cap_Store_Catalog {
 
     const PRODUCT_FIELDS = 'id,name,type,status,price,regular_price,sale_price,stock_status,stock_quantity,manage_stock,categories,permalink,variations,date_modified_gmt,wpmaven';
 
-    const DESIGN_KEY_META = '_wm_product_slug';
+    const DESIGN_KEY_META = '_webmaven_product_slug';
     const NAME_KEY_META = '_webmaven_product_key';
 
     private static function error(string $code, string $message): Exception {
@@ -271,7 +267,7 @@ final class WebMaven_Cap_Store_Catalog {
         $id = self::positive_int($params['product_id'] ?? null);
         $product = $id > 0 ? wc_get_product($id) : null;
         if (!$product || $product->is_type('variation')) {
-            throw self::error('NOT_FOUND', 'Product ' . $id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Product ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if (!WebMaven_Pod_Guards::is_printed($id)) {
             throw self::error('VALIDATION', 'Only a printed product has a lowest price.');
@@ -293,7 +289,7 @@ final class WebMaven_Cap_Store_Catalog {
             } else {
                 $target = self::positive_int($variation);
                 if (!in_array($target, $children, true)) {
-                    throw self::error('NOT_FOUND', 'Option ' . $target . ' is not an option of this product.');
+                    throw self::error('NOT_FOUND', 'Option ' . $target . ' is not an option of this product.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             $plan[] = [$target, $floor['minor'], $floor['currency']];
@@ -313,7 +309,7 @@ final class WebMaven_Cap_Store_Catalog {
         self::require_store();
         // The design key as woocommerce_create_product keeps it (a slug).
         $slug = is_string($params['slug'] ?? null) ? sanitize_title($params['slug']) : '';
-        $key = is_string($params['key'] ?? null) ? trim($params['key']) : '';
+        $key = is_string($params['key'] ?? null) ? sanitize_text_field($params['key']) : '';
         if (strlen($slug) > 200 || strlen($key) > 400) {
             throw self::error('VALIDATION', 'The design key or the name is too long.');
         }
@@ -355,8 +351,8 @@ final class WebMaven_Cap_Store_Catalog {
             'fields' => 'ids',
             'orderby' => 'ID',
             'order' => 'ASC',
-            'meta_key' => $key,
-            'meta_value' => $value,
+            'meta_key' => $key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the oldest product with WPMaven's own key, through the meta_key index of postmeta; one id
+            'meta_value' => $value, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the oldest product with WPMaven's own key, through the meta_key index of postmeta; one id
         ]);
         return $ids ? (int) $ids[0] : 0;
     }
@@ -437,15 +433,15 @@ final class WebMaven_Cap_Store_Catalog {
         $request->set_query_params($query);
         $response = rest_do_request($request);
         if (!is_object($response) || !method_exists($response, 'get_data')) {
-            throw self::error('VALIDATION', 'The site could not read ' . $route . '.');
+            throw self::error('VALIDATION', 'The site could not read ' . $route . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if (method_exists($response, 'is_error') && $response->is_error()) {
             $error = $response->as_error();
             $status = (int) $response->get_status();
             if ($error->get_error_code() === 'rest_no_route') {
-                throw self::error('NO_STORE', 'This site cannot read ' . $route . ': the plugin that answers it is not active.');
+                throw self::error('NO_STORE', 'This site cannot read ' . $route . ': the plugin that answers it is not active.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
-            throw self::error($status === 404 ? 'NOT_FOUND' : 'VALIDATION', self::plain(wp_strip_all_tags((string) $error->get_error_message())));
+            throw self::error($status === 404 ? 'NOT_FOUND' : 'VALIDATION', self::plain(wp_strip_all_tags((string) $error->get_error_message()))); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $data = $response->get_data();
         $items = [];
@@ -488,7 +484,7 @@ final class WebMaven_Cap_Store_Catalog {
         foreach ($parts as $part) {
             $status = is_string($part) ? trim($part) : '';
             if (!in_array($status, $allowed, true)) {
-                throw self::error('VALIDATION', 'status must be one or more of: ' . implode(', ', $allowed) . '.');
+                throw self::error('VALIDATION', 'status must be one or more of: ' . implode(', ', $allowed) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $out[$status] = $status;
         }
@@ -505,7 +501,7 @@ final class WebMaven_Cap_Store_Catalog {
 
     private static function one_of($value, array $allowed, string $what) {
         if (!in_array($value, $allowed, true)) {
-            throw self::error('VALIDATION', $what . ' must be one of: ' . implode(', ', $allowed) . '.');
+            throw self::error('VALIDATION', $what . ' must be one of: ' . implode(', ', $allowed) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }

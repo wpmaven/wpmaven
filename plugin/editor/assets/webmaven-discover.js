@@ -422,7 +422,7 @@
 
 	/** What the plugin tells the editor of the record shown (its summary, categories and tags; which texts it has), or {}. */
 	function ownExtras(view) {
-		var all = window.wmeOwn && typeof window.wmeOwn === 'object' ? window.wmeOwn : {};
+		var all = window.webmavenOwn && typeof window.webmavenOwn === 'object' ? window.webmavenOwn : {};
 		var mine = all[view];
 		return mine && typeof mine === 'object' ? mine : {};
 	}
@@ -456,7 +456,7 @@
 		var extras = ownExtras(view);
 		if (!root) return;
 		suppressObserver = true;
-		// Only what the plugin said of this post (window.wmeOwn): no line stands for a value it did not read.
+		// Only what the plugin said of this post (window.webmavenOwn): no line stands for a value it did not read.
 		if (view === 'post' && typeof extras.summary === 'string') {
 			var title = root.querySelector('[data-wm-field="title"], .entry-title, .wp-block-post-title, h1');
 			if (title) {

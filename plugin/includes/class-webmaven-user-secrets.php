@@ -1,6 +1,6 @@
 <?php
 /**
- * WebMaven user-secret guard (2026-09-22, "Users + AI WP-CLI").
+ * WebMaven user-secret guard (2026-09-22).
  *
  * One place that decides what user data may leave the site. Password hashes
  * (user_pass), the password-reset nonce (user_activation_key) and the login
@@ -8,16 +8,13 @@
  * AI model or the logs — no matter what a caller (or the LLM) asks for.
  *
  * Consumers:
- *  - WebMaven_WordPress_Commands::get_option() and the plugin API bridge
- *    (capabilities/plugin-api-bridge.php) pass every value through
+ *  - WebMaven_WordPress_Commands::get_option() passes every value through
  *    redact_option_value() / redact_value(): passwords, tokens, API keys and
  *    similar come back as "[redacted]", inside arrays and serialized strings.
  *  - WebMaven_WordPress_Commands::get_users() projects every result through
  *    redact_user(), so `fields => 'all'` (the default) can no longer serialize
  *    a WP_User whose public `data` carries user_pass / user_activation_key.
- *  - WPMaven Agent's WP-CLI validator
- *    refuses `db query` against the users/usermeta tables and any command
- *    naming a secret, with is_secret_name() from here.
+ *  - is_secret_name() tells another plugin's checks which names are secrets.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -186,8 +183,8 @@ class WebMaven_User_Secrets {
         // USING [PASSWORD(...)] in a grant, a CREATE/ALTER USER or a query text.
         '/(?<![A-Za-z0-9])\*[0-9A-Fa-f]{40}(?![A-Za-z0-9])/',
         '/\bIDENTIFIED\s+(?:BY|WITH|VIA)\b[^\'"]{0,120}?(?:\'[^\']*\'|"[^"]*")(?:\s*(?:AS|BY|USING)\s*(?:PASSWORD\s*\(\s*)?(?:\'[^\']*\'|"[^"]*"))?/i',
-        // Password hashes in text (a users row printed by a WP-CLI command,
-        // a log line): phpass ($P$ / $H$), bcrypt and WordPress 6.8's $wp$
+        // Password hashes in text (a users row in a command's output, a log
+        // line): phpass ($P$ / $H$), bcrypt and WordPress 6.8's $wp$
         // prefix, argon2, sha-crypt and md5-crypt, MySQL 8's caching_sha2.
         '/\$[PH]\$[.\/0-9A-Za-z]{31}/',
         '/(?:\$wp)?\$2[aby]\$\d{2}\$[.\/0-9A-Za-z]{53}/',
@@ -235,11 +232,9 @@ class WebMaven_User_Secrets {
         );
         // A wp-config constant: define( 'DB_PASSWORD', '...' ) names its
         // constant with a COMMA, which the name=value rule above never
-        // matched, and salts and passwords have no detectable shape. WPMaven
-        // Agent's file reads refuse a copy of wp-config left in the webroot by
-        // name; this is the second line, for config text that reaches the
-        // model any other way (a theme that includes it, a log, a migration
-        // file). The value is redacted to the
+        // matched, and salts and passwords have no detectable shape. This
+        // is for config text that reaches the model any way (a theme that
+        // includes it, a log, a migration file). The value is redacted to the
         // end of its line, so a quote or a semicolon inside it hides nothing.
         $s = preg_replace_callback(
             '/((?:define\s*\(\s*|const\s+)(["\']?)([A-Za-z_][A-Za-z0-9_]*)\2\s*(?:,|=)\s*)[^\r\n]*(\)?\s*;)/',

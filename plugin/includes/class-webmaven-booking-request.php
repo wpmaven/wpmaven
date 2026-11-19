@@ -62,6 +62,17 @@ final class WebMaven_Booking_Request {
 
     /** The WORDS key of a language code or a WordPress locale (es, pt-BR, zh-Hant, zh_TW, nb_NO, no): English for one the table lacks. */
     public static function language(string $code): string {
+        $own = self::row($code);
+        if ($own !== '') {
+            return $own;
+        }
+        // A language the table lacks: an add-on may pick a close one (the national language of the business's country, the main one), else English.
+        $key = function_exists('apply_filters') ? (string) apply_filters('webmaven_language_fallback_key', '', $code, [__CLASS__, 'row']) : '';
+        return $key !== '' ? $key : 'en';
+    }
+
+    /** The table's own row of a code ('' when it has none). */
+    public static function row(string $code): string {
         $parts = preg_split('/[_\-]/', strtolower(trim($code)));
         $base = $parts[0] ?? '';
         if ($base === 'zh') {
@@ -70,7 +81,7 @@ final class WebMaven_Booking_Request {
         if ($base === 'no') {
             return 'nb';
         }
-        return isset(self::WORDS[$base]) ? $base : 'en';
+        return isset(self::WORDS[$base]) ? $base : '';
     }
 
     /** The form's words in a language: the one the build names, else the site's locale. */

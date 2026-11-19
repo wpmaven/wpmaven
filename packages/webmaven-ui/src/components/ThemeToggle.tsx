@@ -1,4 +1,5 @@
 import React from 'react';
+import { KIT_COPY } from '../lib/kitCopy';
 import s from './ThemeToggle.module.css';
 
 export type ThemeToggleMode = 'light' | 'dark' | 'system';
@@ -38,17 +39,19 @@ const MoonIcon = () => (
   </svg>
 );
 
-const OPTIONS: Array<{ value: ThemeToggleMode; label: string; icon: React.FC }> = [
-  { value: 'light', label: 'Light theme', icon: SunIcon },
-  { value: 'system', label: 'Follow system theme', icon: MonitorIcon },
-  { value: 'dark', label: 'Dark theme', icon: MoonIcon },
+/** The three buttons; their names are read where they are drawn, in the page's language (KIT_COPY). */
+const OPTIONS: Array<{ value: ThemeToggleMode; label: () => string; icon: React.FC }> = [
+  { value: 'light', label: () => KIT_COPY.themeToggle.light, icon: SunIcon },
+  { value: 'system', label: () => KIT_COPY.themeToggle.system, icon: MonitorIcon },
+  { value: 'dark', label: () => KIT_COPY.themeToggle.dark, icon: MoonIcon },
 ];
 
 export const ThemeToggle: React.FC<ThemeToggleProps> = ({ mode, onChange, className, style }) => {
   const cls = [s.toggle, className].filter(Boolean).join(' ');
   return (
-    <div className={cls} style={style} role="radiogroup" aria-label="Theme">
-      {OPTIONS.map(({ value, label, icon: Icon }) => {
+    <div className={cls} style={style} role="radiogroup" aria-label={KIT_COPY.themeToggle.group}>
+      {OPTIONS.map(({ value, label: labelOf, icon: Icon }) => {
+        const label = labelOf();
         const isActive = mode === value;
         return (
           <button

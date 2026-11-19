@@ -66,6 +66,12 @@ export type { PreparedChangesState, PreparedEditResult } from './waiting/Prepare
 // ── the approval card, for an app's own pages (the dashboard's Your team) ─
 export { ApprovalCard, ApprovalDetail, siteDecisionOf, isHeldRow } from './approvals/ApprovalCard';
 export type { ApprovalCardProps, ApprovalCardStatus } from './approvals/ApprovalCard';
+// An advice item (kind 'advice'): its card, its words, its receipt.
+export { AdviceCard } from './approvals/AdviceCard';
+export {
+  isAdviceApproval, adviceOf, adviceQuietLine, adviceReceipt, ADVICE_COPY, SITE_ADVICE_TOOL,
+} from './approvals/advice';
+export type { ApprovalAdvice, AdviceReason } from './approvals/advice';
 export type {
   OperatorApproval, ApprovalStatus, DecideResult, SiteDecideResult, YouTubePrivacy, YouTubeUploadInput,
 } from './approvals/types';

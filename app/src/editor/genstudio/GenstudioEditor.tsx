@@ -33,6 +33,8 @@ import { IdentityPanel } from './IdentityPanel';
 import { EditHistoryPanel } from './EditHistoryPanel';
 import { SeoPanel } from './SeoPanel';
 import { SocialLinksPanel } from './SocialLinksPanel';
+import { LanguageNote, LanguagePicker, urlInLanguage } from './LanguageBar';
+import { languageOfUrl, resetEditLanguage, setEditLanguage, setOnlyInLanguage, slugForLanguageUrl, useEditLanguage } from './editLanguage';
 import {
   ChevronDown, ChevronLeft, FileText, House, Menu, MessageSquare, Monitor, Palette, Plus, RotateCcw, Search, Smartphone, Tablet, Undo,
 } from 'lucide-react';
@@ -90,6 +92,9 @@ export interface EditorChatContext {
   /** The product page or the post page itself (2026-10-19): a change reaches every product (or post); showing: the record it shows. */
   template?: TemplateKind;
   showing?: { id: number; title: string };
+  /** A site in several languages: the language of the page the owner looks at, when it is not the main one (its tag and its own name). */
+  language?: string;
+  languageName?: string;
 }
 
 /** A click on a dimmed part of the other editor (the frame's wme:crossing): where, and what it is. */
@@ -306,6 +311,15 @@ export default function GenstudioEditor({
   const selectedAddress = useRef<Partial<BindingAddress> | null>(null);
   const siteMapRef = useRef(siteMap);
   siteMapRef.current = siteMap;
+  // A site in several languages (design 19.5): the language of the page in the frame, which every design change takes.
+  const editLanguage = useEditLanguage();
+  const editLanguageRef = useRef(editLanguage);
+  editLanguageRef.current = editLanguage;
+  const languages = siteMap?.engine === 'genstudio' ? siteMap.languages ?? null : null;
+  useEffect(() => {
+    setEditLanguage(languageOfUrl(liveUrl, languages, homeUrl), languages?.list.find((l) => l.main) ?? null);
+  }, [liveUrl, languages, homeUrl]);
+  useEffect(() => () => resetEditLanguage(), []);
   const pageMenuRef = useRef<HTMLDivElement>(null);
   // The view the owner looks at, with the width its page is laid out at: the
   // chat's context and every instruction's, as the open page is (2026-10-17).
@@ -323,7 +337,9 @@ export default function GenstudioEditor({
       // A new page: nothing on it is under the pointer yet.
       setElHovered(null);
       setHovered(null);
-      const slug = slugForPost(siteMapRef.current, Number(p.postId) || 0, p.isFront === true);
+      // A page in another language has its own WordPress id: its address names its page (/ca/about/ is about).
+      const slug = slugForPost(siteMapRef.current, Number(p.postId) || 0, p.isFront === true)
+        || slugForLanguageUrl(siteMapRef.current, typeof p.url === 'string' ? p.url : liveUrlRef.current, homeUrl);
       if (slug) setCurrentPage(slug);
       setCrossing(null);
       // The product page itself maps as the design; a crossing selects again the part it came from.
@@ -648,7 +664,11 @@ export default function GenstudioEditor({
       return;
     }
     closeWindowRef.current();
-    setLiveUrl(page.url);
+    // On a site in several languages, the page opens in the language the owner edits in.
+    const shown = editLanguageRef.current;
+    const langs = siteMapRef.current?.languages;
+    const url = langs && shown.current && !shown.current.main ? urlInLanguage(page.url, langs, shown.current.tag, homeUrl) : page.url;
+    setLiveUrl(url);
     setFrameMode('live');
     setCurrentPage(page.slug);
     setOutline([]);
@@ -669,8 +689,15 @@ export default function GenstudioEditor({
     setTemplate(null);
     setCrossing(null);
     writeAddress({ kind: 'page', id: id ?? 0 });
-    navigate(frameUrl(page.url));
-  }), [navigate, writeAddress, selectItem, openTemplate]);
+    navigate(frameUrl(url));
+  }), [navigate, writeAddress, selectItem, openTemplate, homeUrl]);
+
+  /** The same page in another language (the bar's languages): its own address, live. */
+  const openLanguage = useCallback((tag: string) => {
+    const langs = siteMapRef.current?.languages;
+    if (!langs) return;
+    guardRef.current(() => openInFrame(urlInLanguage(liveUrlRef.current, langs, tag, homeUrl)));
+  }, [openInFrame, homeUrl]);
 
   /** The page in the frame was removed: the frame shows the homepage, the panel stays with its result. */
   const leaveRemovedPage = useCallback(() => {
@@ -1053,6 +1080,13 @@ export default function GenstudioEditor({
   // What the chat's "this" means: the window's element (its card, image, detail or section), else a panel's part.
   const chatSel = elSelected ? panelSelectionOf(elSelected) : selected;
   const chatContext: EditorChatContext | null = useMemo(() => {
+    const ctx = chatContextOf();
+    // A page in another language than the main one: the chat's changes are made in it (design 19.5).
+    const lang = editLanguage.current && !editLanguage.current.main ? editLanguage.current : null;
+    return ctx && lang ? { ...ctx, language: lang.tag, languageName: lang.name } : ctx;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatSel, elSelected, currentPage, pageTitle, siteMap, view, single, framePostId, template, recordTitle, editLanguage]);
+  function chatContextOf(): EditorChatContext | null {
     // The post editor and the product editor (2026-10-18): the open post or
     // product (its Content Writer or E-commerce Manager leads the chat), and
     // the element selected in it.
@@ -1104,7 +1138,7 @@ export default function GenstudioEditor({
       view,
       ...shown,
     };
-  }, [chatSel, elSelected, currentPage, pageTitle, siteMap, view, single, framePostId, template, recordTitle]);
+  }
 
   const tools: Array<{ key: string; label: string; panel: PanelState; testId: string; icon: React.ReactNode }> = [
     { key: 'design', label: 'Design', panel: { kind: 'design' }, testId: 'design-panel', icon: <Palette /> },
@@ -1204,6 +1238,9 @@ export default function GenstudioEditor({
             </div>
           )}
         </div>
+        {languages && editLanguage.current && (
+          <LanguagePicker languages={languages} current={editLanguage.current.tag} onPick={openLanguage} />
+        )}
         {template && (
           <TemplateChooser
             kind={template}
@@ -1318,6 +1355,9 @@ export default function GenstudioEditor({
         {chatOpen && (
           <aside className="wme-gs-side" aria-label="Chat" data-tour="editor-chat" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              {editLanguage.current && !editLanguage.current.main && (
+                <LanguageNote current={editLanguage.current} only={editLanguage.only} onOnly={setOnlyInLanguage} />
+              )}
               {!template && <PageContextCard
                 kind={editorKind}
                 postId={framePostId}

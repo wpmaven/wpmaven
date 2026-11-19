@@ -105,13 +105,6 @@ final class WebMaven_Site_State {
     /** Set when WPMaven Agent was just activated: its notice follows the account closely for a while. */
     const AGENT_ACTIVATED = 'webmaven_wp_agent_activated';
     const AGENT_ACTIVATED_SECONDS = 900;
-    /**
-     * Set with Agent's activation (2026-10-26): the next admin page goes to
-     * WPMaven's own screen once, where the business's progress shows. The
-     * administrator who activated it, never on a bulk or network activation.
-     */
-    const AGENT_REDIRECT = 'webmaven_wp_agent_redirect';
-    const AGENT_REDIRECT_SECONDS = 60;
     /** One fresh read of the account at most every few seconds for Agent's notice. */
     const AGENT_STATUS_SLOT = 'webmaven_wp_agent_status_slot';
     const AGENT_STATUS_SECONDS = 5;
@@ -135,7 +128,6 @@ final class WebMaven_Site_State {
         // the active plugins (activated_plugin), so the site it asks back
         // already runs Agent.
         add_action('activated_plugin', [__CLASS__, 'on_plugin_activated'], 10, 1);
-        add_action('admin_init', [__CLASS__, 'redirect_after_agent'], 1);
     }
 
     // ── WPMaven Agent ──────────────────────────────────────────────────────
@@ -152,34 +144,7 @@ final class WebMaven_Site_State {
         }
         set_transient(self::AGENT_ACTIVATED, time(), self::AGENT_ACTIVATED_SECONDS);
         delete_transient(self::FRESH);
-        // One plugin activated on its own (not "Activate" on several at once).
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read only, to leave a bulk activation alone
-        $bulk = isset($_REQUEST['checked']) || isset($_GET['activate-multi']);
-        if (!$bulk && !is_network_admin() && function_exists('get_current_user_id') && get_current_user_id() > 0) {
-            set_transient(self::AGENT_REDIRECT, get_current_user_id(), self::AGENT_REDIRECT_SECONDS);
-        }
         self::edition_changed();
-    }
-
-    /** Right after Agent's activation, the next admin page is WPMaven's screen, once. */
-    public static function redirect_after_agent() {
-        $user = (int) get_transient(self::AGENT_REDIRECT);
-        if ($user <= 0) {
-            return;
-        }
-        if (wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST) || is_network_admin()) {
-            return;
-        }
-        if ($user !== get_current_user_id() || !current_user_can('activate_plugins')) {
-            return;
-        }
-        delete_transient(self::AGENT_REDIRECT);
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read only
-        if (isset($_GET['activate-multi'])) {
-            return;
-        }
-        wp_safe_redirect(admin_url('admin.php?page=webmaven-dashboard&agent=activated'));
-        exit;
     }
 
     /** POST /sites/me/edition. Answers make_request's result. */

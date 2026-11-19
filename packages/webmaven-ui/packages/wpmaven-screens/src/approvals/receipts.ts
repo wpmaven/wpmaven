@@ -7,10 +7,14 @@
  * the card itself (placeReceipt).
  *
  * The TikTok sentences are TikTok's own copy (decideNotice, TIKTOK_COPY),
- * word for word, so the audit's strings do not change.
+ * word for word, so the audit's strings do not change. The receipts' own
+ * sentences are in the page's language (RECEIPT_COPY, French in
+ * src/i18n/fr.json, namespace 'screensReceipts'), read when a receipt is made.
  *
- * No runtime imports on purpose: the node unit tests load this file directly.
+ * No runtime imports but the kit's language helper: the node unit tests load
+ * this file directly.
  */
+import { localized } from '@yotako/webmaven-ui';
 import type { DecideResult, OperatorApproval, PublishedLink, SiteDecideResult } from './types';
 import { TIKTOK_COPY, decideNotice, isPartialOutcome, tiktokPublishBadge, tiktokPublishMessage } from './tiktokPost';
 import { type NextStep } from '@yotako/wpmaven-onboarding/shared';
@@ -54,15 +58,35 @@ export interface Receipt {
   packChoice?: HeldPackChoice;
 }
 
-export const RECEIPT_COPY = {
+export const RECEIPT_COPY_EN = {
+  /** Said where an approval card was, after the owner rejected or declined it. */
   rejected: 'Rejected. Nothing was changed or published, and your team will not run it.',
+  /** Said where an approval card was, after the owner sent a note asking for changes. */
   changesRequested: 'Sent to your team. The new version shows up here for your yes.',
+  /** Said after Approve when the work is under way. */
   approvedRunning: 'Approved. Your team is on it.',
+  /** Said after Approve when the work is already done. */
   approvedDone: 'Approved and done.',
-  // Never a TikTok post: its receipt is TikTok's own (decideNotice), 24 hours.
+  /**
+   * Said after Approve when the plan's monthly actions (the plan's allowance
+   * of work) are used up: the work waits until they come back, then goes
+   * ahead by itself, and after 72 hours of waiting the owner is asked again
+   * first. Never a TikTok post: its receipt is TikTok's own (decideNotice), 24 hours.
+   */
   approvedHeld: `Approved. It waits for your actions to come back, then goes ahead by itself. ${HELD_REASK_NOTE}`,
+  /** The link from a receipt to the decided card, under Your team's History tab. */
   seeInHistory: 'See it in History',
+  /** Said after Approve when the work failed; the reason, in the API's words, may follow it. */
+  failed: 'Approved, but it did not go through.',
+  /** In the WordPress plugin, the link after Approve to the change on the website. */
+  siteLive: 'See it on your site',
+  /** In the WordPress plugin, after Approve when the work waits for the plan's monthly actions. */
+  siteHeld: "Approved. It waits for your plan's actions. See your dashboard.",
+  /** In the WordPress plugin, the button after such an Approve: opens the plan's billing in the dashboard. */
+  openBilling: 'Open billing',
 } as const;
+
+export const RECEIPT_COPY = localized(RECEIPT_COPY_EN, 'screensReceipts');
 
 /**
  * The receipt for a yes or a no. A TikTok post (or a publish whose networks
@@ -94,11 +118,11 @@ export function decisionReceipt(
   return { ...receipt, nextStep: heldReasonStep(res), ...(packChoice ? { packChoice } : {}) };
 }
 
-/** The words of a made change's address on a site's receipt. */
-export const SITE_LIVE_LABEL = 'See it on your site';
+/** The words of a made change's address on a site's receipt (English, for importers; a receipt reads RECEIPT_COPY.siteLive). */
+export const SITE_LIVE_LABEL = RECEIPT_COPY_EN.siteLive;
 
-/** What a held yes says to a site when the API sent no sentence (its SITE_HELD_TEXT). */
-export const SITE_HELD_RECEIPT = "Approved. It waits for your plan's actions. See your dashboard.";
+/** What a held yes says to a site when the API sent no sentence (its SITE_HELD_TEXT; English, a receipt reads RECEIPT_COPY.siteHeld). */
+export const SITE_HELD_RECEIPT = RECEIPT_COPY_EN.siteHeld;
 
 /**
  * The receipt for a yes or a no in a site's view (the plugin, 2026-10-16):
@@ -115,20 +139,20 @@ export function siteDecisionReceipt(id: string, approved: boolean, res: SiteDeci
   let message: string;
   if (status === 'FAILED') {
     const why = typeof res?.error === 'string' && res.error.trim() ? ` ${res.error.trim()}` : '';
-    message = `Approved, but it did not go through.${why}`;
+    message = `${RECEIPT_COPY.failed}${why}`;
   } else if (status === 'NEEDS_ACTIONS') {
-    message = (typeof res?.heldText === 'string' && res.heldText.trim()) || summary || SITE_HELD_RECEIPT;
+    message = (typeof res?.heldText === 'string' && res.heldText.trim()) || summary || RECEIPT_COPY.siteHeld;
   } else if (summary) {
     message = summary;
   } else {
     message = status === 'EXECUTED' ? RECEIPT_COPY.approvedDone : RECEIPT_COPY.approvedRunning;
   }
-  const live = typeof res?.liveUrl === 'string' && res.liveUrl ? [{ network: 'site', url: res.liveUrl, label: SITE_LIVE_LABEL }] : [];
+  const live = typeof res?.liveUrl === 'string' && res.liveUrl ? [{ network: 'site', url: res.liveUrl, label: RECEIPT_COPY.siteLive }] : [];
   const links = httpsLinks([...(Array.isArray(res?.links) ? res!.links : []), ...live]);
   const receipt: Receipt = { id, message, tone, ...(links.length ? { links } : {}) };
   if (status !== 'NEEDS_ACTIONS') return receipt;
   const href = typeof res?.dashboardPath === 'string' && res.dashboardPath.startsWith('/') ? res.dashboardPath : '/billing';
-  return { ...receipt, nextStep: { label: 'Open billing', href, kind: 'billing', primary: true } };
+  return { ...receipt, nextStep: { label: RECEIPT_COPY.openBilling, href, kind: 'billing', primary: true } };
 }
 
 /**
@@ -180,7 +204,7 @@ function decisionSentence(
   const summary = typeof res?.summary === 'string' ? res.summary.trim() : '';
   if (status === 'FAILED') {
     const why = typeof res?.error === 'string' && res.error.trim() ? ` ${res.error.trim()}` : '';
-    return { id, message: `Approved, but it did not go through.${why}`, tone };
+    return { id, message: `${RECEIPT_COPY.failed}${why}`, tone };
   }
   if (summary) return { id, message: summary, tone };
   // Held for the month's pages or articles, or until day 8 (pricing v4):

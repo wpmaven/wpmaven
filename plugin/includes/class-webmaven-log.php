@@ -1,8 +1,8 @@
 <?php
 /**
  * WPMaven's lines in the PHP error log: written with WP_DEBUG on, or when
- * WPMaven Agent asks for them (webmaven_log_errors), as on the sites
- * WPMaven hosts. Otherwise a site from WordPress.org keeps a quiet log.
+ * another plugin asks for them (webmaven_log_errors). Otherwise the log
+ * stays quiet.
  */
 
 if (!defined('ABSPATH')) {
@@ -20,7 +20,7 @@ final class WebMaven_Log {
 
     public static function write($message): void {
         if (self::enabled()) {
-            error_log((string) $message); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+            error_log((string) $message); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- written only with WP_DEBUG on, or when a filter turns WPMaven's log on (webmaven_log_errors)
         }
     }
 }

@@ -47,7 +47,7 @@ class WebMaven_Front_Page {
         ];
     }
 
-    /** A page WPMaven made: the AI marker, or the planned page it is (_wm_page). */
+    /** A page WPMaven made: the AI marker, or the planned page it is (_webmaven_page). */
     public static function is_wpmaven_page($post_id) {
         $post_id = (int) $post_id;
         if ($post_id <= 0) {
@@ -56,7 +56,7 @@ class WebMaven_Front_Page {
         if (class_exists('WebMaven_AI_Marking') && WebMaven_AI_Marking::is_ai_generated($post_id)) {
             return true;
         }
-        return function_exists('get_post_meta') && (string) get_post_meta($post_id, '_wm_page', true) !== '';
+        return function_exists('get_post_meta') && (string) get_post_meta($post_id, '_webmaven_page', true) !== '';
     }
 
     /** WooCommerce's own pages (cart, checkout, my account, shop, terms). */
@@ -148,7 +148,7 @@ class WebMaven_Front_Page {
 
     /** A page id that exists and is not in the trash, else 0. */
     public static function live_page_id($id) {
-        $id = (int) $id;
+        $id = is_scalar($id) ? (int) $id : 0;
         if ($id <= 0 || !function_exists('get_post')) {
             return 0;
         }
@@ -168,7 +168,7 @@ class WebMaven_Front_Page {
      */
     public static function restore($params = [], $step_id = null) {
         $params = is_array($params) ? $params : [];
-        $show = (string) ($params['show_on_front'] ?? '') === 'page' ? 'page' : 'posts';
+        $show = ($params['show_on_front'] ?? '') === 'page' ? 'page' : 'posts';
         $front = self::live_page_id($params['page_on_front'] ?? 0);
         $posts = self::live_page_id($params['page_for_posts'] ?? 0);
         if ($show === 'page' && $front === 0) {

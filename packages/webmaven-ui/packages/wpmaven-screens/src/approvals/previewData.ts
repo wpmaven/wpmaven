@@ -14,10 +14,18 @@
  * Everything here is defensive on purpose: `params` is `Json` in the schema
  * and older rows, or a tool that changes its payload, must degrade to
  * "nothing to preview" rather than blank the page.
+ *
+ * The words of Action details are in the page's language (ACTION_DETAILS_COPY;
+ * English is the source, the French is written by hand in src/i18n/fr.json,
+ * namespace screensActionDetails, the other languages by the dashboard's
+ * translation script). A call's own field names stay as the
+ * call writes them.
  */
 
 import type { IconType } from 'react-icons';
+import { localized } from '@yotako/webmaven-ui';
 import { decodeEntities } from '@yotako/wpmaven-onboarding/shared';
+import { APPROVAL_PREVIEW_COPY } from './approvalPreviewCopy';
 import { NETWORK_LOOKS } from './networkLook';
 import { networkName, resolveTargets } from './targets';
 
@@ -56,7 +64,11 @@ export interface LinkPostData {
   text: string;
 }
 
-/** Where the link post's link goes, as the card shows it (the API's VIDEO_LINK_WORDS). */
+/**
+ * Where the link post's link goes, as the card shows it (the API's
+ * VIDEO_LINK_WORDS). In English, for importers; a card reads
+ * APPROVAL_PREVIEW_COPY.videoLink when it draws.
+ */
 export const VIDEO_LINK_WORDS = '[link to the video]';
 
 /** The networks crosspost_video's link pass posts to (the API's LINK_NETWORKS). */
@@ -79,7 +91,7 @@ export function linkPostFrom(params: Params, toolName?: string | null): LinkPost
     : [];
   const networks = Array.from(new Set(ids.map(networkName)));
   if (networks.length === 0) return null;
-  const text = readableText(raw.split('{video_url}').join(VIDEO_LINK_WORDS));
+  const text = readableText(raw.split('{video_url}').join(APPROVAL_PREVIEW_COPY.videoLink));
   return text ? { networks, text } : null;
 }
 
@@ -260,23 +272,71 @@ export function internalParamKey(key: string, top = false): boolean {
     || SECRET_KEY.test(key) || CAMEL_SECRET.test(key);
 }
 
-/** The call's own parts, in the owner's words. The rest keep their name, made readable. */
-const DETAIL_LABELS: Record<string, string> = {
-  sql: 'Database statement',
-  command: 'Command',
-  args: 'Arguments',
-  arguments: 'Arguments',
-  plugin: 'Plugin',
-  plugin_slug: 'Plugin',
-  option: 'Setting',
-  option_name: 'Setting',
-  value: 'Value',
-  option_value: 'Value',
-  action: 'Action',
-  body: 'Body',
-  query: 'Query',
-  params: 'Fields',
+/**
+ * Action details on an approval card: the call behind a change to the
+ * owner's site, as labelled lines the owner can check (namespace
+ * 'screensActionDetails'). Technical words, kept plain.
+ */
+export const ACTION_DETAILS_COPY_EN = {
+  /** The closed section's title, which opens it: the call behind the approval. */
+  summary: 'Action details',
+  /** The call's own parts, in the owner's words (a label above each value). */
+  labels: {
+    /** A database statement (SQL) the change runs. */
+    databaseStatement: 'Database statement',
+    /** A command the change runs. */
+    command: 'Command',
+    /** A command's arguments. */
+    arguments: 'Arguments',
+    /** A WordPress plugin. */
+    plugin: 'Plugin',
+    /** A WordPress setting's name. */
+    setting: 'Setting',
+    /** A setting's value. */
+    value: 'Value',
+    /** A plugin's action. */
+    action: 'Action',
+    /** A web call's body (what it sends). */
+    body: 'Body',
+    /** A web call's query (the part after "?" in its address). */
+    query: 'Query',
+    /** A call's fields. */
+    params: 'Fields',
+  },
+  /** A web call's address (its method and route). */
+  address: 'Address',
+  /** A yes-or-no value. */
+  yes: 'Yes',
+  /** A yes-or-no value. */
+  no: 'No',
+  /** A long list cut short; {0} how many more (a count), {1} the items shown, separated by commas. */
+  andMore: (more: number, shown: string) => `${shown}, and ${more} more`,
 };
+
+export const ACTION_DETAILS_COPY = localized(ACTION_DETAILS_COPY_EN, 'screensActionDetails');
+
+/** The call's own parts, by their words in ACTION_DETAILS_COPY.labels. The rest keep their name, made readable. */
+const DETAIL_LABELS: Record<string, keyof typeof ACTION_DETAILS_COPY_EN.labels> = {
+  sql: 'databaseStatement',
+  command: 'command',
+  args: 'arguments',
+  arguments: 'arguments',
+  plugin: 'plugin',
+  plugin_slug: 'plugin',
+  option: 'setting',
+  option_name: 'setting',
+  value: 'value',
+  option_value: 'value',
+  action: 'action',
+  body: 'body',
+  query: 'query',
+  params: 'params',
+};
+
+/** A call's part in the owner's words, or null for one that keeps its name. */
+function detailLabel(key: string): string | null {
+  return Object.prototype.hasOwnProperty.call(DETAIL_LABELS, key) ? ACTION_DETAILS_COPY.labels[DETAIL_LABELS[key]] : null;
+}
 /** Parts read as code: what runs, exactly as it runs. */
 const CODE_KEYS = new Set(['sql', 'command', 'option', 'option_name', 'action']);
 /** The keys of a REST call's address, joined with its method into one line. */
@@ -300,14 +360,14 @@ function detailValue(value: unknown, depth: number): string | ActionDetailLine[]
     return text && !SECRET_VALUE.test(text) ? text : null;
   }
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : null;
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? ACTION_DETAILS_COPY.yes : ACTION_DETAILS_COPY.no;
   if (depth >= MAX_DEPTH) return null;
   if (Array.isArray(value)) {
     if (value.every((v) => v == null || ['string', 'number', 'boolean'].includes(typeof v))) {
       const items = value.map((v) => detailValue(v, depth + 1)).filter((v): v is string => typeof v === 'string');
       if (items.length === 0) return null;
       const shown = items.slice(0, MAX_ITEMS).join(', ');
-      return items.length > MAX_ITEMS ? `${shown}, and ${items.length - MAX_ITEMS} more` : shown;
+      return items.length > MAX_ITEMS ? ACTION_DETAILS_COPY.andMore(items.length - MAX_ITEMS, shown) : shown;
     }
     const lines: ActionDetailLine[] = [];
     value.slice(0, MAX_ITEMS).forEach((v, i) => {
@@ -334,7 +394,7 @@ function objectLines(obj: Record<string, unknown>, depth: number, top: boolean):
     if (internalParamKey(key, top)) continue;
     const value = detailValue(raw, depth);
     if (value === null) continue;
-    const label = top ? (DETAIL_LABELS[key] ?? readableKey(key)) : key;
+    const label = top ? (detailLabel(key) ?? readableKey(key)) : key;
     lines.push({ label, value, ...(top && CODE_KEYS.has(key) && typeof value === 'string' ? { code: true } : {}) });
   }
   return lines;
@@ -359,7 +419,7 @@ export function actionDetailLines(params: unknown): ActionDetailLine[] {
     if (NOTE_KEYS.has(key) || (addressKey && key === 'method')) continue;
     if (key === addressKey) {
       const address = detailValue(value, 0);
-      if (typeof address === 'string') lines.push({ label: 'Address', value: method ? `${method} ${address}` : address, code: true });
+      if (typeof address === 'string') lines.push({ label: ACTION_DETAILS_COPY.address, value: method ? `${method} ${address}` : address, code: true });
       continue;
     }
     lines.push(...objectLines({ [key]: value }, 0, true));
@@ -554,6 +614,6 @@ export function platformMeta(platform: string): PlatformMeta {
   const id = PLATFORM_ALIASES[raw] ?? raw;
   const look = NETWORK_LOOKS[id];
   if (look) return { id, label: CHIP_LABELS[id] ?? look.name, Icon: look.Icon, color: look.color };
-  const label = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Unknown';
+  const label = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : APPROVAL_PREVIEW_COPY.unknownNetwork;
   return { id: raw, label, Icon: null, color: 'var(--text-dim)' };
 }

@@ -1,16 +1,32 @@
 /**
  * What an approval card says first: its title and the sentence under it, in
  * both apps (moved from the dashboard's Waiting for you page, 2026-10-16).
+ * The titles it falls back to are in the page's language (APPROVAL_WORDS,
+ * French in src/i18n/fr.json, namespace 'screensApprovalWords').
  *
- * No runtime imports but the shared text helpers, so the node tests load it.
+ * No runtime imports but the shared text helpers and the kit's language
+ * helper, so the node tests load it.
  */
 import type { CSSProperties } from 'react';
+import { localized } from '@yotako/webmaven-ui';
 import { toPlainLine } from '@yotako/wpmaven-onboarding/shared';
 import type { OperatorApproval } from './types';
 import { approvalSentence, publishHeading } from './targets';
 import { splitTeamNote } from './teamNote';
-import { VIDEO_CHOICE_TITLE, isVideoChoiceApproval } from './videoLabel';
+import { VIDEO_LABEL_COPY, isVideoChoiceApproval } from './videoLabel';
 import { canRequestChanges } from './previewData';
+
+export const APPROVAL_WORDS_EN = {
+  /**
+   * An approval card's title when nothing else names the work (no task, no
+   * sentence) and it does not change the website (a message, a payment).
+   */
+  waitingForYes: 'Waiting for your yes',
+  /** An approval card's title when nothing else names the work and it changes the website. */
+  changeToSite: 'A change to your site',
+};
+
+export const APPROVAL_WORDS = localized(APPROVAL_WORDS_EN, 'screensApprovalWords');
 
 /** What an approval's heading and the sentence under it are read from. */
 export type ApprovalWords = Pick<OperatorApproval, 'reason' | 'toolName'>
@@ -54,9 +70,9 @@ export function underTitleStyle(a: ApprovalWords): CSSProperties {
  */
 export function approvalTitle(a: ApprovalWords): string {
   const fallback = isVideoChoiceApproval(a)
-    ? VIDEO_CHOICE_TITLE
+    ? VIDEO_LABEL_COPY.choiceTitle
     : publishHeading({ toolName: a.toolName, params: a.params ?? {}, targets: a.targets, goesToTikTok: a.goesToTikTok })
-      ?? (a.changesSite === false ? 'Waiting for your yes' : 'A change to your site');
+      ?? (a.changesSite === false ? APPROVAL_WORDS.waitingForYes : APPROVAL_WORDS.changeToSite);
   return toPlainLine(a.task?.title || factsOf(a) || fallback) || fallback;
 }
 

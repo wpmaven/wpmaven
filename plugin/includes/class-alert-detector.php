@@ -136,17 +136,25 @@ class WebMaven_Alert_Detector {
         $api_client->make_request("/instances/{$instance_id}/heartbeat", 'POST', $body);
     }
 
-    /** WordPress, PHP and plugin versions, as plain version strings (null when unknown). */
+    /**
+     * WordPress, PHP and plugin versions, as plain version strings (null when
+     * unknown), and which edition runs here (the ping's edition report), so
+     * the API learns at once that WPMaven Agent was added or removed.
+     */
     public static function versions() {
         $clean = function ($v) {
             $v = is_string($v) ? trim($v) : '';
             return preg_match('/^\d+(\.\d+){0,3}$/', $v) && strlen($v) <= 20 ? $v : null;
         };
-        return [
+        $out = [
             'wordpress' => $clean(function_exists('get_bloginfo') ? get_bloginfo('version') : ''),
             'php' => $clean(preg_replace('/[^0-9.].*$/', '', PHP_VERSION)),
             'plugin' => $clean(defined('WEBMAVEN_WP_VERSION') ? WEBMAVEN_WP_VERSION : ''),
         ];
+        if (class_exists('WebMaven_Edition')) {
+            $out['edition'] = WebMaven_Edition::report();
+        }
+        return $out;
     }
 
     /**
@@ -179,9 +187,10 @@ class WebMaven_Alert_Detector {
             'check_unknown_plugin',
         ];
 
-        // Daily checks (run once per day)
+        // Daily checks (run once per day). Their day is a protected row: while
+        // a guarded call runs it waits, and so do they (baseline_writable).
         $last_daily = get_option('webmaven_last_daily_check', '');
-        if ($last_daily !== gmdate('Y-m-d')) {
+        if ($last_daily !== gmdate('Y-m-d') && self::baseline_writable()) {
             $checks = array_merge($checks, [
                 'check_php_version',
                 'check_inactive_plugins',
@@ -309,7 +318,7 @@ class WebMaven_Alert_Detector {
 
         $params = stream_context_get_params($stream);
         // A TLS socket opened only to read the certificate, not a file.
-        fclose($stream); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+        fclose($stream); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- a TLS socket opened only to read the certificate, not a file
 
         $cert = $params['options']['ssl']['peer_certificate'] ?? null;
         if (!$cert) return null;
@@ -385,7 +394,10 @@ class WebMaven_Alert_Detector {
      */
     private function check_site_slow() {
         $start = microtime(true);
-        $response = wp_remote_get(get_site_url(), ['timeout' => 10, 'sslverify' => false]);
+        $response = wp_remote_get(get_site_url(), [
+            'timeout' => 10,
+            'sslverify' => apply_filters('https_local_ssl_verify', false), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress's own filter for a request the site makes to itself
+        ]);
         $load_time = (microtime(true) - $start) * 1000; // ms
 
         if (is_wp_error($response)) return null;
@@ -487,12 +499,31 @@ class WebMaven_Alert_Detector {
         return null;
     }
 
+    /**
+     * Whether the detector may write its baseline rows (the known
+     * administrators, theme and plugins, the daily check's day) now. They are
+     * protected rows: written inside or beside a call WPMaven guards (this
+     * run is a WP-Cron request of its own, started by the hosting's scheduler
+     * or a page view at any moment), the call's before/after check read them
+     * as the call's change, put them back and failed it (Nov 6, 2026: the
+     * category names step after a publish, "the command changed the WPMaven
+     * plugin or its connection (webmaven_known_theme,
+     * webmaven_known_plugins, ...)"). The check then waits for its next run,
+     * its rows unchanged, so it raises the same alert then: nothing is lost.
+     */
+    private static function baseline_writable() {
+        return !(class_exists('WebMaven_Self_Protect') && WebMaven_Self_Protect::guarded_call_running());
+    }
+
     private function check_new_admin_user() {
         $admins = get_users(['role' => 'administrator', 'fields' => 'ID']);
         $admin_ids = array_map('intval', $admins);
         sort($admin_ids);
 
         $known = get_option('webmaven_known_admin_ids', null);
+        if ($known !== $admin_ids && !self::baseline_writable()) {
+            return null;
+        }
         if ($known === null) {
             // First run — store baseline, don't alert
             update_option('webmaven_known_admin_ids', $admin_ids);
@@ -502,11 +533,9 @@ class WebMaven_Alert_Detector {
         $new_admins = array_diff($admin_ids, $known);
         update_option('webmaven_known_admin_ids', $admin_ids);
 
-        // An account WPMaven's own one-click sign-in created (the owner's, or
-        // a staff member's under the owner's grant) is not an intruder. It
-        // carries the sign-in's marker. This check never ran before 1.2.9
-        // (the alert push read an instance id nothing wrote), so without this
-        // every one-click sign-in would page the owner with a CRITICAL alert.
+        // An account carrying WPMaven's sign-in marker (WebMaven_Actor) was
+        // made for the owner through their own WPMaven account, and is not an
+        // intruder.
         $marker = class_exists('WebMaven_Actor') ? WebMaven_Actor::MARKER_META : '_webmaven_admin_login_created';
         $new_admins = array_filter($new_admins, function ($uid) use ($marker) {
             return !get_user_meta($uid, $marker, true);
@@ -532,6 +561,9 @@ class WebMaven_Alert_Detector {
     private function check_theme_changed() {
         $current = get_stylesheet();
         $stored = get_option('webmaven_known_theme', null);
+        if ($stored !== $current && !self::baseline_writable()) {
+            return null;
+        }
 
         if ($stored === null) {
             update_option('webmaven_known_theme', $current);
@@ -557,6 +589,9 @@ class WebMaven_Alert_Detector {
         sort($slugs);
 
         $known = get_option('webmaven_known_plugins', null);
+        if ($known !== $slugs && !self::baseline_writable()) {
+            return null;
+        }
         if ($known === null) {
             update_option('webmaven_known_plugins', $slugs);
             return null;

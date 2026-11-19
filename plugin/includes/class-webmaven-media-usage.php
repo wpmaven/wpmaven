@@ -13,8 +13,8 @@
  *  - the featured image (_thumbnail_id) of pages, posts, products and
  *    product variations, and a product's gallery (_product_image_gallery);
  *  - the site icon, the theme's logo (custom_logo), WooCommerce's
- *    placeholder image, the blog cards' images (wm_posts_imgs) and the
- *    site details (wm_var_* values).
+ *    placeholder image, the blog cards' images (webmaven_posts_imgs) and the
+ *    site details (webmaven_var_* values).
  *
  * One pass reads at most POST_LIMIT pages, posts and products (oldest
  * first); past that the answer says partial (the counts are "at least").
@@ -46,8 +46,8 @@ final class WebMaven_Media_Usage {
     const POST_TYPES = ['page', 'post', 'product'];
     const STATUSES = ['publish', 'draft', 'pending', 'private', 'future'];
 
-    /** Options whose change can move a use (theme_mods_* and wm_var_* by prefix). */
-    const OPTIONS = ['site_icon', 'woocommerce_placeholder_image', 'wm_posts_imgs', 'wm_var_registry'];
+    /** Options whose change can move a use (theme_mods_* and webmaven_var_* by prefix). */
+    const OPTIONS = ['site_icon', 'woocommerce_placeholder_image', 'webmaven_posts_imgs', 'webmaven_var_registry'];
     const META_KEYS = ['_thumbnail_id', '_product_image_gallery', '_wp_attached_file', '_wp_attachment_metadata', '_webmaven_fullhtml'];
 
     const FULLHTML_META = '_webmaven_fullhtml';
@@ -213,7 +213,7 @@ final class WebMaven_Media_Usage {
 
     public static function on_option($name): void {
         $name = (string) $name;
-        if (in_array($name, self::OPTIONS, true) || strpos($name, 'theme_mods_') === 0 || strpos($name, 'wm_var_') === 0) {
+        if (in_array($name, self::OPTIONS, true) || strpos($name, 'theme_mods_') === 0 || strpos($name, 'webmaven_var_') === 0) {
             self::invalidate();
         }
     }
@@ -389,9 +389,9 @@ final class WebMaven_Media_Usage {
         return array_values($out);
     }
 
-    /** The blog cards' image URLs (wm_posts_imgs: a JSON list, as the theme reads it). */
+    /** The blog cards' image URLs (webmaven_posts_imgs: a JSON list, as the theme reads it). */
     private static function blog_card_urls(): array {
-        $raw = get_option('wm_posts_imgs', '');
+        $raw = get_option('webmaven_posts_imgs', '');
         $list = is_array($raw) ? $raw : json_decode((string) $raw, true);
         $out = [];
         foreach (is_array($list) ? $list : [] as $url) {
@@ -402,19 +402,19 @@ final class WebMaven_Media_Usage {
         return $out;
     }
 
-    /** The site details (wm_var_<key>) that hold text: [{label, value}]. */
+    /** The site details (webmaven_var_<key>) that hold text: [{label, value}]. */
     private static function fact_values(): array {
         global $wpdb;
         if (!isset($wpdb) || !is_object($wpdb) || !method_exists($wpdb, 'get_results') || !method_exists($wpdb, 'prepare')) {
             return [];
         }
-        $like = (method_exists($wpdb, 'esc_like') ? $wpdb->esc_like('wm_var_') : 'wm\\_var\\_') . '%';
-        $rows = (array) $wpdb->get_results($wpdb->prepare(
+        $like = (method_exists($wpdb, 'esc_like') ? $wpdb->esc_like('webmaven_var_') : 'webmaven\\_var\\_') . '%';
+        $rows = (array) $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own site details (webmaven_var_*) found by the prefix of their names, which get_option cannot list; read as the database is now, so nothing is cached
             "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 500",
             $like
         ), defined('ARRAY_A') ? ARRAY_A : 'ARRAY_A');
         $labels = [];
-        $registry = json_decode((string) get_option('wm_var_registry', ''), true);
+        $registry = json_decode((string) get_option('webmaven_var_registry', ''), true);
         foreach (is_array($registry) ? $registry : [] as $entry) {
             if (is_array($entry) && is_string($entry['key'] ?? null) && is_string($entry['label'] ?? null)) {
                 $labels[$entry['key']] = $entry['label'];
@@ -424,14 +424,14 @@ final class WebMaven_Media_Usage {
         foreach ($rows as $row) {
             $row = (array) $row;
             $name = (string) ($row['option_name'] ?? '');
-            if ($name === 'wm_var_registry' || strpos($name, 'wm_var_') !== 0) {
+            if ($name === 'webmaven_var_registry' || strpos($name, 'webmaven_var_') !== 0) {
                 continue;
             }
             $value = function_exists('maybe_unserialize') ? maybe_unserialize((string) ($row['option_value'] ?? '')) : (string) ($row['option_value'] ?? '');
             if (!is_string($value) || $value === '') {
                 continue;
             }
-            $key = substr($name, strlen('wm_var_'));
+            $key = substr($name, strlen('webmaven_var_'));
             $label = $labels[$key] ?? ucfirst(trim(str_replace(['_', '-'], ' ', $key)));
             $out[] = ['label' => self::title($label), 'value' => $value];
         }

@@ -16,7 +16,7 @@ class WebMaven_Amelia_Metrics implements WebMaven_Metrics_Adapter {
         global $wpdb;
 
         $table = $wpdb->prefix . 'amelia_appointments';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether Amelia's table exists, which no WordPress function tells; asked once per report
             return ['period' => $date, 'plugin' => 'amelia', 'error' => 'Table not found'];
         }
 
@@ -24,12 +24,12 @@ class WebMaven_Amelia_Metrics implements WebMaven_Metrics_Adapter {
         $end   = $date . ' 23:59:59';
 
         // Appointment counts by status
-        $stats = $wpdb->get_results($wpdb->prepare(
+        $stats = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- read-only counts from Amelia's own tables, which no WordPress function reads; read for the reports, which need today's figures, so nothing is cached
             "SELECT status, COUNT(*) AS count
-             FROM {$table}
+             FROM %i
              WHERE bookingStart >= %s AND bookingStart <= %s
              GROUP BY status",
-            $start, $end
+            $table, $start, $end
         ));
 
         $by_status = [];
@@ -44,27 +44,27 @@ class WebMaven_Amelia_Metrics implements WebMaven_Metrics_Adapter {
         // Revenue
         $payments_table = $wpdb->prefix . 'amelia_payments';
         $revenue = 0.0;
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$payments_table}'") === $payments_table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($payments_table))) === $payments_table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether Amelia's table exists, which no WordPress function tells; asked once per report
             $revenue = (float) ($wpdb->get_var($wpdb->prepare(
-                "SELECT COALESCE(SUM(amount), 0) FROM {$payments_table}
+                "SELECT COALESCE(SUM(amount), 0) FROM %i
                  WHERE dateTime >= %s AND dateTime <= %s AND status = 'paid'",
-                $start, $end
+                $payments_table, $start, $end
             )) ?: 0);
         }
 
         // Popular services
         $services_table = $wpdb->prefix . 'amelia_services';
         $popular = [];
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$services_table}'") === $services_table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($services_table))) === $services_table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether Amelia's table exists, which no WordPress function tells; asked once per report
             $popular = $wpdb->get_results($wpdb->prepare(
                 "SELECT s.name, COUNT(*) AS count
-                 FROM {$table} a
-                 INNER JOIN {$services_table} s ON a.serviceId = s.id
+                 FROM %i a
+                 INNER JOIN %i s ON a.serviceId = s.id
                  WHERE a.bookingStart >= %s AND a.bookingStart <= %s
                  GROUP BY a.serviceId
                  ORDER BY count DESC
                  LIMIT 5",
-                $start, $end
+                $table, $services_table, $start, $end
             )) ?: [];
         }
 

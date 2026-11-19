@@ -32,8 +32,8 @@
  *   Deleting the plugin keeps them unless the owner chose to remove the
  *   plugin's data (webmaven_remove_data_on_uninstall, see uninstall.php).
  * - Replies: to the sender, Reply-To the business email, the text escaped
- *   into paragraphs. A hosted site sends it with wp_mail, which WPMaven's
- *   mail relay takes (WPMaven Agent's). A connected site without its own
+ *   into paragraphs. A site with a mail relay (WebMaven_Hosting, none in this
+ *   edition) sends it with wp_mail. A connected site without its own
  *   mail setup sends it through its account (POST /sites/leads/reply), and
  *   with its own mail once when the account cannot take it. A site with its
  *   own mail setup (an SMTP plugin, a mail plugin that replaced wp_mail) uses
@@ -53,10 +53,6 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/class-webmaven-log.php';
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 require_once __DIR__ . '/class-webmaven-hosting.php';
 require_once __DIR__ . '/class-webmaven-site-mail.php';
@@ -88,8 +84,8 @@ final class WebMaven_Leads {
 
     /** The class the consent box carries (WPForms css, Gravity Forms cssClass) and the Contact Form 7 field name. */
     const CONSENT_MARK = 'wm-marketing-consent';
-    /** What a form WPMaven made is for (create_form writes wm_form_intent_<form id>). */
-    const INTENT_OPTION = 'wm_form_intent_';
+    /** What a form WPMaven made is for (create_form writes webmaven_form_intent_<form id>). */
+    const INTENT_OPTION = 'webmaven_form_intent_';
 
     const STATUSES = ['new', 'answered', 'archived', 'spam'];
     const SOURCES = ['wpforms', 'cf7', 'gravityforms'];
@@ -236,7 +232,7 @@ final class WebMaven_Leads {
 
     /** The capability that reads and answers messages (the wpmaven_messages_capability filter). */
     public static function capability() {
-        $cap = function_exists('apply_filters') ? apply_filters(self::CAPABILITY_FILTER, self::DEFAULT_CAPABILITY) : self::DEFAULT_CAPABILITY;
+        $cap = function_exists('apply_filters') ? apply_filters(self::CAPABILITY_FILTER, self::DEFAULT_CAPABILITY) : self::DEFAULT_CAPABILITY; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- CAPABILITY_FILTER is wpmaven_messages_capability, WPMaven's own filter, named after the plugin's slug
         return is_string($cap) && trim($cap) !== '' ? trim($cap) : self::DEFAULT_CAPABILITY;
     }
 
@@ -246,7 +242,7 @@ final class WebMaven_Leads {
             return 0;
         }
         global $wpdb;
-        return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE status = %s', self::table(), 'new'));
+        return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE status = %s', self::table(), 'new')); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
     }
 
     /**
@@ -259,7 +255,7 @@ final class WebMaven_Leads {
         }
         global $wpdb;
         // SIGNUP_SQL is this class's own fixed condition.
-        return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE status = %s AND seen_at IS NULL AND NOT ' . self::SIGNUP_SQL, self::table(), 'new')); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE status = %s AND seen_at IS NULL AND NOT ' . self::SIGNUP_SQL, self::table(), 'new')); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- SIGNUP_SQL is this class's fixed condition; WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
     }
 
     /** 'signup' for a newsletter or list signup, else 'conversation'. */
@@ -482,7 +478,7 @@ final class WebMaven_Leads {
 
     private static function table_exists($name) {
         global $wpdb;
-        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($name))) === $name;
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($name))) === $name; // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether WPMaven's own messages table exists yet, which no WordPress function tells
     }
 
     // ── Capture ────────────────────────────────────────────────────────────
@@ -680,7 +676,7 @@ final class WebMaven_Leads {
 
         global $wpdb;
         $now = self::now_sql();
-        $ok = $wpdb->insert(self::table(), [
+        $ok = $wpdb->insert(self::table(), [ // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- WPMaven's own messages table, which no WordPress function reads or writes
             'created_at' => $now,
             'source' => $source,
             'form_id' => $form_id,
@@ -939,7 +935,7 @@ final class WebMaven_Leads {
                 }
             }
         }
-        $ip = function_exists('apply_filters') ? apply_filters('wpmaven_leads_visitor_ip', $ip) : $ip;
+        $ip = function_exists('apply_filters') ? apply_filters('wpmaven_leads_visitor_ip', $ip) : $ip; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPMaven's own filter, named after the plugin's slug
         return is_string($ip) ? $ip : '';
     }
 
@@ -954,7 +950,7 @@ final class WebMaven_Leads {
 
     private static function count_from_address($ip_hash) {
         global $wpdb;
-        return (int) $wpdb->get_var($wpdb->prepare(
+        return (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
             'SELECT COUNT(*) FROM %i WHERE ip_hash = %s AND created_at >= %s',
             self::table(),
             $ip_hash,
@@ -1082,7 +1078,7 @@ final class WebMaven_Leads {
                 $hosts[] = self::bare_host($host);
             }
         }
-        // A custom domain the edge forwards for (WPMaven Agent's edge host).
+        // A custom domain the edge forwards for, when one is set (none in this edition).
         $primary = get_option('webmaven_primary_host', '');
         if (is_string($primary) && $primary !== '') {
             $hosts[] = self::bare_host($primary);
@@ -1110,7 +1106,7 @@ final class WebMaven_Leads {
         $t = self::table();
         list($where, $args) = self::list_filters($q);
 
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT status, COUNT(*) AS n FROM %i WHERE {$where} GROUP BY status", array_merge([$t], $args)), ARRAY_A); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is built from fixed fragments with placeholders (list_filters).
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT status, COUNT(*) AS n FROM %i WHERE {$where} GROUP BY status", array_merge([$t], $args)), ARRAY_A); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $where is built from fixed fragments with placeholders (list_filters); WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
         foreach ((array) $rows as $r) {
             if (isset($counts[$r['status']])) {
                 $counts[$r['status']] = (int) $r['n'];
@@ -1126,8 +1122,8 @@ final class WebMaven_Leads {
             $where .= ' AND status <> %s';
             $args[] = 'spam';
         }
-        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE {$where}", array_merge([$t], $args))); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is built from fixed fragments with placeholders (list_filters).
-        $rows = $wpdb->get_results($wpdb->prepare(
+        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE {$where}", array_merge([$t], $args))); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $where is built from fixed fragments with placeholders (list_filters); WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh; $where holds only fixed fragments with placeholders; one array of replacements: the table, then each placeholder's value
             "SELECT id, created_at, source, form_title, intent, name, email, phone, SUBSTR(message, 1, 400) AS head, status, seen_at, consent
              FROM %i WHERE {$where} ORDER BY created_at DESC, id DESC LIMIT %d OFFSET %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is built from fixed fragments with placeholders (list_filters).
             array_merge([$t], $args, [$per, ($page - 1) * $per])
@@ -1195,7 +1191,7 @@ final class WebMaven_Leads {
     private static function forms() {
         global $wpdb;
         $t = self::table();
-        $rows = $wpdb->get_results($wpdb->prepare(
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
             'SELECT source, form_id, form_title FROM %i WHERE id IN (SELECT MAX(id) FROM %i GROUP BY source, form_id) ORDER BY form_title ASC, form_id ASC LIMIT 100',
             $t,
             $t
@@ -1221,7 +1217,7 @@ final class WebMaven_Leads {
         }
         global $wpdb;
         $t = self::table();
-        $rows = $wpdb->get_results($wpdb->prepare(
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
             "SELECT source, form_id, form_title, intent, (COALESCE(message, '') = '') AS no_message, status, created_at, answered_at
              FROM %i WHERE created_at >= %s AND created_at < %s ORDER BY id ASC LIMIT 20000",
             $t,
@@ -1278,7 +1274,7 @@ final class WebMaven_Leads {
             global $wpdb;
             $was_unseen = $row['status'] === 'new';
             $now = self::now_sql();
-            $wpdb->update(self::table(), ['seen_at' => $now], ['id' => (int) $row['id']], ['%s'], ['%d']);
+            $wpdb->update(self::table(), ['seen_at' => $now], ['id' => (int) $row['id']], ['%s'], ['%d']); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table
             $row['seen_at'] = $now;
             self::resolve_if_cleared($was_unseen);
         }
@@ -1322,7 +1318,7 @@ final class WebMaven_Leads {
         }
         global $wpdb;
         $set['updated_at'] = $now;
-        if ($wpdb->update(self::table(), $set, ['id' => (int) $row['id']], null, ['%d']) === false) {
+        if ($wpdb->update(self::table(), $set, ['id' => (int) $row['id']], null, ['%d']) === false) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table
             throw self::error('WRITE_FAILED', 'This change was not saved. Try again.');
         }
         foreach ($events as $event) {
@@ -1351,8 +1347,8 @@ final class WebMaven_Leads {
         global $wpdb;
         // One %d per id.
         $in = implode(', ', array_fill(0, count($ids), '%d'));
-        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE lead_id IN ({$in})", array_merge([self::events_table()], $ids))); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $in is only %d placeholders.
-        return (int) $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE id IN ({$in})", array_merge([self::table()], $ids))); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $in is only %d placeholders.
+        $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE lead_id IN ({$in})", array_merge([self::events_table()], $ids))); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $in is only %d placeholders; WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table
+        return (int) $wpdb->query($wpdb->prepare("DELETE FROM %i WHERE id IN ({$in})", array_merge([self::table()], $ids))); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $in is only %d placeholders; WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table
     }
 
     /** The message's row, or NOT_FOUND. */
@@ -1360,7 +1356,7 @@ final class WebMaven_Leads {
         $id = (int) $id;
         if ($id > 0 && self::maybe_install()) {
             global $wpdb;
-            $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE id = %d', self::table(), $id), ARRAY_A);
+            $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM %i WHERE id = %d', self::table(), $id), ARRAY_A); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
             if (is_array($row)) {
                 return $row;
             }
@@ -1403,7 +1399,7 @@ final class WebMaven_Leads {
     /** The message's timeline, oldest first (the last 100 events). */
     private static function events_json($lead_id) {
         global $wpdb;
-        $rows = $wpdb->get_results($wpdb->prepare(
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
             'SELECT id, at, kind, actor_user_id, data FROM %i WHERE lead_id = %d ORDER BY id DESC LIMIT %d',
             self::events_table(),
             $lead_id,
@@ -1470,8 +1466,8 @@ final class WebMaven_Leads {
                 array_push($args, $lead_id, $at, (string) $kind, max(0, (int) $actor), $json);
             }
             // $values holds only fixed (%d, %s, %s, %d, %s) groups.
-            $wpdb->query($wpdb->prepare(
-                'INSERT INTO %i (lead_id, at, kind, actor_user_id, data) VALUES ' . implode(', ', $values), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            $wpdb->query($wpdb->prepare( // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table; $values holds only fixed placeholder groups
+                'INSERT INTO %i (lead_id, at, kind, actor_user_id, data) VALUES ' . implode(', ', $values), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $values holds only fixed (%d, %s, %s, %d, %s) groups
                 array_merge([self::events_table()], $args)
             ));
         }
@@ -1519,7 +1515,7 @@ final class WebMaven_Leads {
         }
         self::add_events([(int) $row['id']], 'reply', $actor, $event);
         if (!$result['sent']) {
-            throw self::error('MAIL_FAILED', $result['sentence']);
+            throw self::error('MAIL_FAILED', $result['sentence']); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $via = $result['via'];
 
@@ -1529,7 +1525,7 @@ final class WebMaven_Leads {
         if (empty($row['seen_at'])) {
             $set['seen_at'] = $now;
         }
-        $wpdb->update(self::table(), $set, ['id' => (int) $row['id']], null, ['%d']);
+        $wpdb->update(self::table(), $set, ['id' => (int) $row['id']], null, ['%d']); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table
         self::resolve_if_cleared($row['status'] === 'new' && empty($row['seen_at']));
         return ['sent' => true, 'via' => $via, 'lead' => self::lead_json(self::find($row['id']))];
     }
@@ -1669,12 +1665,12 @@ final class WebMaven_Leads {
     }
 
     /**
-     * Where the visitor's answer goes: the business email (wm_biz_email),
+     * Where the visitor's answer goes: the business email (webmaven_biz_email),
      * else the site's admin email; '' for a placeholder address (the relay
      * then sends replies to the owner).
      */
     public static function business_email() {
-        foreach (['wm_biz_email', 'admin_email'] as $option) {
+        foreach (['webmaven_biz_email', 'admin_email'] as $option) {
             $raw = get_option($option, '');
             if (!is_string($raw) || !preg_match('/[^\s<>,;:"]+@[^\s<>,;:"]+/', $raw, $m)) {
                 continue;
@@ -1702,7 +1698,7 @@ final class WebMaven_Leads {
 
     private static function replies_last_hour() {
         global $wpdb;
-        return (int) $wpdb->get_var($wpdb->prepare(
+        return (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh
             'SELECT COUNT(*) FROM %i WHERE kind = %s AND at >= %s',
             self::events_table(),
             'reply',
@@ -1738,7 +1734,7 @@ final class WebMaven_Leads {
                 $args[] = 'spam';
             }
             $args[] = self::EXPORT_MAX;
-            $rows = $wpdb->get_results($wpdb->prepare(
+            $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh; $where holds only fixed fragments with placeholders; one array of replacements: the table, then each placeholder's value
                 "SELECT * FROM %i WHERE {$where} ORDER BY created_at ASC, id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $where is built from fixed fragments with placeholders (list_filters).
                 array_merge([self::table()], $args)
             ), ARRAY_A);
@@ -1924,7 +1920,7 @@ final class WebMaven_Leads {
             $unseen = self::count_unseen();
             self::delete_matching('created_at < %s', [gmdate('Y-m-d H:i:s', time() - self::retention_days() * self::DAY)]);
             self::delete_matching('status = %s AND created_at < %s', ['spam', gmdate('Y-m-d H:i:s', time() - self::SPAM_KEEP_DAYS * self::DAY)]);
-            $wpdb->query($wpdb->prepare(
+            $wpdb->query($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; a write, and nothing caches this table
                 'UPDATE %i SET ip_hash = %s WHERE ip_hash <> %s AND created_at < %s',
                 self::table(),
                 '',
@@ -1941,7 +1937,7 @@ final class WebMaven_Leads {
     private static function delete_matching($condition, array $args) {
         global $wpdb;
         for ($round = 0; $round < self::PURGE_ROUNDS; $round++) {
-            $ids = $wpdb->get_col($wpdb->prepare(
+            $ids = $wpdb->get_col($wpdb->prepare( // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- WPMaven's own messages table, which no WordPress function reads or writes; messages change with every visitor and every answer, so each read is fresh; $condition is one of this class's fixed conditions with placeholders; one array of replacements: the table, then each placeholder's value
                 "SELECT id FROM %i WHERE {$condition} ORDER BY id ASC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $condition is one of this class's fixed conditions with placeholders.
                 array_merge([self::table()], $args, [self::PURGE_BATCH])
             ));
@@ -1961,7 +1957,6 @@ final class WebMaven_Leads {
     private static function error($code, $sentence) {
         return new Exception($code . ': ' . $sentence);
     }
-
 
     private static function now_sql() {
         return gmdate('Y-m-d H:i:s');

@@ -18,6 +18,8 @@
  */
 import React from 'react';
 import { postingApp, productName } from '@yotako/wpmaven-onboarding/shared';
+import { CHANNEL_TERMS_WORDS } from './teamCopy';
+import { PUBLISH_WORDS } from '../approvals/targets';
 
 export const YOUTUBE_TERMS_URL = 'https://www.youtube.com/t/terms';
 /** Straight to the policy's YouTube section, where what we do with the data is said. */
@@ -27,23 +29,19 @@ export const GOOGLE_PERMISSIONS_URL = 'https://security.google.com/settings/secu
 
 /** The sentences, so a test can pin them without copying them. */
 export const CHANNEL_TERMS_COPY = {
-  youtubeAgree: 'By connecting YouTube, you agree to the YouTube Terms of Service.',
-  youtubeTermsLink: 'YouTube Terms of Service',
-  privacy: 'Our Privacy Policy explains what we do with your YouTube data.',
-  privacyLink: 'Our Privacy Policy',
-  googlePrivacy: 'The Google Privacy Policy also applies.',
-  googlePrivacyLink: 'Google Privacy Policy',
-  get youtubeRevoke(): string {
-    return `You can also remove ${postingApp()}'s access in your Google security settings.`;
-  },
-  youtubeRevokeLink: 'Google security settings',
+  get youtubeAgree(): string { return CHANNEL_TERMS_WORDS.youtubeAgree; },
+  get youtubeTermsLink(): string { return CHANNEL_TERMS_WORDS.youtubeTermsLink; },
+  get privacy(): string { return CHANNEL_TERMS_WORDS.privacy; },
+  get privacyLink(): string { return CHANNEL_TERMS_WORDS.privacyLink; },
+  get googlePrivacy(): string { return CHANNEL_TERMS_WORDS.googlePrivacy; },
+  get googlePrivacyLink(): string { return CHANNEL_TERMS_WORDS.googlePrivacyLink; },
+  get youtubeRevoke(): string { return CHANNEL_TERMS_WORDS.youtubeRevokeBy(postingApp()); },
+  get youtubeRevokeLink(): string { return CHANNEL_TERMS_WORDS.youtubeRevokeLink; },
   /** In the Disconnect YouTube confirm: what disconnecting does, and does not, delete. */
-  get youtubeDisconnect(): string {
-    return `${productName()} deletes the YouTube data it kept and asks Google to remove its access. Your videos and data on YouTube are not touched; to delete them, use YouTube.`;
-  },
+  get youtubeDisconnect(): string { return CHANNEL_TERMS_WORDS.youtubeDisconnectBy(productName()); },
   /** Also in it, when the owner has more than one business: Google's grant covers the channel. */
-  youtubeDisconnectShared: 'If another of your businesses uses this same YouTube channel, it is disconnected too.',
-} as const;
+  get youtubeDisconnectShared(): string { return CHANNEL_TERMS_WORDS.youtubeDisconnectShared; },
+};
 
 /**
  * The Disconnect YouTube confirm's own sentences: what is deleted and what is
@@ -56,9 +54,10 @@ export function disconnectNote(channelId: string, opts: { otherBusinesses: boole
   return opts.otherBusinesses ? `${c.youtubeDisconnect} ${c.youtubeDisconnectShared}` : c.youtubeDisconnect;
 }
 
+/** "A, B and C", in the page's language (the publish words' "{0} and {1}"). */
 function andList(items: string[]): string {
   if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  return PUBLISH_WORDS.and(items.slice(0, -1).join(', '), items[items.length - 1]);
 }
 
 /**
@@ -82,12 +81,9 @@ export function alsoDisconnectedSentence(
     else unknown += 1;
   }
   if (unknown > 0) {
-    names.push(names.length
-      ? (unknown === 1 ? 'one more of your businesses' : `${unknown} more of your businesses`)
-      : (unknown === 1 ? 'Another of your businesses' : `${unknown} of your other businesses`));
+    names.push(names.length ? CHANNEL_TERMS_WORDS.moreOfYours(unknown) : CHANNEL_TERMS_WORDS.othersOfYours(unknown));
   }
-  const many = unique.length > 1;
-  return `${andList(names)} used the same ${channelName} channel, so ${many ? 'they are' : 'it is'} disconnected too.`;
+  return CHANNEL_TERMS_WORDS.alsoDisconnected(unique.length, andList(names), channelName);
 }
 
 /** True for a channel that has a notice to show beside its Connect button. */

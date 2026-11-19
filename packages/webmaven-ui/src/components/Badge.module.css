@@ -26,7 +26,7 @@
 
 /* The icon sits where the dot was, a little closer to the edge. */
 .badge.withIcon {
-  padding-left: 8px;
+  padding-inline-start: 8px;
   gap: 5px;
 }
 

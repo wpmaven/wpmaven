@@ -22,7 +22,7 @@
 import React from 'react';
 import type { OperatorApproval } from './types';
 import {
-  actionDetailLines, carriesEditPreview, showsActionDetails, type ActionDetailLine, type EditMatcher,
+  ACTION_DETAILS_COPY, actionDetailLines, carriesEditPreview, showsActionDetails, type ActionDetailLine, type EditMatcher,
 } from './previewData';
 import { CARD_RADIUS, TYPE, small } from './styles';
 import { useOptionalScreensHost } from '../host/HostContext';
@@ -39,7 +39,7 @@ export interface ActionDetailsProps {
 const DetailLines: React.FC<{ lines: ActionDetailLine[]; nested?: boolean }> = ({ lines, nested = false }) => (
   <dl
     style={nested
-      ? { margin: '4px 0 0', paddingLeft: 12, borderLeft: '1px solid var(--glass-border)' }
+      ? { margin: '4px 0 0', paddingInlineStart: 12, borderInlineStart: '1px solid var(--glass-border)' }
       : { margin: 0 }}
   >
     {lines.map((line, i) => (
@@ -72,7 +72,7 @@ export const ActionDetails: React.FC<ActionDetailsProps> = ({ approval, isEdit, 
       data-testid="action-details"
       open={open || undefined}
     >
-      <summary style={{ cursor: 'pointer', userSelect: 'none' }}>Action details</summary>
+      <summary style={{ cursor: 'pointer', userSelect: 'none' }}>{ACTION_DETAILS_COPY.summary}</summary>
       <div
         style={{
           marginTop: 8, maxHeight: 192, overflow: 'auto', boxSizing: 'border-box',

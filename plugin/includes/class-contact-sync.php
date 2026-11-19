@@ -230,7 +230,7 @@ class WebMaven_Contact_Sync {
      */
     public static function queue_consented(array $entry) {
         try {
-            if (empty($entry['email'])) return;
+            if (empty($entry['email']) || !self::chosen()) return;
             self::remove_optout($entry['email']);
             self::queue_contact($entry);
         } catch (\Throwable $e) {
@@ -240,7 +240,14 @@ class WebMaven_Contact_Sync {
 
     // ── Queue ──────────────────────────────────────────
 
+    /** Whether the owner chose to copy the store's customers for email campaigns. */
+    private static function chosen(): bool {
+        return WebMaven_Choices::on('contact_sync_enabled');
+    }
+
+    /** Queues an entry for the next flush; nothing without the owner's choice. */
     private static function queue_contact(array $entry) {
+        if (!self::chosen()) return;
         $queue = get_option(self::QUEUE_OPTION, []);
         if (!is_array($queue)) $queue = [];
         $queue[] = $entry;
@@ -263,6 +270,8 @@ class WebMaven_Contact_Sync {
      */
     public static function flush_queue() {
         try {
+            // Nothing leaves the site without the owner's choice.
+            if (!self::chosen()) return;
             $queue = get_option(self::QUEUE_OPTION, []);
             if (empty($queue) || !is_array($queue)) return;
 
@@ -298,7 +307,7 @@ class WebMaven_Contact_Sync {
 
     public static function run_full_sync() {
         try {
-            if (!class_exists('WooCommerce')) return;
+            if (!self::chosen() || !class_exists('WooCommerce')) return;
 
             $instance_id = get_option('webmaven_wp_instance_id', '');
             if (!$instance_id) return;

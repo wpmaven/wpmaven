@@ -67,7 +67,7 @@ final class WebMaven_Cap_Seo {
         }
         $page = max(1, (int) ($p['page'] ?? 1));
         $per_page = min(self::MAX_PER_PAGE, max(1, (int) ($p['perPage'] ?? 50)));
-        $query = new WP_Query([
+        $args = [
             'post_type' => $type,
             'post_status' => WebMaven_SEO_Fields::LIST_STATUSES,
             'posts_per_page' => $per_page,
@@ -77,19 +77,27 @@ final class WebMaven_Cap_Seo {
             'ignore_sticky_posts' => true,
             // Other plugins' query filters (a language switcher, a membership
             // rule) never hide a page from the SEO list.
-            'suppress_filters' => true, // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.SuppressFilters_suppress_filters
-        ]);
+            'suppress_filters' => true, // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.SuppressFilters_suppress_filters -- other plugins' query filters (a language switcher, a membership rule) never hide a page from the SEO list
+        ];
+        // An add-on may narrow the list (the site's languages) and add to each item and to the answer.
+        // It reads the list's own parameters, cleaned here, never the raw call.
+        $q = ['type' => $type, 'page' => $page, 'perPage' => $per_page];
+        if (isset($p['lang']) && is_string($p['lang'])) {
+            $q['lang'] = sanitize_text_field($p['lang']);
+        }
+        $args = (array) apply_filters('webmaven_seo_list_query_args', $args, $q);
+        $query = new WP_Query($args);
         $items = [];
         foreach ((array) $query->posts as $post) {
-            $items[] = WebMaven_SEO_Fields::summary($post);
+            $items[] = apply_filters('webmaven_seo_list_item', WebMaven_SEO_Fields::summary($post), $post);
         }
-        return [
+        return (array) apply_filters('webmaven_seo_list_result', [
             'items' => $items,
             'total' => (int) $query->found_posts,
             'page' => $page,
             'perPage' => $per_page,
             'seoPlugin' => WebMaven_SEO_Fields::active_plugin_name(),
-        ];
+        ], $q);
     }
 
     public static function seo_site_read($parameters = [], $step_id = null) {

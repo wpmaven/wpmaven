@@ -3,7 +3,7 @@
 import React from 'react';
 
 /** Pricing v4's plan codes, as the API sends them (Subscription.plan). White label is AGENCY. */
-export type PlanIconCode = 'MINIMUM' | 'LAUNCH' | 'OPERATOR' | 'SCALE' | 'AGENCY' | 'NETWORK';
+export type PlanIconCode = 'WEBSITE' | 'MINIMUM' | 'LAUNCH' | 'OPERATOR' | 'SCALE' | 'AGENCY' | 'NETWORK';
 
 /** One filled part of an icon: the attributes of its <path>. */
 interface PlanIconPath {
@@ -13,6 +13,11 @@ interface PlanIconPath {
 }
 
 const ICONS: Record<PlanIconCode, readonly PlanIconPath[]> = {
+  // Website: the operator and the piece, without the Co-CEO's sail: the website, live and looked after, without the AI team.
+  WEBSITE: [
+    { d: "M10.25 43.45L10.25 35.235A2.6 2.6 0 0 1 13.217 32.661A21 21 0 0 1 17.024 33.573A2.4 2.4 0 0 1 18.65 35.844L18.65 38.404A7.246 7.246 0 0 0 25.896 45.65L28.049 45.65A2.4 2.4 0 0 1 30.346 47.353A21 21 0 0 1 31.039 50.483A2.6 2.6 0 0 1 28.465 53.45L20.25 53.45A10 10 0 0 1 10.25 43.45Z", fill: "var(--wm-mark-ink, #15121F)" },
+    { d: "M25.896 41.45L33.104 41.45A0.609 0.609 0 0 0 33.713 40.841L33.713 33.633A3.046 3.046 0 0 0 30.667 30.587L23.459 30.587A0.609 0.609 0 0 0 22.85 31.196L22.85 38.404A3.046 3.046 0 0 0 25.896 41.45Z", fill: "var(--wm-mark-orange, #FF6A3D)" },
+  ],
   // One-time offer: the Co-CEO's sail alone, its last piece seated: the site is finished and stays live. No operators: the team acts when you ask.
   MINIMUM: [
     { d: "M19.408 48.201L27.95 48.201A0.722 0.722 0 0 0 28.672 47.48L28.672 38.937A3.609 3.609 0 0 0 25.063 35.328L16.52 35.328A0.722 0.722 0 0 0 15.799 36.05L15.799 44.592A3.609 3.609 0 0 0 19.408 48.201Z", fill: "var(--wm-mark-orange, #FF6A3D)" },
@@ -81,7 +86,8 @@ export interface PlanIconProps {
 }
 
 /**
- * One icon per plan, drawn from the WPMaven mark: the team grows with the plan. The
+ * One icon per plan, drawn from the WPMaven mark: the team grows with the plan. Website
+ * is an operator and its piece with no sail (the site, without the AI team), the
  * One-time offer is the Co-CEO's sail alone, Launch adds one operator, Operator is the
  * logo itself, Scale adds a third, White label leaves the sail blank for the agency's
  * brand and Network flies three teams. Network needs 32 px or more to read.

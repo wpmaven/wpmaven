@@ -8,6 +8,7 @@ import type { ProgressSnapshot } from '../team/progress';
 import type { WeekCount } from './reads';
 import { SectionHelpTip } from './HelpTip';
 import { VISUALLY_HIDDEN, useHomeSectionStyles } from './styles';
+import { GROWTH_GRAPH_COPY } from './growthGraphCopy';
 
 export type { WeekCount } from './reads';
 
@@ -35,13 +36,18 @@ export type { WeekCount } from './reads';
  * Under the plot, on the same axis, the work the team published in each
  * week or month (2026-10-11), as on the landing. No price of ours is drawn:
  * the break-even line left the chart that day.
+ *
+ * Its words are in the page's language (growthGraphCopy.ts). The chart's time
+ * axis runs left to right in every language, as charts do.
  */
 
 /** "We're here": a pill with an arrow that points down at the marker line.
  *  Rendered as a recharts label so it tracks the line's own x position. */
 const NowFlag: React.FC<{ viewBox?: { x?: number; y?: number }; align?: 'start' | 'middle' | 'end' }> = ({ viewBox, align = 'middle' }) => {
   const x = viewBox?.x ?? 0;
-  const w = 82;
+  const words = GROWTH_GRAPH_COPY.nowFlag;
+  // 82 px holds "We're here"; a longer translation widens the pill.
+  const w = Math.max(82, Math.round(words.length * 6.6 + 16));
   const h = 19;
   // The pill lives in the chart's TOP MARGIN, above the plotting area, so a
   // line that runs high can never cover it (it used to sit just inside the
@@ -57,7 +63,7 @@ const NowFlag: React.FC<{ viewBox?: { x?: number; y?: number }; align?: 'start' 
     <g style={{ pointerEvents: 'none' }}>
       <rect x={px} y={top} width={w} height={h} rx={9.5} fill="var(--danger)" />
       <text x={tx} y={top + 13} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--bg-raised, #fff)">
-        We&#8217;re here
+        {words}
       </text>
       {/* Stem down to the plot edge, where the dashed marker line takes over. */}
       <polygon points={`${x - 4.5},${top + h} ${x + 4.5},${top + h} ${x},${top + h + 7}`} fill="var(--danger)" />
@@ -426,17 +432,31 @@ const PLANNED_FILL = 'color-mix(in srgb, var(--purple) 16%, transparent)';
 const PLANNED_EDGE = 'color-mix(in srgb, var(--purple) 55%, transparent)';
 
 const PlannedKey: React.FC = () => (
-  <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 10, borderRadius: '2px 2px 0 0', background: PLANNED_FILL, boxShadow: `inset 0 0 0 1px ${PLANNED_EDGE}`, verticalAlign: 'middle', marginRight: 5 }} />
+  <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 10, borderRadius: '2px 2px 0 0', background: PLANNED_FILL, boxShadow: `inset 0 0 0 1px ${PLANNED_EDGE}`, verticalAlign: 'middle', marginInlineEnd: 5 }} />
 );
 const DoneKey: React.FC = () => (
-  <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 10, borderRadius: '2px 2px 0 0', background: 'var(--purple)', verticalAlign: 'middle', marginRight: 5 }} />
+  <span aria-hidden="true" style={{ display: 'inline-block', width: 8, height: 10, borderRadius: '2px 2px 0 0', background: 'var(--purple)', verticalAlign: 'middle', marginInlineEnd: 5 }} />
 );
 
 /** "3 done of 5 planned", "5 planned": a bucket's words, for the tooltip and the table. */
 export function workWords(planned: number | null, done: number | null): string {
-  if (planned == null) return done == null ? '' : `${done} published`;
-  if (done == null) return `${planned} planned`;
-  return planned > 0 ? `${done} done of ${planned} planned` : `${done} done, none planned`;
+  const c = GROWTH_GRAPH_COPY;
+  if (planned == null) return done == null ? '' : c.workPublished(done);
+  if (done == null) return c.workPlanned(planned);
+  return planned > 0 ? c.workDoneOf(done, planned) : c.workDoneNone(done);
+}
+
+/** A week or a month of the plan in words ("Week 3"), from its key on the axis ("W3"). */
+function periodWords(unit: 'week' | 'month', key: string): string {
+  const n = Number(key.slice(1));
+  return unit === 'week' ? GROWTH_GRAPH_COPY.weekN(n) : GROWTH_GRAPH_COPY.monthN(n);
+}
+
+/** An axis tick in the page's language ("W3"; French "S3"), from its key. */
+function tickWords(key: string): string {
+  const n = Number(String(key).slice(1));
+  if (!Number.isFinite(n)) return key;
+  return key.startsWith('W') ? GROWTH_GRAPH_COPY.weekTick(n) : key.startsWith('M') ? GROWTH_GRAPH_COPY.monthTick(n) : key;
 }
 
 /**
@@ -460,9 +480,11 @@ const WorkStrip: React.FC<{
   const plan = !!planned && planned.some((c) => c != null);
   const max = Math.max(1, ...[...(planned ?? []), ...(done ?? [])].map((c) => c ?? 0));
   const last = Math.max(1, keys.length - 1);
-  const per = unit === 'week' ? 'week' : 'month';
-  const title = plan ? `Planned each ${per}` : `Published each ${per}`;
-  const period = unit === 'week' ? 'Week' : 'Month';
+  const words = GROWTH_GRAPH_COPY;
+  const title = unit === 'week'
+    ? (plan ? words.plannedEachWeek : words.publishedEachWeek)
+    : (plan ? words.plannedEachMonth : words.publishedEachMonth);
+  const period = unit === 'week' ? words.week : words.month;
   const height = (c: number) => Math.max(3, Math.round((c / max) * STRIP_BAR_MAX));
   return (
     <div data-testid="growth-published" data-strip={plan ? 'planned' : 'published'} style={{ marginTop: 2 }}>
@@ -475,8 +497,8 @@ const WorkStrip: React.FC<{
           <span style={{ fontWeight: 600 }}>{title}</span>
           {plan && (
             <span data-testid="growth-work-legend" style={{ display: 'inline-flex', gap: 10 }}>
-              <span><PlannedKey />Planned</span>
-              <span><DoneKey />Done</span>
+              <span><PlannedKey />{words.planned}</span>
+              <span><DoneKey />{words.done}</span>
             </span>
           )}
         </div>
@@ -499,7 +521,7 @@ const WorkStrip: React.FC<{
               <div
                 key={key}
                 data-bucket={key}
-                title={`${period} ${key.slice(1)}: ${workWords(plan ? p : null, d)}`}
+                title={words.periodWork(periodWords(unit, key), workWords(plan ? p : null, d))}
                 style={{
                   position: 'absolute', bottom: 0, left: `${(i / last) * 100}%`, transform: 'translateX(-50%)',
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -529,7 +551,7 @@ const WorkStrip: React.FC<{
           <thead>
             <tr>
               <th scope="col">{period}</th>
-              {plan ? (<><th scope="col">Planned</th><th scope="col">Done</th></>) : <th scope="col">Published</th>}
+              {plan ? (<><th scope="col">{words.planned}</th><th scope="col">{words.done}</th></>) : <th scope="col">{words.published}</th>}
             </tr>
           </thead>
           <tbody>
@@ -539,7 +561,7 @@ const WorkStrip: React.FC<{
               if (plan ? p == null && d == null : d == null) return null;
               return (
                 <tr key={key}>
-                  <th scope="row">{period} {key.slice(1)}</th>
+                  <th scope="row">{periodWords(unit, key)}</th>
                   {plan
                     ? (<><td>{p ?? ''}</td><td>{d == null ? '' : workWords(p, d)}</td></>)
                     : <td>{d}</td>}
@@ -558,7 +580,7 @@ export const NOW_LINE_Z = 350;
 
 /** The latest sales point's words. */
 export function amountText(amount: string, kind: 'pace' | 'so far' | 'done'): string {
-  return kind === 'pace' ? `${amount} on pace` : kind === 'so far' ? `${amount} so far` : amount;
+  return kind === 'pace' ? GROWTH_GRAPH_COPY.amountOnPace(amount) : kind === 'so far' ? GROWTH_GRAPH_COPY.amountSoFar(amount) : amount;
 }
 
 /** The latest point's amount, beside it, away from the "We're here" line
@@ -583,7 +605,7 @@ const LoneDot: React.FC<{ cx: number; cy: number }> = ({ cx, cy }) => (
 
 /** A legend key: a short line in the series' color. */
 const LineKey: React.FC<{ color: string }> = ({ color }) => (
-  <span aria-hidden="true" style={{ display: 'inline-block', width: 14, height: 2, borderRadius: 1, background: color, verticalAlign: 'middle', marginRight: 6 }} />
+  <span aria-hidden="true" style={{ display: 'inline-block', width: 14, height: 2, borderRadius: 1, background: color, verticalAlign: 'middle', marginInlineEnd: 6 }} />
 );
 
 export const GrowthGraph: React.FC<GrowthGraphProps> = ({
@@ -607,14 +629,17 @@ export const GrowthGraph: React.FC<GrowthGraphProps> = ({
 
   if (!view || view.data.length === 0) return null;
   const money = (v: number) => formatMoneyShort(v * 100, currency);
-  const cadence = view.naturalUnit === 'week' ? 'week' : 'month';
-  const cadenceUnit = view.unit === 'week' ? 'week' : 'month';
+  const c = GROWTH_GRAPH_COPY;
+  const weekly = view.naturalUnit === 'week';
+  const weeklyView = view.unit === 'week';
   // The default window is the near one once there are sales: going back to it
   // is "back". Before any sale the chart opens on the whole plan, and the near
   // window is something to look at, not to return to.
   const toggleLabel = view.fullPlan
-    ? (view.hasSales ? `Back to this ${cadence}` : `See this ${cadence}`)
-    : 'See the full 2-year plan';
+    ? (view.hasSales ? (weekly ? c.backToWeek : c.backToMonth) : (weekly ? c.seeWeek : c.seeMonth))
+    : c.seeFullPlan;
+  // The help tip names "Your sales" in bold, where its sentence says it.
+  const salesAt = c.helpSales.indexOf(c.yourSales);
   // The strip: the plan's work (planned runs, the runs done inside) when the
   // API sends it, else what was published; nothing without either. The two
   // are different units, so the published count never fills a planned bar.
@@ -627,20 +652,24 @@ export const GrowthGraph: React.FC<GrowthGraphProps> = ({
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
-          Your plan, and where you are
+          {c.title}
           <SectionHelpTip
             id="forecast"
             topic="forecast"
-            label="What does this graph mean?"
+            label={c.helpLabel}
           >
-            The forecast is the plan you accepted when you started, not a promise.
-            Only <strong>Your sales</strong> is money that actually arrived.
+            {c.helpForecast}{' '}
+            {salesAt < 0 ? c.helpSales : (
+              <>
+                {c.helpSales.slice(0, salesAt)}<strong>{c.yourSales}</strong>{c.helpSales.slice(salesAt + c.yourSales.length)}
+              </>
+            )}
           </SectionHelpTip>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 11.5, color: 'var(--text-dim)', alignItems: 'center' }}>
-          <span><LineKey color="var(--purple)" />Sales forecast</span>
+          <span><LineKey color="var(--purple)" />{c.salesForecast}</span>
           {view.hasSales && (
-            <span><LineKey color="var(--cyan)" />{view.livePaced ? 'Your sales, dashed = on pace' : 'Your sales'}</span>
+            <span><LineKey color="var(--cyan)" />{view.livePaced ? c.yourSalesPaced : c.yourSales}</span>
           )}
           <button
             type="button"
@@ -666,14 +695,14 @@ export const GrowthGraph: React.FC<GrowthGraphProps> = ({
               </linearGradient>
             </defs>
             <CartesianGrid stroke="var(--glass-border)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="key" tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="key" tickFormatter={tickWords} tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={money} tick={{ fill: 'var(--text-dim)', fontSize: 11 }} axisLine={false} tickLine={false} width={Y_AXIS_WIDTH} />
             <Tooltip
               contentStyle={{ background: 'var(--glass)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
               formatter={(v: unknown, name: unknown) => [typeof v === 'number' ? money(v) : '', String(name ?? '')]}
-              labelFormatter={(l) => (view.unit === 'week' ? `Week ${String(l).slice(1)}` : `Month ${String(l).slice(1)}`)}
+              labelFormatter={(l) => periodWords(view.unit, String(l))}
             />
-            <Area type="monotone" dataKey="plan" name="Sales forecast" stroke="var(--purple)" strokeWidth={2} fill="url(#wmPlanFill)" />
+            <Area type="monotone" dataKey="plan" name={c.salesForecast} stroke="var(--purple)" strokeWidth={2} fill="url(#wmPlanFill)" />
             {/* "We're here" under the sales (2026-10-11): its dashed line sat
                 over a young business's only sales point, at the same x, and
                 hid it. Lines draw at recharts' zIndex 400 and their dots at
@@ -691,7 +720,7 @@ export const GrowthGraph: React.FC<GrowthGraphProps> = ({
             )}
             {view.hasSales && (
               <Line
-                type="monotone" dataKey="actual" name="Your sales"
+                type="monotone" dataKey="actual" name={c.yourSales}
                 stroke="var(--cyan)" strokeWidth={2.5}
                 dot={(p: { cx?: number; cy?: number; index?: number }) => (
                   p.cx == null || p.cy == null
@@ -706,7 +735,7 @@ export const GrowthGraph: React.FC<GrowthGraphProps> = ({
             {view.hasLive && (
               <Line
                 type="monotone" dataKey="live"
-                name={view.livePaced ? `This ${cadenceUnit}, on pace` : `This ${cadenceUnit} so far`}
+                name={view.livePaced ? (weeklyView ? c.thisWeekOnPace : c.thisMonthOnPace) : (weeklyView ? c.thisWeekSoFar : c.thisMonthSoFar)}
                 stroke="var(--cyan)" strokeWidth={2.5} strokeDasharray="4 3"
                 // One open dot, on this period: the segment's other end has its own.
                 dot={(p: { cx?: number; cy?: number; index?: number; payload?: { key?: string } }) => (
@@ -751,22 +780,13 @@ export const GrowthGraph: React.FC<GrowthGraphProps> = ({
       )}
 
       <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-dim)' }}>
-        {view.hasSales ? (
-          <>
-            The forecast is the plan you set when you started, not a promise. Your own sales are
-            drawn on top of it
-            {view.hasLive
-              ? view.livePaced
-                ? `; the dashed end is the pace this ${cadenceUnit} is running at, from what has come in so far`
-                : `; the dashed end is this ${cadenceUnit}, still running`
-              : ''}.
-          </>
-        ) : (
-          <>
-            This is the forecast you set when you started, not a promise. Your own sales will be drawn
-            on top of it as they come in.
-          </>
-        )}
+        {view.hasSales
+          ? view.hasLive
+            ? view.livePaced
+              ? (weeklyView ? c.footPacedWeek : c.footPacedMonth)
+              : (weeklyView ? c.footLiveWeek : c.footLiveMonth)
+            : c.footSales
+          : c.footNoSales}
       </p>
     </div>
   );

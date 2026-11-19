@@ -187,11 +187,15 @@ class WebMaven_OAuth {
     }
 
     public function handle_oauth_exchange(\WP_REST_Request $req) {
-        // This endpoint is called by the frontend to exchange authorization code for token
+        // This endpoint is called by the frontend to exchange authorization code for token.
+        // The code and the state are each one word of text, cleaned before use.
         $params = $req->get_params();
+        foreach (['code', 'state'] as $name) {
+            $params[$name] = isset($params[$name]) && is_scalar($params[$name]) ? sanitize_text_field((string) $params[$name]) : '';
+        }
 
         // Validate required fields
-        if (empty($params['code']) || empty($params['state'])) {
+        if ($params['code'] === '' || $params['state'] === '') {
             return new \WP_REST_Response(array(
                 'success' => false,
                 'error' => 'Missing authorization code or state'

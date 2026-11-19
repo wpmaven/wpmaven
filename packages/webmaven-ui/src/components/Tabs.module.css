@@ -45,7 +45,7 @@
 /* Underline style */
 .underlineContainer { display: flex; gap: 0; border-bottom: 1px solid var(--glass-border); }
 .underlineTab {
-  display: inline-flex; align-items: center; gap: 8px; padding: 12px 4px; margin-right: 24px;
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 4px; margin-inline-end: 24px;
   border: none; border-bottom: 2px solid transparent; background: none; font-family: inherit;
   font-size: 13px; font-weight: 500; color: var(--text-dim); cursor: pointer; white-space: nowrap;
   transition: color 0.2s, border-color 0.2s;
@@ -58,5 +58,5 @@
 @media (max-width: 640px) {
   .pill .tab { font-size: 12px; padding: 7px 14px; }
   .segmented .tab { padding: 6px 12px; }
-  .underlineTab { font-size: 12px; margin-right: 16px; }
+  .underlineTab { font-size: 12px; margin-inline-end: 16px; }
 }

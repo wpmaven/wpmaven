@@ -18,10 +18,12 @@ import { teamBusiness } from '../team/reads';
 import { readHomeFinance } from './reads';
 import { useHomeSectionStyles } from './styles';
 import {
-  GET_PAID_COPY, STORE_GATEWAYS, getPaidPath, needsAccount, needsGateway, noWayToGetPaidNote, offeredGateways, openSetupPage,
+  GET_PAID_CARD_COPY, GET_PAID_COPY, STORE_GATEWAYS, getPaidPath, needsAccount, needsGateway, noWayToGetPaidNote, offeredGateways, openSetupPage,
   openSetupTab, readPaymentStatus, readWpmPayments, setupErrorMessage, setupGateway, stateLine, typicalFeeText, wpmavenOfferedFor,
   type GatewayTabResult, type PaymentStatus, type PendingTab, type StoreGateway, type WpmPaymentsStatus,
 } from './getPaid';
+import { LocalServices } from './LocalServices';
+import { localServiceName, offeredLocalServices } from './localPayments';
 
 // The dashboard's type scale, said inline (the plugin has no stylesheet of the dashboard's).
 const TITLE: React.CSSProperties = { margin: 0, fontSize: 'var(--text-body)', lineHeight: 'var(--leading-body)', fontWeight: 650, color: 'var(--text)' };
@@ -43,7 +45,7 @@ const LINK: React.CSSProperties = { color: 'inherit', textDecoration: 'underline
 export const GetPaidNeedsOwner: React.FC<{ reason: React.ReactNode }> = ({ reason }) => (
   <div data-testid="getpaid-needs-owner">
     <h3 style={TITLE}>{GET_PAID_COPY.title}</h3>
-    <p style={{ ...BODY_DIM, marginTop: 4 }}>Your storefront is live, but visitors cannot order until a way to get paid is on.</p>
+    <p style={{ ...BODY_DIM, marginTop: 4 }}>{GET_PAID_CARD_COPY.storefrontLive}</p>
     {typeof reason === 'string'
       ? <p style={{ ...BODY, marginTop: 8 }} role="note">{reason}</p>
       : <div style={{ ...BODY, marginTop: 8 }} role="note">{reason}</div>}
@@ -160,7 +162,7 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
   const connect = async (gateway: StoreGateway) => {
     if (busy) return;
     setBusy(gateway); setError(null); setBlockedUrl(null); setFallback(null);
-    const title = STORE_GATEWAYS.find((g) => g.id === gateway)?.title ?? 'that provider';
+    const title = STORE_GATEWAYS.find((g) => g.id === gateway)?.title ?? localServiceName(status, gateway) ?? GET_PAID_CARD_COPY.thatProvider;
     // Open the window inside the click (popup blockers), point it once the URL is known.
     const win = openSetupTab();
     try {
@@ -171,7 +173,7 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
         // card sat unchanged and nothing said why.
         win?.close();
         await refresh();
-        setError(`Your site did not send back a setup page for ${title}. Please try again, or pick another provider.`);
+        setError(GET_PAID_CARD_COPY.noSetupPage(title));
         return;
       }
       track('payments', 'connect_started', gateway);
@@ -213,11 +215,11 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
         ? await setup.send(win, { instanceId, gateway, connectUrl, confirmNewAccount })
         : await openSetupPage(win, connectUrl);
     } catch (e) {
-      opened = { kind: 'error', message: e instanceof Error && e.message ? e.message : 'Please try again in a moment.' };
+      opened = { kind: 'error', message: e instanceof Error && e.message ? e.message : GET_PAID_CARD_COPY.tryAgain };
     }
     if (opened.kind === 'error') {
       await refresh();
-      setError(`${title} is installed on your site, but we could not sign you in to WordPress to finish: ${opened.message}`);
+      setError(GET_PAID_CARD_COPY.signInFailed(title, opened.message));
       return;
     }
     if (opened.kind === 'confirm') {
@@ -274,6 +276,9 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
   // WPMaven Payments where Stripe can, the providers that can.
   const wpmForCurrency = wpmavenOfferedFor(status);
   const gateways = offeredGateways(status);
+  // The local payment services of the business's currency and country (2026-11-16), after the three.
+  const locals = offeredLocalServices(status);
+  const connectFirst = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('connect') : null;
   // Stripe needs something, or the account was unlinked: shown even beside a connected provider.
   const wpmAttention = !!wpm && (wpm.state === 'action_needed' || (wpm.state === 'disconnected' && wpm.available && wpmForCurrency));
   if (wpm?.state === 'active' && !justConnected) return null;
@@ -311,13 +316,13 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
   return frame(
     <>
       {justConnected && primaryTitle ? (
-        <p style={BODY} role="status">You are set up to get paid through {primaryTitle}. Your team takes it from here.</p>
+        <p style={BODY} role="status">{GET_PAID_CARD_COPY.connected(primaryTitle)}</p>
       ) : (
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
             <h3 style={TITLE}>{GET_PAID_COPY.title}</h3>
             {!noWayNote && (
-              <span style={SMALL_DIM}>{wpm && (wpmForCurrency || wpmInProgress) ? 'A few minutes, right here' : 'About two minutes, on the provider\'s own page'}</span>
+              <span style={SMALL_DIM}>{wpm && (wpmForCurrency || wpmInProgress) ? GET_PAID_CARD_COPY.fewMinutes : GET_PAID_CARD_COPY.twoMinutes}</span>
             )}
           </div>
           {wpmInProgress && wpm ? (
@@ -335,7 +340,7 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
             </div>
           ) : noWayNote ? (
             <div data-testid="getpaid-no-way">
-              <p style={{ ...BODY_DIM, marginTop: 4 }}>Your storefront is live, but visitors cannot order until a way to get paid is on.</p>
+              <p style={{ ...BODY_DIM, marginTop: 4 }}>{GET_PAID_CARD_COPY.storefrontLive}</p>
               <p style={{ ...BODY, marginTop: 12 }} role="note">{noWayNote}</p>
             </div>
           ) : (
@@ -344,22 +349,22 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
               otherwise only the owner's own providers are listed. */}
           <p style={{ ...BODY_DIM, marginTop: 4 }}>
             {wpmOffered
-              ? 'Your storefront is live, but visitors cannot order until a way to get paid is on.'
-              : `Your storefront is live, but visitors cannot order until one of these is connected. The money goes to your own account, never through ${productName()}.`}
+              ? GET_PAID_CARD_COPY.storefrontLive
+              : GET_PAID_CARD_COPY.storefrontLiveOwn(productName())}
           </p>
           {wpmOffered && wpm && (
             <div style={{ marginTop: 16, borderRadius: 'var(--r-card)', padding: 12, border: `1px solid ${ACCENT}` }} data-testid="getpaid-wpmaven">
               <div style={ROW}>
                 <span style={NAME}>{GET_PAID_COPY.productName}</span>
-                <span style={{ fontSize: 'var(--text-meta)', lineHeight: 1.45, color: ACCENT }}>Recommended</span>
+                <span style={{ fontSize: 'var(--text-meta)', lineHeight: 1.45, color: ACCENT }}>{GET_PAID_CARD_COPY.recommended}</span>
               </div>
-              <p style={{ ...SMALL_DIM, marginTop: 4 }}>{wpm.state === 'disconnected' ? stateLine(wpm) : `${GET_PAID_COPY.processedBy} Set up in a few minutes, right here, with no other account to create.`}</p>
+              <p style={{ ...SMALL_DIM, marginTop: 4 }}>{wpm.state === 'disconnected' ? stateLine(wpm) : `${GET_PAID_COPY.processedBy} ${GET_PAID_CARD_COPY.setUpHere}`}</p>
               <div style={{ marginTop: 12 }}>
                 <Button variant="primary" size="sm" onClick={getPaid}>
                   {wpm.state === 'disconnected' ? GET_PAID_COPY.disconnectedAction : GET_PAID_COPY.notStartedAction}
                 </Button>
                 {wpm.oauthAvailable && (
-                  <Button variant="ghost" size="sm" style={{ marginLeft: 8 }} onClick={getPaid}>
+                  <Button variant="ghost" size="sm" style={{ marginInlineStart: 8 }} onClick={getPaid}>
                     {GET_PAID_COPY.useOwnStripe}
                   </Button>
                 )}
@@ -379,14 +384,14 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
               aria-controls={`getpaid-others-${instanceId}`}
               onClick={() => setOthersOpen((open) => !open)}
             >
-              <span>Or connect a provider you already use</span>
+              <span>{GET_PAID_CARD_COPY.otherProviders}</span>
               <HiOutlineChevronDown aria-hidden className="wms-getpaid-others-chevron" data-open={othersOpen ? 'true' : 'false'} />
             </button>
           )}
           {wpmOffered && (othersOpen || providersPending) && (
-            <p style={{ ...SMALL_DIM, marginTop: 8 }}>The money then goes to your account with that provider.</p>
+            <p style={{ ...SMALL_DIM, marginTop: 8 }}>{GET_PAID_CARD_COPY.moneyToProvider}</p>
           )}
-          {(!wpmOffered || othersOpen || providersPending) && (
+          {(!wpmOffered || othersOpen || providersPending) && gateways.length > 0 && (
           <div
             id={`getpaid-others-${instanceId}`}
             className={compact ? undefined : 'wms-getpaid-gateways'}
@@ -402,16 +407,16 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
                   <div style={ROW}>
                     <span style={NAME}>{g.title}</span>
                     {/* One recommendation: WPMaven Payments when it is offered. */}
-                    {g.recommended && !wpmOffered && <span style={{ fontSize: 'var(--text-meta)', lineHeight: 1.45, color: ACCENT }}>Recommended</span>}
+                    {g.recommended && !wpmOffered && <span style={{ fontSize: 'var(--text-meta)', lineHeight: 1.45, color: ACCENT }}>{GET_PAID_CARD_COPY.recommended}</span>}
                   </div>
                   <p style={{ ...SMALL_DIM, marginTop: 4 }}>{g.blurb}</p>
-                  <p style={{ ...SMALL_DIM, marginTop: 4 }}>Typical fees {typicalFeeText(g, storeCurrency)} per sale</p>
+                  <p style={{ ...SMALL_DIM, marginTop: 4 }}>{GET_PAID_CARD_COPY.typicalFees(typicalFeeText(g, storeCurrency))}</p>
                   <div style={{ marginTop: 12 }}>
                     {/* Every Connect is the way to get paid, so every one is the
                         primary; the recommended card is marked by its border
                         and its label, not by a weaker button on the others. */}
                     <Button variant="primary" size="sm" onClick={() => void connect(g.id)} isLoading={busy === g.id} disabled={!!busy}>
-                      {pending ? 'Finish setup' : 'Connect'}
+                      {pending ? GET_PAID_CARD_COPY.finishSetup : GET_PAID_CARD_COPY.connect}
                     </Button>
                   </div>
                 </div>
@@ -419,28 +424,44 @@ export const GetPaidCard: React.FC<GetPaidCardProps> = ({ host, instanceId: chos
             })}
           </div>
           )}
+          {(!wpmOffered || othersOpen || providersPending) && locals.length > 0 && (
+            <LocalServices
+              host={host}
+              instanceId={instanceId}
+              status={status}
+              services={locals}
+              busy={busy}
+              onPluginConnect={(id) => void connect(id)}
+              onConnected={async () => {
+                // Connected with live keys: the card says so, as after a provider's own page.
+                const s = await refresh();
+                if (s?.primary) { setJustConnected(true); track('payments', 'connected', s.primary); }
+              }}
+              initialOpen={connectFirst}
+            />
+          )}
           </>
           )}
           {blockedUrl && (
             <p role="status" style={{ ...SMALL, marginTop: 12 }}>
-              Your browser blocked the new tab.{' '}
+              {GET_PAID_CARD_COPY.blockedTab}{' '}
               <a href={blockedUrl.url} target="_blank" rel="noopener noreferrer" style={LINK} onClick={() => setBlockedUrl(null)}>
-                Open the {blockedUrl.title} setup page
+                {GET_PAID_CARD_COPY.openSetupPage(blockedUrl.title)}
               </a>{' '}
-              within a minute to finish, and this card updates when you are done.
+              {GET_PAID_CARD_COPY.blockedAfter}
             </p>
           )}
           {fallback && (
             <p role="status" style={{ ...SMALL, marginTop: 12 }}>
               {fallback.opened ? (
-                <>We opened the {fallback.title} setup page on your site. Sign in to WordPress there to finish. </>
+                <>{GET_PAID_CARD_COPY.fallbackOpened(fallback.title)}{' '}</>
               ) : (
                 <>
-                  Your browser blocked the new tab.{' '}
+                  {GET_PAID_CARD_COPY.blockedTab}{' '}
                   <a href={fallback.url} target="_blank" rel="noopener noreferrer" style={LINK}>
-                    Open the {fallback.title} setup page
+                    {GET_PAID_CARD_COPY.openSetupPage(fallback.title)}
                   </a>{' '}
-                  and sign in to WordPress to finish.{' '}
+                  {GET_PAID_CARD_COPY.fallbackAfter}{' '}
                 </>
               )}
               {fallback.note}

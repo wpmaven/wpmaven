@@ -40,6 +40,7 @@ import {
   cancelRun, deleteTask, readTeamPlan, readTeamRuns, readTeamTasks, runTaskNow, setTaskStatus,
 } from './reads';
 import { useWidth } from './useWidth';
+import { TEAM_PLAN_COPY } from './teamCopy';
 
 /** Who speaks on a card: the task's own team member, else the Co-CEO (a task a person made names nobody). */
 export function speakerOf(operator: TaskOperator | null, catalog: TeamCatalog | null | undefined): TeamCardMember {
@@ -75,11 +76,11 @@ export const TaskButtons: React.FC<{ task: TaskRow; canWrite: boolean; canDelete
   return (
     <TeamCardActions>
       {canWrite && !t.isRunning && (t.status === 'ACTIVE' || t.status === 'PAUSED') && (
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => actions.onRun(t)}>Run now</Button>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => actions.onRun(t)}>{TEAM_PLAN_COPY.runNow}</Button>
       )}
-      {canWrite && t.status === 'ACTIVE' && <Button size="sm" variant="outline" disabled={busy} onClick={() => actions.onPause(t)}>Pause</Button>}
-      {canWrite && t.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={busy} onClick={() => actions.onResume(t)}>Resume</Button>}
-      {canDelete && <Button size="sm" variant="danger" disabled={busy} onClick={() => actions.onDelete(t)}>Delete</Button>}
+      {canWrite && t.status === 'ACTIVE' && <Button size="sm" variant="outline" disabled={busy} onClick={() => actions.onPause(t)}>{TEAM_PLAN_COPY.pause}</Button>}
+      {canWrite && t.status === 'PAUSED' && <Button size="sm" variant="outline" disabled={busy} onClick={() => actions.onResume(t)}>{TEAM_PLAN_COPY.resume}</Button>}
+      {canDelete && <Button size="sm" variant="danger" disabled={busy} onClick={() => actions.onDelete(t)}>{TEAM_PLAN_COPY.delete}</Button>}
     </TeamCardActions>
   );
 };
@@ -153,7 +154,7 @@ export const RunCard: React.FC<{
     error={error}
     actions={canWrite && runIsLive(r) && (
       <TeamCardActions>
-        <Button size="sm" variant="outline" disabled={busyId === r.id} onClick={() => onCancel(r)}>Stop</Button>
+        <Button size="sm" variant="outline" disabled={busyId === r.id} onClick={() => onCancel(r)}>{TEAM_PLAN_COPY.stop}</Button>
       </TeamCardActions>
     )}
   />
@@ -205,7 +206,7 @@ export const CoCeoHint: React.FC<{ title: string; lines: ReadonlyArray<string> }
       variant="assistant"
       author={{
         avatar: <OperatorAvatar id={CO_CEO_ID} title={title} presence="still" size={OPERATOR_AVATAR_SIZES.bubble} />,
-        name: `Your ${title}`,
+        name: TEAM_PLAN_COPY.yourMember(title),
       }}
     >
       {lines.map((line, i) => <p key={i} style={{ margin: i > 0 ? '4px 0 0' : 0 }}>{line}</p>)}
@@ -308,9 +309,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
       )}
       {plan && (
         <p style={{ margin: 0, fontSize: 14, color: 'var(--text-dim)' }} data-testid="plan-meta">
-          Activated {planDate(plan.activatedAt)}
-          {plan.lastReplannedAt ? ` · last reviewed ${planDate(plan.lastReplannedAt)}` : ''}
-          {` · version ${plan.version}`}
+          {TEAM_PLAN_COPY.activated(planDate(plan.activatedAt))}
+          {plan.lastReplannedAt ? ` · ${TEAM_PLAN_COPY.lastReviewed(planDate(plan.lastReplannedAt))}` : ''}
+          {` · ${TEAM_PLAN_COPY.version(String(plan.version))}`}
         </p>
       )}
       {plan?.tasks.map((t) => (
@@ -495,7 +496,7 @@ export const PlanTab: React.FC<PlanTabProps> = ({ host, instanceId, catalog, cha
                   <>
                     {' '}
                     <HostLink to={`/team?tab=plan&business=${encodeURIComponent(instanceId)}`} style={{ color: 'inherit', textDecoration: 'underline' }} testId="plan-open-dashboard">
-                      Open your dashboard
+                      {TEAM_PLAN_COPY.openDashboard}
                     </HostLink>
                   </>
                 )}
@@ -540,7 +541,7 @@ export const PlanTab: React.FC<PlanTabProps> = ({ host, instanceId, catalog, cha
         runsError={runsError}
         catalog={catalog}
         actions={actions}
-        onCancelRun={(r) => void act(r.id, 'run_cancelled', () => cancelRun(transport, r.id), 'This could not be stopped. Try again in a minute.')}
+        onCancelRun={(r) => void act(r.id, 'run_cancelled', () => cancelRun(transport, r.id), TEAM_PLAN_COPY.stopFailed)}
         site={site}
         chat={chat}
         waitingLink={waitingLink}

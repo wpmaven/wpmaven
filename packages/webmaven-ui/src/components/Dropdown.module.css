@@ -44,7 +44,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  text-align: left;
+  text-align: start;
   line-height: 1.2;
 }
 
@@ -69,7 +69,7 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 }
 
 .chevron {
@@ -88,7 +88,7 @@
 .menu {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
+  inset-inline-start: 0;
   /* Size to the longest option, but never narrower than the trigger. */
   min-width: 100%;
   width: max-content;
@@ -126,7 +126,7 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   outline: none;
   position: relative;
   transition: background 0.15s ease;
@@ -146,7 +146,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--purple);
-  margin-left: auto;
+  margin-inline-start: auto;
   flex-shrink: 0;
 }
 

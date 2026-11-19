@@ -50,7 +50,7 @@ final class WebMaven_Cap_Leads {
 
     public static function leads_list($params = [], $step_id = null) {
         $p = is_array($params) ? $params : [];
-        $kind = $p['kind'] ?? '';
+        $kind = sanitize_key($p['kind'] ?? '');
         if ($kind !== '' && !in_array($kind, WebMaven_Leads::KINDS, true)) {
             throw new Exception('VALIDATION: kind is conversation or signup.');
         }
@@ -58,8 +58,10 @@ final class WebMaven_Cap_Leads {
         $page = WebMaven_Leads::list_page([
             'page' => $p['page'] ?? 1,
             'per_page' => $p['per_page'] ?? ($p['perPage'] ?? null),
-            'status' => $p['status'] ?? '',
-            'form' => $p['form'] ?? '',
+            'status' => sanitize_key($p['status'] ?? ''),
+            'form' => sanitize_text_field($p['form'] ?? ''),
+            // Cleaned as plain text on one line by WebMaven_Leads::line, which
+            // keeps a lone "<" that sanitize_text_field would turn into "&lt;".
             'search' => $p['search'] ?? '',
             'kind' => $kind,
             'since' => $period ? WebMaven_Store_Periods::utc_sql($period['from']) : '',
@@ -88,9 +90,10 @@ final class WebMaven_Cap_Leads {
         $p = is_array($params) ? $params : [];
         $patch = [];
         if (array_key_exists('status', $p)) {
-            $patch['status'] = $p['status'];
+            $patch['status'] = sanitize_key($p['status']);
         }
         if (array_key_exists('note', $p)) {
+            // WebMaven_Leads::text cleans it (tags out, line breaks kept); null removes the note.
             $patch['note'] = $p['note'];
         }
         return ['lead' => WebMaven_Leads::update(self::lead_id($p), $patch, self::ACTOR)];
@@ -98,6 +101,9 @@ final class WebMaven_Cap_Leads {
 
     public static function lead_reply($params = [], $step_id = null) {
         $p = is_array($params) ? $params : [];
+        // The subject goes through WebMaven_Leads::line. The body is the owner's
+        // plain text as written (reply_text), escaped into the email by reply_html:
+        // a tag cleaner would drop the "<b>" or "a < b" the owner typed.
         return WebMaven_Leads::reply(self::lead_id($p), $p['subject'] ?? '', $p['body'] ?? '', self::ACTOR);
     }
 
@@ -106,7 +112,7 @@ final class WebMaven_Cap_Leads {
         return WebMaven_Leads::export([
             'from' => $p['from'] ?? '',
             'to' => $p['to'] ?? '',
-            'status' => $p['status'] ?? '',
+            'status' => sanitize_key($p['status'] ?? ''),
         ], self::ACTOR);
     }
 

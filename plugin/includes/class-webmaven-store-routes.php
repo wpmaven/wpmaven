@@ -97,7 +97,7 @@ final class WebMaven_Store_Caps {
             $cap = (string) WebMaven_Leads::capability();
             return $cap !== '' ? $cap : 'manage_options';
         }
-        $cap = apply_filters('wpmaven_messages_capability', 'edit_others_posts');
+        $cap = apply_filters('wpmaven_messages_capability', 'edit_others_posts'); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPMaven's own filter, named after the plugin's slug
         return is_string($cap) && $cap !== '' ? $cap : 'manage_options';
     }
 

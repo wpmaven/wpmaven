@@ -6,9 +6,7 @@
  * own brand, and a wholesale hosting partner sells WPMaven as its own
  * product. On those sites the plugin must not name WPMaven anywhere the
  * client or the site's visitors look: the WP-admin menu and page titles, the
- * WP-admin app and the notices. The plugin list, the update details, the
- * must-use hardening file and the mail WordPress sends the site's
- * administrators are WPMaven Agent's to brand.
+ * WP-admin app and the notices.
  *
  * The API says whose brand a site carries in the same answer the footer
  * badge already reads, GET /sites/me/plan (with the site's own token):

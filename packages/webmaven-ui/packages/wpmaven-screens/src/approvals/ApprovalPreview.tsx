@@ -34,7 +34,8 @@ import {
   approvalLinkPost, deriveApprovalPreview, isEmptyPreview, platformMeta, type ApprovalPreviewData,
 } from './previewData';
 import { drawableSitePreview, type SitePreviewBeforeAnswer } from './sitePreview';
-import { approvalNetworkNotes, approvalSentence, type ApprovalNetworkNote } from './targets';
+import { PUBLISH_WORDS, approvalNetworkNotes, approvalSentence, type ApprovalNetworkNote } from './targets';
+import { APPROVAL_PREVIEW_COPY } from './approvalPreviewCopy';
 import { postingAccountsShown } from './postingAccounts';
 import { SitePostPreview } from './SitePostPreview';
 import { approvalLabelNote, isVideoChoiceApproval } from './videoLabel';
@@ -127,10 +128,10 @@ export const ApprovalPreview: React.FC<ApprovalPreviewProps> = ({
       <div className={className} style={{ ...box, fontSize: TYPE.body, lineHeight: TYPE.bodyLeading }} data-testid="campaign-approval">
         {campaign.subject && <p style={{ margin: 0, fontWeight: 550, color: 'var(--text)', overflowWrap: 'break-word' }}>{campaign.subject}</p>}
         <p style={{ ...small, marginTop: 4, color: 'var(--text-dim)' }}>
-          A test copy is in your inbox. It goes to everyone who agreed to get your emails.
+          {APPROVAL_PREVIEW_COPY.campaignTestCopy}
         </p>
         {campaign.href && (
-          <HostLink to={campaign.href} style={{ ...small, ...textLink, display: 'inline-block', marginTop: 8 }}>Open the email</HostLink>
+          <HostLink to={campaign.href} style={{ ...small, ...textLink, display: 'inline-block', marginTop: 8 }}>{APPROVAL_PREVIEW_COPY.openEmail}</HostLink>
         )}
       </div>
     );
@@ -175,7 +176,7 @@ export const ApprovalPreview: React.FC<ApprovalPreviewProps> = ({
     if (approvalSentence(approval)) return null;
     return (
       <div className={className} style={{ ...box, ...small, padding: 12, opacity: 0.6 }}>
-        Nothing to preview.
+        {APPROVAL_PREVIEW_COPY.nothingToPreview}
       </div>
     );
   }
@@ -213,7 +214,7 @@ export const ApprovalPreview: React.FC<ApprovalPreviewProps> = ({
           networks: its words, with where the link lands, under the caption. */}
       {linkPost && (
         <div data-testid="link-post" style={{ marginTop: hasMedia || preview.text ? 12 : 0, borderTop: '1px solid var(--glass-border)', paddingTop: 12 }}>
-          <p style={{ ...small, fontWeight: 550, color: 'var(--text)' }}>Then on {andWords(linkPost.networks)}:</p>
+          <p style={{ ...small, fontWeight: 550, color: 'var(--text)' }}>{APPROVAL_PREVIEW_COPY.thenOn(andWords(linkPost.networks))}</p>
           <PostText text={linkPost.text} expanded={expanded} style={{ marginTop: 4 }} />
         </div>
       )}
@@ -255,8 +256,8 @@ function VideoPlayer({ url, poster }: { url: string; poster: string | null }) {
   if (broken) {
     return (
       <p style={{ ...small, opacity: 0.7 }}>
-        This video could not be played here.{' '}
-        <a style={textLink} href={url} target="_blank" rel="noreferrer">Open the video</a>
+        {APPROVAL_PREVIEW_COPY.videoFailed}{' '}
+        <a style={textLink} href={url} target="_blank" rel="noreferrer">{APPROVAL_PREVIEW_COPY.openVideo}</a>
       </p>
     );
   }
@@ -271,7 +272,7 @@ function VideoPlayer({ url, poster }: { url: string; poster: string | null }) {
         onError={() => setBroken(true)}
         style={{ display: 'block', width: '100%', maxHeight: 420, borderRadius: 'var(--r-field, 10px)', background: '#000' }}
       >
-        <a href={url} target="_blank" rel="noreferrer">Open the video</a>
+        <a href={url} target="_blank" rel="noreferrer">{APPROVAL_PREVIEW_COPY.openVideo}</a>
       </video>
       <a
         style={{ ...small, ...textLink, marginTop: 4, display: 'inline-block', opacity: 0.6 }}
@@ -279,7 +280,7 @@ function VideoPlayer({ url, poster }: { url: string; poster: string | null }) {
         target="_blank"
         rel="noreferrer"
       >
-        Open video in a new tab
+        {APPROVAL_PREVIEW_COPY.openVideoNewTab}
       </a>
     </div>
   );
@@ -309,7 +310,7 @@ function PreviewImage({ url, single }: { url: string; single: boolean }) {
   if (broken) {
     return (
       <a style={{ ...small, ...textLink, display: 'block', wordBreak: 'break-all', opacity: 0.6 }} href={url} target="_blank" rel="noreferrer">
-        Image could not be loaded. Open it
+        {APPROVAL_PREVIEW_COPY.imageFailed}
       </a>
     );
   }
@@ -364,7 +365,7 @@ function PostText({ text, expanded, style }: { text: string; expanded: boolean; 
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? 'Show less' : 'Show more'}
+          {open ? APPROVAL_PREVIEW_COPY.showLess : APPROVAL_PREVIEW_COPY.showMore}
         </Button>
       )}
     </div>
@@ -398,7 +399,7 @@ function NetworkNotes({ notes, style }: { notes: ApprovalNetworkNote[]; style?: 
 function PlatformChips({ platforms, style }: { platforms: string[]; style?: React.CSSProperties }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, ...style }}>
-      <span style={{ ...small, opacity: 0.6 }}>Goes to</span>
+      <span style={{ ...small, opacity: 0.6 }}>{APPROVAL_PREVIEW_COPY.goesTo}</span>
       {platforms.map((p) => {
         const meta = platformMeta(p);
         return (
@@ -420,7 +421,7 @@ function PlatformChips({ platforms, style }: { platforms: string[]; style?: Reac
 
 export default ApprovalPreview;
 
-/** "Facebook, LinkedIn and X". */
+/** "Facebook, LinkedIn and X", in the page's language. */
 function andWords(items: string[]): string {
-  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  return items.length <= 1 ? items.join('') : PUBLISH_WORDS.and(items.slice(0, -1).join(', '), items[items.length - 1]);
 }

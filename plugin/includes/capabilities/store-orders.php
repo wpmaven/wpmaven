@@ -30,10 +30,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 if (!class_exists('WebMaven_Store_Periods')) {
     require_once dirname(__DIR__) . '/class-webmaven-store-periods.php';
 }
@@ -53,8 +49,8 @@ final class WebMaven_Cap_Store_Orders {
     const LIST_FIELDS = 'id,number,status,date_created_gmt,currency,currency_symbol,total,billing,payment_method_title,wpmaven';
     const NOTE_MAX = 2000;
     const REASON_MAX = 500;
-    /** Parcels the owner sent themselves (the printed parcels keep _wm_tracking, written by their fulfilment). */
-    const SHIPMENT_META = '_wm_shipment';
+    /** Parcels the owner sent themselves (the printed parcels keep _webmaven_tracking, written by their fulfilment). */
+    const SHIPMENT_META = '_webmaven_shipment';
     const SHIPMENTS_KEPT = 10;
     const CARRIER_MAX = 60;
     const TRACKING_MAX = 80;
@@ -172,7 +168,7 @@ final class WebMaven_Cap_Store_Orders {
      */
     private static function by_number($raw) {
         self::require_store();
-        $number = is_scalar($raw) ? trim(ltrim((string) $raw, '#')) : '';
+        $number = is_scalar($raw) ? trim(sanitize_text_field(ltrim((string) $raw, '#'))) : '';
         if ($number === '' || strlen($number) > 40 || !preg_match('/^[A-Za-z0-9_\-\/]+$/', $number)) {
             throw self::error('VALIDATION', 'An order number is like 1042.');
         }
@@ -182,12 +178,12 @@ final class WebMaven_Cap_Store_Orders {
             return $order;
         }
         if (function_exists('wc_get_orders')) {
-            $found = wc_get_orders(['type' => 'shop_order', 'limit' => 1, 'meta_query' => [['key' => '_order_number', 'value' => $number]]]);
+            $found = wc_get_orders(['type' => 'shop_order', 'limit' => 1, 'meta_query' => [['key' => '_order_number', 'value' => $number]]]); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- finds the order a sequential order number plugin numbered, by its _order_number key; one order
             if (is_array($found) && isset($found[0]) && is_object($found[0])) {
                 return $found[0];
             }
         }
-        throw self::error('NOT_FOUND', 'There is no order ' . $number . ' in your store.');
+        throw self::error('NOT_FOUND', 'There is no order ' . $number . ' in your store.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
     }
 
     /** StoreOrderDetail of an order object. */
@@ -371,15 +367,15 @@ final class WebMaven_Cap_Store_Orders {
         $to = null;
         if ($status !== null && $status !== '') {
             if (!is_string($status)) {
-                throw self::error('VALIDATION', 'status is one of: ' . implode(', ', WebMaven_Pod_Guards::STATUSES) . '.');
+                throw self::error('VALIDATION', 'status is one of: ' . implode(', ', WebMaven_Pod_Guards::STATUSES) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
-            $to = WebMaven_Pod_Guards::bare_status(trim($status));
+            $to = WebMaven_Pod_Guards::bare_status(sanitize_key($status));
             if ($to === WebMaven_Pod_Guards::bare_status((string) $order->get_status())) {
                 $to = null; // already there: nothing to change
             } else {
                 $refusal = WebMaven_Pod_Guards::status_refusal($order, $to);
                 if ($refusal !== null) {
-                    throw self::error('STATUS_NOT_ALLOWED', $refusal);
+                    throw self::error('STATUS_NOT_ALLOWED', $refusal); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
         }
@@ -391,7 +387,7 @@ final class WebMaven_Cap_Store_Orders {
             }
             foreach (array_keys($note) as $key) {
                 if (!in_array($key, ['text', 'customer'], true)) {
-                    throw self::error('VALIDATION', 'Unknown note field: ' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $key) . '.');
+                    throw self::error('VALIDATION', 'Unknown note field: ' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             $text = is_string($note['text'] ?? null) ? trim(sanitize_textarea_field($note['text'])) : '';
@@ -467,7 +463,7 @@ final class WebMaven_Cap_Store_Orders {
         }
         foreach (array_keys($raw) as $key) {
             if (!in_array($key, ['carrier', 'number', 'url'], true)) {
-                throw self::error('VALIDATION', 'Unknown shipment field: ' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $key) . '.');
+                throw self::error('VALIDATION', 'Unknown shipment field: ' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         $carrier = is_string($raw['carrier'] ?? null) ? trim(sanitize_text_field($raw['carrier'])) : '';
@@ -529,18 +525,18 @@ final class WebMaven_Cap_Store_Orders {
     public static function order_refund($params = [], $step_id = null) {
         $order = self::order($params['order_id'] ?? null);
         if (WebMaven_Pod_Guards::is_wpmaven_payments($order)) {
-            throw self::error('REFUND_NOT_ALLOWED', self::REFUND_HERE_REFUSED);
+            throw self::error('REFUND_NOT_ALLOWED', self::REFUND_HERE_REFUSED); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $decimals = WebMaven_Pod_Guards::decimals();
         $raw = $params['amount'] ?? null;
         $pattern = $decimals > 0 ? '/^\d{1,12}(\.\d{1,' . $decimals . '})?$/' : '/^\d{1,12}$/';
         if (!is_string($raw) || !preg_match($pattern, $raw) || (float) $raw <= 0) {
-            throw self::error('VALIDATION', 'The amount must be a number above zero, like ' . ($decimals > 0 ? '12.' . str_repeat('5', $decimals) : '12') . '.');
+            throw self::error('VALIDATION', 'The amount must be a number above zero, like ' . ($decimals > 0 ? '12.' . str_repeat('5', $decimals) : '12') . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $amount = number_format((float) $raw, $decimals, '.', '');
         $left = (float) $order->get_remaining_refund_amount();
         if (WebMaven_Pod_Guards::to_minor($amount) > WebMaven_Pod_Guards::to_minor($left)) {
-            throw self::error('REFUND_TOO_HIGH', 'This order has ' . self::money($left) . ' ' . (string) $order->get_currency() . ' left to refund.');
+            throw self::error('REFUND_TOO_HIGH', 'This order has ' . self::money($left) . ' ' . (string) $order->get_currency() . ' left to refund.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $reason = is_string($params['reason'] ?? null) ? trim(sanitize_text_field($params['reason'])) : '';
         if (strlen($reason) > self::REASON_MAX) {
@@ -577,7 +573,7 @@ final class WebMaven_Cap_Store_Orders {
             'line_items' => $line_items,
         ]);
         if (is_wp_error($refund)) {
-            throw self::error('WRITE_FAILED', 'The refund did not go through: ' . self::plain(wp_strip_all_tags($refund->get_error_message())));
+            throw self::error('WRITE_FAILED', 'The refund did not go through: ' . self::plain(wp_strip_all_tags($refund->get_error_message()))); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return ['refundId' => (int) $refund->get_id(), 'amount' => $amount];
     }
@@ -596,7 +592,7 @@ final class WebMaven_Cap_Store_Orders {
         $order = $id > 0 ? wc_get_order($id) : null;
         // A refund is an order object too: only real orders here.
         if (!$order || (method_exists($order, 'get_type') && $order->get_type() !== 'shop_order')) {
-            throw self::error('NOT_FOUND', 'Order ' . $id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Order ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $order;
     }
@@ -626,7 +622,7 @@ final class WebMaven_Cap_Store_Orders {
 
     private static function boolean($value, string $what): bool {
         if (!is_bool($value)) {
-            throw self::error('VALIDATION', $what . ' must be true or false.');
+            throw self::error('VALIDATION', $what . ' must be true or false.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }

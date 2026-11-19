@@ -35,25 +35,13 @@ import {
   type SitePreviewData,
   type SitePreviewKind,
 } from './sitePreview';
+import { SITE_POST_COPY } from './sitePostCopy';
 
 /** How much of a post a list shows before "Show the full post". */
 export const COLLAPSED_PX = 420;
 
 /** The frame's height before the post has been measured. */
 const FIRST_PX = 320;
-
-const KIND_LABEL: Record<SitePreviewKind, string> = {
-  post: 'New blog post',
-  page: 'New page',
-  update: 'Change to a page on your site',
-  // Not "New": with overwrite it rewrites the translation there now.
-  translation: 'Translation',
-  product: 'New product',
-};
-
-const NOUN: Record<SitePreviewKind, string> = {
-  post: 'post', page: 'page', update: 'page', translation: 'translation', product: 'product',
-};
 
 export interface SitePostPreviewProps {
   preview: SitePreviewData;
@@ -85,10 +73,10 @@ export async function readApprovalBefore(transport: ScreensTransport, approvalId
 
 /** What the Before tab says when it has no page to show. */
 export function beforeMessage(answer: SitePreviewBeforeAnswer | null, failed: boolean): string | null {
-  if (failed || answer?.reason === 'unavailable') return 'We could not load the current version from your site. Try again in a minute.';
-  if (answer?.reason === 'already_changed') return 'This change has already been made, so your site shows the new version now.';
-  if (answer?.reason === 'not_made') return 'This change was not made, so your site still shows the page as it was.';
-  if (answer && !answer.before) return 'There is no earlier version to show.';
+  if (failed || answer?.reason === 'unavailable') return SITE_POST_COPY.beforeFailed;
+  if (answer?.reason === 'already_changed') return SITE_POST_COPY.beforeAlreadyChanged;
+  if (answer?.reason === 'not_made') return SITE_POST_COPY.beforeNotMade;
+  if (answer && !answer.before) return SITE_POST_COPY.beforeNone;
   return null;
 }
 
@@ -138,12 +126,12 @@ export const SitePostPreview: React.FC<SitePostPreviewProps> = ({
   }, [view, before, preview]);
 
   const beforeNote = view === 'before' ? beforeMessage(before, beforeFailed) : null;
-  const titleForFrame = preview.title ? `Preview of "${preview.title}"` : `Preview of the ${NOUN[preview.kind]}`;
+  const titleForFrame = preview.title ? SITE_POST_COPY.frameNamed(preview.title) : SITE_POST_COPY.frame[preview.kind];
 
   return (
     <div className={className} data-testid="site-post-preview">
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ ...small, fontWeight: 650, color: 'var(--text)' }}>{KIND_LABEL[preview.kind]}</span>
+        <span style={{ ...small, fontWeight: 650, color: 'var(--text)' }}>{SITE_POST_COPY.kind[preview.kind]}</span>
         <span
           style={{
             ...small, display: 'inline-flex', alignItems: 'center', borderRadius: 9999,
@@ -154,27 +142,27 @@ export const SitePostPreview: React.FC<SitePostPreviewProps> = ({
           {statusChipFor(preview, approvalStatus)}
         </span>
         {isUpdate && (
-          <span role="group" aria-label="Which version to show" style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
+          <span role="group" aria-label={SITE_POST_COPY.versionsLabel} style={{ marginInlineStart: 'auto', display: 'inline-flex', gap: 4 }}>
             <Button size="sm" variant={view === 'after' ? 'secondary' : 'outline'} aria-pressed={view === 'after'} onClick={() => setView('after')}>
-              After this change
+              {SITE_POST_COPY.after}
             </Button>
             <Button size="sm" variant={view === 'before' ? 'secondary' : 'outline'} aria-pressed={view === 'before'} onClick={() => void showBefore()}>
-              Before
+              {SITE_POST_COPY.before}
             </Button>
           </span>
         )}
       </div>
       {view === 'before' && loadingBefore && (
-        <p style={{ ...small, opacity: 0.7 }} role="status">Loading the current version from your site...</p>
+        <p style={{ ...small, opacity: 0.7 }} role="status">{SITE_POST_COPY.loadingBefore}</p>
       )}
       {view === 'before' && !loadingBefore && beforeNote && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} role="status">
           <p style={{ ...small, opacity: 0.7 }}>{beforeNote}</p>
-          <Button size="sm" variant="outline" onClick={() => setView('after')}>Show the new version</Button>
+          <Button size="sm" variant="outline" onClick={() => setView('after')}>{SITE_POST_COPY.showNew}</Button>
         </div>
       )}
       {!(view === 'before' && (loadingBefore || beforeNote)) && (
-        <PostFrame doc={doc} title={titleForFrame} expanded={expanded} noun={NOUN[preview.kind]} />
+        <PostFrame doc={doc} title={titleForFrame} expanded={expanded} kind={preview.kind} />
       )}
     </div>
   );
@@ -185,7 +173,7 @@ export const SitePostPreview: React.FC<SitePostPreviewProps> = ({
  * sandbox keeps allow-same-origin for this, and never allow-scripts), once it
  * loads, whenever it resizes, and a few times more while its images arrive.
  */
-function PostFrame({ doc, title, expanded, noun }: { doc: string; title: string; expanded: boolean; noun: string }) {
+function PostFrame({ doc, title, expanded, kind }: { doc: string; title: string; expanded: boolean; kind: SitePreviewKind }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState<number>(FIRST_PX);
   const [open, setOpen] = useState(expanded);
@@ -259,7 +247,7 @@ function PostFrame({ doc, title, expanded, noun }: { doc: string; title: string;
       {!expanded && (cut || (open && height > COLLAPSED_PX)) && (
         <div style={{ marginTop: 8 }}>
           <Button size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            {open ? `Show less of the ${noun}` : `Show the full ${noun}`}
+            {open ? SITE_POST_COPY.showLess[kind] : SITE_POST_COPY.showFull[kind]}
           </Button>
         </div>
       )}

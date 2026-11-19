@@ -1,6 +1,7 @@
 <?php
 /**
- * Error Handling and Security Class
+ * The connection's secrets, encrypted at rest, and the security events the
+ * plugin logs.
  */
 
 if (!defined('ABSPATH')) {
@@ -10,85 +11,7 @@ if (!defined('ABSPATH')) {
 require_once __DIR__ . '/class-webmaven-log.php';
 
 class WebMaven_WP_Error_Handler {
-    
-    /**
-     * Validate API response
-     */
-    public static function validate_api_response($response) {
-        if (!is_array($response)) {
-            return false;
-        }
-        
-        if (!isset($response['success'])) {
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Sanitize input data
-     */
-    public static function sanitize_input($input) {
-        if (is_array($input)) {
-            return array_map(array(self::class, 'sanitize_input'), $input);
-        }
-        
-        return sanitize_text_field($input);
-    }
-    
-    /**
-     * Validate file upload
-     */
-    public static function validate_file_upload($file_path) {
-        // Check if file exists
-        if (!file_exists($file_path)) {
-            return array('success' => false, 'error' => 'File not found');
-        }
-        
-        // Check file size (max 10MB)
-        $max_size = 10 * 1024 * 1024; // 10MB
-        if (filesize($file_path) > $max_size) {
-            return array('success' => false, 'error' => 'File too large (max 10MB)');
-        }
-        
-        // Check file extension
-        // This path sends file CONTENTS off the site, so never allow PHP source (wp-config.php etc.) and
-        // reject protected files by name, mirroring the signed-webhook blocklist.
-        $blocked_files = array('wp-config.php', 'wp-config-sample.php', '.htaccess', '.env', 'php.ini', '.user.ini');
-        if (in_array(strtolower(basename($file_path)), $blocked_files, true)) {
-            return array('success' => false, 'error' => 'File is protected');
-        }
-        $allowed_extensions = array('css', 'js', 'json', 'txt', 'md', 'xml', 'html');
-        $extension = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
-        
-        if (!in_array($extension, $allowed_extensions)) {
-            return array('success' => false, 'error' => 'File type not allowed');
-        }
-        
-        return array('success' => true);
-    }
-    
-    /**
-     * Rate limiting
-     */
-    public static function check_rate_limit($action, $limit = 10, $window = 3600) {
-        $transient_key = 'webmaven_wp_rate_limit_' . $action . '_' . get_current_user_id();
-        $requests = get_transient($transient_key);
-        
-        if ($requests === false) {
-            set_transient($transient_key, 1, $window);
-            return true;
-        }
-        
-        if ($requests >= $limit) {
-            return false;
-        }
-        
-        set_transient($transient_key, $requests + 1, $window);
-        return true;
-    }
-    
+
     /**
      * Log security event
      */
@@ -124,23 +47,7 @@ class WebMaven_WP_Error_Handler {
         
         return sanitize_text_field(wp_unslash((string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0')));
     }
-    
-    /**
-     * Validate OAuth credentials
-     */
-    public static function validate_oauth_credentials($client_id, $client_secret) {
-        if (empty($client_id) || empty($client_secret)) {
-            return false;
-        }
-        
-        // Basic format validation
-        if (strlen($client_id) < 10 || strlen($client_secret) < 10) {
-            return false;
-        }
-        
-        return true;
-    }
-    
+
     /**
      * SECURITY: Encrypt sensitive data using AES-256-GCM with random IV.
      * Format: base64(iv + tag + ciphertext)
@@ -233,87 +140,5 @@ class WebMaven_WP_Error_Handler {
         );
 
         return $plaintext !== false ? $plaintext : '';
-    }
-    
-    /**
-     * Validate conversation ID
-     */
-    public static function validate_conversation_id($conversation_id) {
-        if (empty($conversation_id)) {
-            return false;
-        }
-        
-        // Check format (UUID v4)
-        $pattern = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i';
-        return preg_match($pattern, $conversation_id);
-    }
-    
-    /**
-     * Sanitize file path
-     */
-    public static function sanitize_file_path($file_path) {
-        // Remove any path traversal attempts
-        $file_path = str_replace(array('../', '..\\'), '', $file_path);
-        
-        // Ensure path is within WordPress directory
-        $wp_path = ABSPATH;
-        $real_path = realpath($wp_path . $file_path);
-        
-        if ($real_path === false || strpos($real_path, $wp_path) !== 0) {
-            return false;
-        }
-        
-        return $file_path;
-    }
-    
-    /**
-     * Check user permissions
-     */
-    public static function check_user_permissions($capability = 'edit_posts') {
-        if (!is_user_logged_in()) {
-            return false;
-        }
-        
-        if (!current_user_can($capability)) {
-            self::log_security_event('insufficient_permissions', array(
-                'capability' => $capability,
-                'user_id' => get_current_user_id()
-            ));
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Validate nonce
-     */
-    public static function validate_nonce($nonce, $action = 'wp_rest') {
-        if (!wp_verify_nonce($nonce, $action)) {
-            self::log_security_event('invalid_nonce', array(
-                'action' => $action,
-                'nonce' => $nonce
-            ));
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Handle WordPress errors
-     */
-    public static function handle_wp_error($wp_error, $context = '') {
-        if (is_wp_error($wp_error)) {
-            $error_message = $wp_error->get_error_message();
-            WebMaven_Log::write("WebMaven WordPress WordPress Error ({$context}): {$error_message}");
-            
-            return array(
-                'success' => false,
-                'error' => $error_message
-            );
-        }
-        
-        return array('success' => true);
     }
 }

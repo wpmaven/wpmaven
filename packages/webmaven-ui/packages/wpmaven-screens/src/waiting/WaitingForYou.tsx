@@ -21,6 +21,8 @@
  * business) or one site (every read names its instance, and no card names a
  * business). In a site's view the API says per row what the site may do;
  * the card follows it (ApprovalCard).
+ *
+ * Its words are in the page's language (waitingCopy.ts, the tabs' in tabs.ts).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, PageHeader, Skeleton, Tabs, TabPanel } from '@yotako/webmaven-ui';
@@ -42,11 +44,13 @@ import {
 } from '../approvals/receipts';
 import { heldCancelWords } from '../approvals/heldItems';
 import { isVideoChoiceApproval, skippedChoiceReceipt } from '../approvals/videoLabel';
+import { adviceReceipt, isAdviceApproval } from '../approvals/advice';
 import { TYPE } from '../approvals/styles';
 import {
-  ALL_DONE_TEXT, activeWaitingTab, nextWaitingTab, shownTabs, waitingBadgeCount, waitingTabLabel,
+  WAITING_TABS_COPY, activeWaitingTab, nextWaitingTab, shownTabs, waitingBadgeCount, waitingTabLabel,
   type WaitingCounts, type WaitingTab,
 } from './tabs';
+import { WAITING_COPY } from './waitingCopy';
 import { readAlerts, readApprovals, readCustomers, type CustomerChannel, type WaitingAlert } from './reads';
 import { PreparedChanges, usePreparedChanges } from './PreparedChanges';
 import { SCREENS_VERSION } from '../version';
@@ -144,7 +148,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
     if (held.status === 'fulfilled') setHeldItems(held.value.items);
     if (al.status === 'fulfilled') setAlerts(al.value);
     if (ap.status === 'rejected' && al.status === 'rejected') {
-      setProblem(errorText(ap.reason, 'We could not load what is waiting for you.'));
+      setProblem(errorText(ap.reason, WAITING_COPY.loadFailed));
     }
     setLoading(false);
     // The host object may be new on each render: read again only for another scope.
@@ -251,7 +255,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
         // that is refused, and then the page says why it cannot tell yet.
         await load();
       }
-      setProblem(noAnswer(out.error) ? DECISION_OUTCOME_UNKNOWN : errorText(out.error, 'That decision did not go through. Try again.'));
+      setProblem(noAnswer(out.error) ? DECISION_OUTCOME_UNKNOWN : errorText(out.error, WAITING_COPY.decisionFailed));
       return;
     }
     const res = out.result;
@@ -260,7 +264,10 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
     // Said where the card was. A multi-network publish can land on two
     // networks and be refused by a third while still reporting success:
     // the receipt names what did not go through, in the problem color.
-    const said = site ? siteDecisionReceipt(id, approved, res as SiteDecideResult) : decisionReceipt(id, approved, res);
+    // Advice ran nothing either way: it was done, or set aside.
+    const said = row && isAdviceApproval(row)
+      ? adviceReceipt(id, approved)
+      : site ? siteDecisionReceipt(id, approved, res as SiteDecideResult) : decisionReceipt(id, approved, res);
     // A skipped video choice says what skipping means: nothing made, nothing billed.
     setReceipt({ receipt: row ? skippedChoiceReceipt(said, row, approved) : said, index, tab: 'yes' });
     // A yes that waits for the plan's actions moves to its tab.
@@ -288,7 +295,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
       setReceipt({ receipt: changesReceipt(id), index, tab: 'yes' });
       await load();
     } catch (e) {
-      setProblem(errorText(e, 'That did not go through. Try again.'));
+      setProblem(errorText(e, WAITING_COPY.notThrough));
     } finally {
       setSendingNote(false);
     }
@@ -306,7 +313,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
     try {
       answer = await transport.post<{ message?: unknown } | null>(`/operators/approvals/${encodeURIComponent(a.id)}/cancel-held`);
     } catch (e) {
-      throw new Error(errorText(e, 'That did not go through. Reload and try again.'));
+      throw new Error(errorText(e, WAITING_COPY.notThroughReload));
     }
     track('decide', 'cancel_held');
     const fallback = heldCancelWords(approvalGoesToTikTok(a), [], a.changesSite === true).cancelledNotice;
@@ -381,7 +388,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
     const next = nextWaitingTab(current, shown, counts);
     return (
       <p data-testid="waiting-all-done" style={{ margin: 0, fontSize: TYPE.data, color: 'var(--text-dim)' }}>
-        {ALL_DONE_TEXT}
+        {WAITING_TABS_COPY.allDone}
         {next && (
           <>
             {' '}
@@ -392,7 +399,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
               onClick={(e) => { e.preventDefault(); selectTab(next); }}
               style={{ color: 'var(--purple)', textDecoration: 'underline' }}
             >
-              Next: {waitingTabLabel(next, counts[next])}
+              {WAITING_COPY.next(waitingTabLabel(next, counts[next]))}
             </a>
           </>
         )}
@@ -480,13 +487,11 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
         <PageHeader
           title={(
             <>
-              Waiting for you
+              {WAITING_COPY.title}
               {host.renderers?.titleHelp}
             </>
           )}
-          subtitle={total === 0
-            ? 'Nothing needs you right now. Your team keeps working, and anything they want to publish waits here for your yes.'
-            : 'Your team keeps working while these wait. Nothing is published until you say so.'}
+          subtitle={total === 0 ? WAITING_COPY.subtitleNothing : WAITING_COPY.subtitleWaiting}
         />
         {host.renderers?.headerNote}
       </div>
@@ -495,7 +500,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
         <Card padding="md">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <span style={{ fontSize: TYPE.data, color: 'var(--danger)' }}>{problem}</span>
-            <Button size="sm" variant="outline" onClick={() => void load()}>Try again</Button>
+            <Button size="sm" variant="outline" onClick={() => void load()}>{WAITING_COPY.tryAgain}</Button>
           </div>
         </Card>
       )}
@@ -509,7 +514,7 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
               items={shown.map((key) => ({ key, label: waitingTabLabel(key, counts[key]) }))}
               activeKey={tab}
               onChange={selectTab}
-              ariaLabel="What waits for you"
+              ariaLabel={WAITING_COPY.tabsLabel}
             />
           </div>
 
@@ -543,12 +548,10 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
               <Card padding="md">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <span data-testid="waiting-customers" style={{ fontSize: TYPE.data, color: 'var(--text)' }}>
-                    {counts.customers} {counts.customers === 1 ? 'conversation is' : 'conversations are'} still open
-                    on {customers.channel.accountName}. Meta closes each one 24 hours after the
-                    customer's last message.
+                    {WAITING_COPY.customersOpen(counts.customers, customers.channel.accountName)}
                   </span>
                   <Button size="sm" variant="outline" onClick={() => host.navigate('/engagement')}>
-                    Read and reply
+                    {WAITING_COPY.readAndReply}
                   </Button>
                 </div>
               </Card>
@@ -561,11 +564,11 @@ export const WaitingForYouScreen: React.FC<WaitingForYouProps> = ({ host, tab: n
         <Card padding="lg">
           <div style={{ textAlign: 'center', padding: 20 }}>
             <p style={{ margin: 0, fontSize: TYPE.data, color: 'var(--text-dim)' }}>
-              Nothing is waiting. This is what a good week looks like.
+              {WAITING_COPY.nothingWaiting}
             </p>
             <div style={{ marginTop: 12 }}>
               <Button size="sm" variant="outline" onClick={() => host.navigate('/')}>
-                See what your team is doing
+                {WAITING_COPY.seeTeam}
               </Button>
             </div>
           </div>
@@ -602,10 +605,11 @@ function AlertRow({ alert: a, onOpen }: { alert: WaitingAlert; onOpen: () => voi
   );
 }
 
+/** An alert's label, in the page's language. */
 export function severityLabel(s: string): string {
-  if (s === 'CRITICAL') return 'Urgent';
-  if (s === 'WARNING') return 'Needs attention';
-  return 'Information';
+  if (s === 'CRITICAL') return WAITING_COPY.urgent;
+  if (s === 'WARNING') return WAITING_COPY.needsAttention;
+  return WAITING_COPY.information;
 }
 function severityColor(s: string): string {
   if (s === 'CRITICAL') return 'var(--danger)';

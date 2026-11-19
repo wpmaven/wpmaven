@@ -25,7 +25,7 @@ function webmaven_wp_spend_guard($cap = 'edit_posts', $max_per_hour = 60) {
     }
     $max = (int) apply_filters('webmaven_wp_editor_spend_per_hour', $max_per_hour);
     if ($max <= 0) { return true; }
-    $key = 'wm_spend_' . get_current_user_id() . '_' . floor(time() / HOUR_IN_SECONDS);
+    $key = 'webmaven_spend_' . get_current_user_id() . '_' . floor(time() / HOUR_IN_SECONDS);
     $n = (int) get_transient($key);
     if ($n >= $max) {
         return new WP_Error('rest_too_many_requests', 'AI request limit reached for this hour. Please try again later.', ['status' => 429]);
@@ -48,74 +48,26 @@ if (function_exists('get_file_data')) {
 define('WEBMAVEN_WP_DIR', plugin_dir_path(WEBMAVEN_WP_FILE));
 define('WEBMAVEN_WP_URL', plugin_dir_url(WEBMAVEN_WP_FILE));
 
-// Load environment variables from .env file
+// A setting from the site's configuration: the constant WEBMAVEN_WP_<KEY>
+// (wp-config.php), then the environment variable of the same name (a
+// container's settings), else $default. No file is read.
 if (!function_exists('webmaven_wp_load_env')) {
     function webmaven_wp_load_env($key, $default = null) {
-        // First, check if WordPress constant is defined (highest priority)
         $constant_name = 'WEBMAVEN_WP_' . strtoupper($key);
         if (defined($constant_name)) {
             return constant($constant_name);
         }
-        
-        // Check environment variable
         $env_value = getenv($constant_name);
         if ($env_value !== false) {
             return $env_value;
         }
-        
-        // Try to load from .env file
-        // Look in plugin directory first, then try to find project root
-        $env_files = [WEBMAVEN_WP_DIR . '.env'];
-        
-        // Try to find project root by looking for build.sh or package.json
-        // Go up from plugin directory to find project root
-        $current_dir = WEBMAVEN_WP_DIR;
-        for ($i = 0; $i < 5; $i++) {
-            $parent_dir = dirname($current_dir);
-            if ($parent_dir === $current_dir) {
-                break; // Reached filesystem root
-            }
-            // Check if this looks like project root (has build.sh or frontend/package.json)
-            if (file_exists($parent_dir . '/build.sh') || file_exists($parent_dir . '/frontend/package.json')) {
-                $env_files[] = $parent_dir . '/.env';
-                break;
-            }
-            $current_dir = $parent_dir;
-        }
-        
-        foreach ($env_files as $env_file) {
-            if (file_exists($env_file) && is_readable($env_file)) {
-                $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                foreach ($lines as $line) {
-                    // Skip comments
-                    if (strpos(trim($line), '#') === 0) {
-                        continue;
-                    }
-                    
-                    // Parse KEY=VALUE format
-                    if (strpos($line, '=') !== false) {
-                        list($env_key, $env_value) = explode('=', $line, 2);
-                        $env_key = trim($env_key);
-                        $env_value = trim($env_value, " \t\n\r\0\x0B\"'");
-                        
-                        if ($env_key === $constant_name) {
-                            return $env_value;
-                        }
-                    }
-                }
-            }
-        }
-        
         return $default;
     }
 }
 
-// Runtime endpoints. Defaults are PRODUCTION: this plugin ships to
-// end-user WordPress sites where we control no environment, so the
-// compiled-in default must point at the live service. Local dev
-// overrides these via WEBMAVEN_WP_* container env vars (getenv path) —
-// see webmaven_dev_env/docker-compose.yml. Precedence in
-// webmaven_wp_load_env(): WP constant → getenv → .env file → default.
+// Where WPMaven's service is. The defaults are the live service: a site
+// sets another address with a WEBMAVEN_WP_* constant or environment
+// variable (webmaven_wp_load_env), as a test or development container does.
 
 // Server-side PHP requests (oauth, REST calls from the plugin).
 define('WEBMAVEN_WP_API_BASE_URL', webmaven_wp_load_env('API_BASE_URL', 'https://api.wpmaven.ai/api'));
@@ -129,6 +81,10 @@ define('WEBMAVEN_WP_WEBSOCKET_BASE_URL', webmaven_wp_load_env('WEBSOCKET_BASE_UR
 
 // Dashboard URL (login handoff, "open in dashboard" links).
 define('WEBMAVEN_WP_DASHBOARD_URL', webmaven_wp_load_env('DASHBOARD_URL', 'https://dashboard.wpmaven.ai'));
+
+// An add-on that must act before the rest of the plugin loads (before
+// WordPress loads any translation) hooks here; nothing else is loaded yet.
+do_action('webmaven_loading');
 
 // Include required files
 // WP-admin access rules (1.2.9): the chat switch, the dashboard card answer,
@@ -146,7 +102,6 @@ require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-site-mail.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-site-state.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-actor.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-api-client.php';
-require_once WEBMAVEN_WP_DIR . 'includes/class-conversation.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-error-handler.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-alert-detector.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-intrusion-detection.php';
@@ -159,9 +114,11 @@ require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-admin-guard.php';
 // What stays in the backups folder: the newest archives, no stale staging.
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-files.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-backup-retention.php';
-// What a site without WPMaven Agent answers to Agent's abilities.
+// What this edition answers to the abilities it does not run (REQUIRES_AGENT).
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-requires-agent.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-option-allowlist.php';
+// What a call from WPMaven's service may do while it runs.
+require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-remote-caps.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-edition.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webhook-actions.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-wordpress-commands.php';
@@ -172,7 +129,6 @@ require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-default-content.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-wizard.php';
 // What a site already holds, read here: the wizard's first step and the site check.
 require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-site-profile.php';
-require_once WEBMAVEN_WP_DIR . 'includes/class-webmaven-plugin-currency.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-conversation-routes.php';
 require_once WEBMAVEN_WP_DIR . 'includes/class-realtime.php';
 // Who may hand this site its credentials (1.2.14): before the two route
@@ -211,7 +167,7 @@ foreach ((array) glob(WEBMAVEN_WP_DIR . 'includes/capabilities/*.php') as $webma
 unset($webmaven_capability_file);
 
 class WebMavenWordPress {
-    /** @var WebMavenWordPress|null The one object, for WPMaven Agent (WebMavenWordPress::instance()). */
+    /** @var WebMavenWordPress|null The one object (WebMavenWordPress::instance()). */
     private static $instance = null;
 
     /** The plugin's one object, or null before it is built. */
@@ -292,7 +248,7 @@ class WebMavenWordPress {
         // AI Editor integration
         require_once WEBMAVEN_WP_DIR . 'editor/class-editor-bootstrap.php';
         // Discovery hooks (only when ?webmaven_discover=1 on frontend)
-        if (!is_admin() && !empty($_GET['webmaven_discover'])) {
+        if (!is_admin() && !empty($_GET['webmaven_discover'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: discovery only marks up the page for a user who may edit posts (WebMaven_Discovery checks it)
             WebMaven_Editor_Bootstrap::init_discovery();
         }
         // REST routes
@@ -306,9 +262,8 @@ class WebMavenWordPress {
         require_once WEBMAVEN_WP_DIR . 'editor/class-webmaven-edit-preview.php';
         WebMaven_Edit_Preview::init();
 
-        // Webhook endpoint for AI backend (admin-ajax)
-        add_action('wp_ajax_ai_assistant_webhook', [$this->webhook_handler, 'handle_webhook']);
-        add_action('wp_ajax_nopriv_ai_assistant_webhook', [$this->webhook_handler, 'handle_webhook']);
+        // The API's signed calls arrive on the REST route wpmaven/v1/webhook
+        // (register_rest_routes).
 
         // Admin pages, script enqueuing, plugin action links
         add_action('admin_menu', [$this->admin, 'register_admin_pages']);
@@ -321,12 +276,14 @@ class WebMavenWordPress {
         add_action('admin_notices', [$this->admin, 'moved_notice']);
 
         register_activation_hook(WEBMAVEN_WP_FILE, [$this, 'on_activate']);
+        // Deactivated: none of WPMaven's scheduled events stays behind.
+        register_deactivation_hook(WEBMAVEN_WP_FILE, [__CLASS__, 'on_deactivate']);
 
         // Initialize alert detector (WP cron for heartbeat + local checks)
         WebMaven_Alert_Detector::init();
 
         // Signs of intrusion (core files, PHP in uploads, new administrators,
-        // failed-login bursts), reported to WPMaven for its staff (1.2.23).
+        // failed-login bursts), reported to WPMaven (1.2.23).
         WebMaven_Intrusion_Detection::init();
 
         // The connect wizard's "WPMaven Dashboard" application password is
@@ -351,6 +308,21 @@ class WebMavenWordPress {
         add_action('init', ['WebMaven_WordPress_Commands', 'delete_theme_mod_junk_options']);
     }
 
+    /** Every event WPMaven schedules (WP-Cron), cleared when it is deactivated. */
+    const CRON_HOOKS = [
+        'webmaven_heartbeat', 'webmaven_alert_check', 'webmaven_metrics_push',
+        'webmaven_wp_setup_password_sweep', 'webmaven_contact_sync', 'webmaven_leads_purge',
+        'webmaven_security_scan', 'webmaven_security_report_flush',
+        'webmaven_store_currency_recover', 'webmaven_store_currency_report', 'webmaven_preview_cleanup',
+    ];
+
+    /** The deactivation hook: no scheduled event of WPMaven's runs after it. */
+    public static function on_deactivate() {
+        foreach (self::CRON_HOOKS as $hook) {
+            wp_unschedule_hook($hook);
+        }
+    }
+
     public function on_activate() {
         $defaults = [
             'theme_color' => '#7c3aed',
@@ -365,11 +337,9 @@ class WebMavenWordPress {
             'billing_portal_url'  => '',
         ];
         $existing = get_option('webmaven_wp_settings', []);
-        // Heal stale dev endpoints saved by older builds whose compiled-in
-        // defaults were localhost. Any previously-saved local address is
-        // forced back to the current per-field constant — production in a
-        // released build, or the dev override under docker (so these are
-        // no-ops in dev). Fresh installs skip this entirely ($existing empty).
+        // Older builds saved addresses on the local computer (localhost) as
+        // their defaults: any such saved address goes back to the current
+        // service address. Fresh installs skip this entirely ($existing empty).
         $stale_api  = ['0.0.0.0:3000/api', 'http://localhost:3000/api', 'https://localhost:3000/api'];
         $stale_dash = ['http://localhost:3001', 'https://localhost:3001'];
         if (isset($existing['api_base_url']) && in_array($existing['api_base_url'], $stale_api, true)) {
@@ -388,44 +358,11 @@ class WebMavenWordPress {
         // Always update to match the current constant to ensure consistency
         update_option('webmaven_wp_api_url', WEBMAVEN_WP_API_BASE_URL);
         update_option('webmaven_wp_settings', array_merge($defaults, (array) $existing));
-        
-        // Create database tables
-        $this->create_tables();
 
         WebMaven_WP_Admin_Access::maybe_mark_hosted_onboarding_completed();
 
-        // What WPMaven Agent does after an activation (its welcome redirect,
-        // WP-CLI, a partner package's code), when Agent is here.
+        // Activated: other plugins may act on it (webmaven_activated).
         do_action('webmaven_activated', $this);
-    }
-
-    /**
-     * Make sure WPMaven's own table exists (dbDelta is idempotent). Called
-     * after a backup restore, whose dump may have dropped it (2026-09-22).
-     */
-    public function ensure_tables() {
-        $this->create_tables();
-    }
-
-    private function create_tables() {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . 'wpai_conversations';
-        
-        $charset_collate = $wpdb->get_charset_collate();
-        
-        $sql = "CREATE TABLE $table_name (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            conversation_id varchar(255) NOT NULL,
-            title varchar(255) NOT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY conversation_id (conversation_id)
-        ) $charset_collate;";
-        
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
     }
 
     public function current_user_can_use() {
@@ -466,6 +403,11 @@ class WebMavenWordPress {
         return $this->current_user_can_reach_api() && current_user_can($cap);
     }
 
+    /** The API's signed calls on the REST route (WebMaven_Webhook_Handler). */
+    public function webhook_handler() {
+        return $this->webhook_handler;
+    }
+
     /** True or WP_Error: the request carries a valid API signature for this site. */
     public function verify_api_request(\WP_REST_Request $req) {
         return $this->webhook_handler->verify_api_request($req);
@@ -491,6 +433,8 @@ class WebMavenWordPress {
 
 
     public function register_rest_routes() {
+        // The API's signed calls, and the plugin's own check that they reach it.
+        $this->webhook_handler->register_routes();
         $this->wizard->register_routes();
         // "Continue in WordPress" (POST /setup/skip), recorded on the account.
         WebMaven_Site_State::register_routes([$this, 'current_user_can_reach_api']);
@@ -504,5 +448,5 @@ class WebMavenWordPress {
 
 new WebMavenWordPress();
 
-// WPMaven Agent (or any add-on) adds its abilities from here.
+// An add-on hooks in from here (webmaven_loaded).
 do_action('webmaven_loaded', WebMavenWordPress::instance());

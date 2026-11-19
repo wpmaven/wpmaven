@@ -15,10 +15,58 @@
  * bare `holdReason` string and a `holdUntil` date are read too. A row without
  * a reason is waiting for actions, as every held row did before v4.
  *
- * No runtime imports but the onboarding package's guidance, so node tests
- * load it directly.
+ * No runtime imports but the onboarding package's guidance and the kit's
+ * language helper, so node tests load it directly.
+ *
+ * Its words are in the page's language (HELD_REASON_COPY; English is the
+ * source, the French is written by hand in src/i18n/fr.json, namespace
+ * screensHeldReason, the other languages by the dashboard's
+ * translation script). The API's own sentences are already
+ * in the page's language.
  */
+import { localized } from '@yotako/webmaven-ui';
 import { cardMoreActionsStep, sanitizeNextStep, type NextStep } from '@yotako/wpmaven-onboarding/shared';
+import { formatTag } from '../copyLanguage';
+
+/**
+ * Why an approved piece of work waits, on its card and in Home's week, and
+ * what unlocks it (namespace 'screensHeldReason'). "Actions" are the plan's
+ * monthly allowance of work; an action pack buys more of them.
+ */
+export const HELD_REASON_COPY_EN = {
+  /** Said wherever a held item promises to go out by itself: held longer than 72 hours, it is asked again instead. */
+  reask: 'After 72 hours, we ask you again first.',
+  /** The badge on a held card (short). */
+  badge: {
+    /** The month's actions are used. */
+    actions: 'Paused, out of actions',
+    /** The month's pages or articles are used. */
+    long_form_limit: 'Paused, pages or articles used',
+    /** A page written in the $1 first week: it publishes when the plan starts. */
+    publishes_day_8: 'Publishes when your plan starts',
+  },
+  /** The badge of an item held because the last payment failed (never "out of actions"). */
+  onPaymentBadge: 'Paused, waiting for your card',
+  /** The badge of a first-week page still held after the plan started, while the month's payment is on its way. */
+  onItsWayBadge: 'Publishes once your payment goes through',
+  /**
+   * A held page or article, the month's pages used; {0} the API's own
+   * sentence about the limit, {1} the 72 hours line (reask).
+   */
+  longFormApi: (said: string, reask: string) => `You approved this and it is not lost. ${said} Your team makes it by itself as soon as there is room. ${reask}`,
+  /** A held page or article, the month's pages used; {0} the 72 hours line (reask). */
+  longForm: (reask: string) => `You approved this and it is not lost. Your pages or articles for this month are used, so it is waiting: your team makes it by itself as soon as there is room, when your month resets or right away with an action pack. ${reask}`,
+  /** A page written in the first week; {0} the day it publishes ("November 22"). */
+  firstWeekOn: (day: string) => `You approved this and it is ready. Pages and articles written in your first week publish on ${day}, when your plan starts. Start your month now to publish it today.`,
+  /** The same when that day is not known: the plan's 8th day. */
+  firstWeek: 'You approved this and it is ready. Pages and articles written in your first week publish on day 8, when your plan starts. Start your month now to publish it today.',
+  /** The button that buys an action pack (on Billing). */
+  buyPack: 'Buy an action pack',
+  /** The button that starts the paid month now instead of on day 8 (on Billing). */
+  startMonth: 'Start my month now',
+};
+
+export const HELD_REASON_COPY = localized(HELD_REASON_COPY_EN, 'screensHeldReason');
 
 export type HoldReason = 'actions' | 'long_form_limit' | 'publishes_day_8';
 
@@ -80,17 +128,17 @@ export function holdReasonOf(row: HeldRow | null | undefined): HoldReason | null
  * a held item promises to go out by itself; not for TikTok, whose rule is 24
  * hours, in its own words.
  */
-export const HELD_REASK_NOTE = 'After 72 hours, we ask you again first.';
+export const HELD_REASK_NOTE = HELD_REASON_COPY_EN.reask;
 
-/** The badge on a held card. */
+/** The badge on a held card, in the page's language when it is read. */
 export const HELD_BADGE: Readonly<Record<HoldReason, string>> = {
-  actions: 'Paused, out of actions',
-  long_form_limit: 'Paused, pages or articles used',
-  publishes_day_8: 'Publishes when your plan starts',
+  get actions() { return HELD_REASON_COPY.badge.actions; },
+  get long_form_limit() { return HELD_REASON_COPY.badge.long_form_limit; },
+  get publishes_day_8() { return HELD_REASON_COPY.badge.publishes_day_8; },
 };
 
-/** The badge of a row held on a failed payment: never "out of actions". */
-export const HELD_ON_PAYMENT_BADGE = 'Paused, waiting for your card';
+/** The badge of a row held on a failed payment: never "out of actions". In English, for importers (a card reads HELD_REASON_COPY.onPaymentBadge). */
+export const HELD_ON_PAYMENT_BADGE = HELD_REASON_COPY_EN.onPaymentBadge;
 
 /**
  * The API's code for a first-week page still held after day 8 while the
@@ -98,12 +146,13 @@ export const HELD_ON_PAYMENT_BADGE = 'Paused, waiting for your card';
  * payment, never "when your plan starts".
  */
 export const PUBLISHES_ON_PAYMENT_CODE = 'PUBLISHES_ON_PAYMENT';
-export const HELD_ON_PAYMENT_ON_ITS_WAY_BADGE = 'Publishes once your payment goes through';
+/** In English, for importers (a card reads HELD_REASON_COPY.onItsWayBadge). */
+export const HELD_ON_PAYMENT_ON_ITS_WAY_BADGE = HELD_REASON_COPY_EN.onItsWayBadge;
 
 /** The badge for a row the allowance stopped: its reason's, else out of actions. */
 export function heldReasonBadge(row: HeldRow): string {
-  if (heldOnPayment(row)) return HELD_ON_PAYMENT_BADGE;
-  if (row.status === 'NEEDS_ACTIONS' && apiView(row).code === PUBLISHES_ON_PAYMENT_CODE) return HELD_ON_PAYMENT_ON_ITS_WAY_BADGE;
+  if (heldOnPayment(row)) return HELD_REASON_COPY.onPaymentBadge;
+  if (row.status === 'NEEDS_ACTIONS' && apiView(row).code === PUBLISHES_ON_PAYMENT_CODE) return HELD_REASON_COPY.onItsWayBadge;
   return HELD_BADGE[holdReasonOf(row) ?? 'actions'];
 }
 
@@ -112,7 +161,7 @@ function publishDay(row: HeldRow): string | null {
   const iso = typeof row.holdUntil === 'string' ? row.holdUntil : null;
   const t = iso ? new Date(iso).getTime() : NaN;
   if (!Number.isFinite(t)) return null;
-  return new Date(t).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  return new Date(t).toLocaleDateString(formatTag('en-US'), { month: 'long', day: 'numeric' });
 }
 
 /**
@@ -127,27 +176,28 @@ export function heldReasonLine(row: HeldRow): string | null {
   // Held on a failed payment: the API's own sentence (the card, not the
   // reset, lets it go), never the out-of-actions words.
   if (heldOnPayment(row) && api.text) return api.text;
+  const c = HELD_REASON_COPY;
   if (reason === 'long_form_limit') {
-    if (api.text && api.reason === 'long_form_limit') {
-      return `You approved this and it is not lost. ${api.text} Your team makes it by itself as soon as there is room. ${HELD_REASK_NOTE}`;
-    }
-    return 'You approved this and it is not lost. Your pages or articles for this month are used, so it is waiting: '
-      + `your team makes it by itself as soon as there is room, when your month resets or right away with an action pack. ${HELD_REASK_NOTE}`;
+    if (api.text && api.reason === 'long_form_limit') return c.longFormApi(api.text, c.reask);
+    return c.longForm(c.reask);
   }
   if (reason === 'publishes_day_8') {
     if (api.text && api.reason === 'publishes_day_8') return api.text;
     const on = publishDay(row);
-    return `You approved this and it is ready. Pages and articles written in your first week publish ${on ? `on ${on}` : 'on day 8'}, `
-      + 'when your plan starts. Start your month now to publish it today.';
+    return on ? c.firstWeekOn(on) : c.firstWeek;
   }
   return null;
 }
 
-/** The pack, where it adds a page or article (Billing names the section #packs). */
-export const LONG_FORM_STEP: NextStep = { label: 'Buy an action pack', href: '/billing#packs', kind: 'long_form', primary: true };
+/** The pack, where it adds a page or article (Billing names the section #packs); its label read when it is drawn. */
+export const LONG_FORM_STEP: NextStep = {
+  get label() { return HELD_REASON_COPY.buyPack; }, href: '/billing#packs', kind: 'long_form', primary: true,
+};
 
-/** Start my month now (dash-bridge's one-tap, on Billing). */
-export const START_MONTH_STEP: NextStep = { label: 'Start my month now', href: '/billing#start-now', kind: 'start_now', primary: true };
+/** Start my month now (dash-bridge's one-tap, on Billing); its label read when it is drawn. */
+export const START_MONTH_STEP: NextStep = {
+  get label() { return HELD_REASON_COPY.startMonth; }, href: '/billing#start-now', kind: 'start_now', primary: true,
+};
 
 /**
  * The button on a held card: the API's own step when it sent one, else the

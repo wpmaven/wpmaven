@@ -30,22 +30,10 @@ import {
 import { ChannelRevokeNote } from './ChannelTerms';
 import { readConnectCenter } from './reads';
 import { useWidth } from './useWidth';
+import { CONNECT_COPY } from './teamCopy';
 
-export const CONNECT_COPY = {
-  loadFailed: 'Could not load the Connect Center.',
-  refresh: 'Refresh',
-  notConfigured: 'Multi-network linking is not enabled on this server yet. Only the native X connection applies.',
-  noAccount: 'No account yet?',
-  createOne: 'Create one',
-  live: 'Live',
-  notPostingBadge: 'Connected, not posting yet',
-  reconnectBadge: 'Needs reconnecting',
-  notConnected: 'Not connected',
-  notPostingWithReason: 'We cannot post here yet, for the reason below.',
-  notPosting: 'We cannot post here yet.',
-  /** A site's note over its cards: where connecting happens. */
-  siteNote: () => `Channels belong to your ${productName()} account. Connect opens your dashboard in a new tab.`,
-};
+// The tab's words, in the page's language (./teamCopy, namespace screensTeamConnect).
+export { CONNECT_COPY };
 
 /** The places a team's channel card leaves to the app (the dashboard's connect flows). */
 export interface TeamConnectSlots {
@@ -79,13 +67,13 @@ export function ChannelPermissions({ network }: { network: ConnectNetwork }) {
   return (
     <details style={{ marginTop: 8, fontSize: 12 }} open={networkStatus(network) !== 'not_connected'} data-testid="tt-permissions">
       <summary style={{ cursor: 'pointer', userSelect: 'none', color: 'var(--text-dim)' }}>
-        What {productName()} can do with this TikTok account
+        {CONNECT_COPY.tiktokCan(productName())}
       </summary>
       <ul style={{ listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {perms.map((p) => (
           <li key={p.scope} data-scope={p.scope} style={{ margin: 0 }}>
             <span style={{ fontWeight: 500 }}>{p.consentLabel}</span>
-            {p.granted === false && <span style={{ color: 'var(--danger)' }}> (not allowed)</span>}
+            {p.granted === false && <span style={{ color: 'var(--danger)' }}> {CONNECT_COPY.notAllowed}</span>}
             <span style={{ color: 'var(--text-dim)' }}>: {p.use}</span>
           </li>
         ))}
@@ -187,12 +175,12 @@ export const SiteChannelFlow: React.FC<{ host: ScreensHost; instanceId: string; 
         <p style={{ margin: 0, fontSize: 12, color: status === 'needs_reconnect' ? 'var(--text)' : 'var(--text-dim)' }}>
           {reconnectReason(n, n.label, false)}
         </p>
-        {n.connectVia ? button(`Reconnect ${n.label}`) : <p style={{ margin: 0, ...meta }}>{reconnectBlockedReason(n, n.label)}</p>}
+        {n.connectVia ? button(CONNECT_COPY.reconnectNamed(n.label)) : <p style={{ margin: 0, ...meta }}>{reconnectBlockedReason(n, n.label)}</p>}
       </div>
     );
   }
   if (status !== 'not_connected') return null;
-  if (n.connectVia) return <div style={{ marginTop: 8 }}>{button(`Connect ${n.label}`)}</div>;
+  if (n.connectVia) return <div style={{ marginTop: 8 }}>{button(CONNECT_COPY.connectNamed(n.label))}</div>;
   return blocked ? <p style={{ margin: '8px 0 0', ...meta }} data-testid="connect-blocked">{blocked}</p> : null;
 };
 
@@ -238,7 +226,7 @@ export const TeamConnectView: React.FC<{
         </div>
       </div>
       {slots.underActions}
-      {site && <p style={{ margin: 0, fontSize: 14, color: 'var(--text-dim)' }} data-testid="connect-site-note">{CONNECT_COPY.siteNote()}</p>}
+      {site && <p style={{ margin: 0, fontSize: 14, color: 'var(--text-dim)' }} data-testid="connect-site-note">{CONNECT_COPY.siteNote(productName())}</p>}
       {!site && !center.configured && (
         <Card>
           <CardContent>

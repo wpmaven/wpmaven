@@ -141,8 +141,8 @@ class WebMaven_AI_Crawlers {
      */
     public static function stats($params) {
         $days = max(1, min(56, (int) ($params['days'] ?? 7)));
-        $end  = !empty($params['end']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $params['end'])
-            ? (string) $params['end'] : gmdate('Y-m-d');
+        $end  = !empty($params['end']) && is_scalar($params['end']) ? sanitize_text_field((string) $params['end']) : '';
+        $end  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end : gmdate('Y-m-d');
         $end_ts   = strtotime($end . ' 00:00:00 UTC');
         $start_ts = $end_ts - ($days - 1) * DAY_IN_SECONDS;
         $prev_end_ts   = $start_ts - DAY_IN_SECONDS;

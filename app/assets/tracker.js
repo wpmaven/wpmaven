@@ -253,7 +253,7 @@
 
     // Dedupe thank-you page refreshes. localStorage may be unavailable
     // (private mode); then we send anyway and the server dedupes by orderId.
-    var dedupeKey = 'wm_order_' + orderId;
+    var dedupeKey = 'webmaven_order_' + orderId;
     try {
       if (localStorage.getItem(dedupeKey)) return;
       localStorage.setItem(dedupeKey, '1');

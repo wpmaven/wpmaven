@@ -13,10 +13,17 @@
  * refused, HELD_OWNER_ONLY). A TikTok post keeps the words of the audited
  * Post to TikTok flow (TIKTOK_COPY); a change to the site speaks of the
  * change, never of a post; any other item says these.
+ *
+ * In the page's language: English is the source; the French is written by
+ * hand (src/i18n/fr.json, namespaces screensHeldCancel,
+ * screensHeldCancelChange and screensHeldItems), the other languages by the
+ * dashboard's translation script.
  */
+import { localized } from '@yotako/webmaven-ui';
 import { TIKTOK_COPY, cancelHeldDetail } from './tiktokPost';
+import { formatTag } from '../copyLanguage';
 import type { OperatorApproval } from './types';
-import { HELD_REASK_NOTE, heldReasonLine, type HeldRow } from './heldReason';
+import { HELD_REASK_NOTE, HELD_REASON_COPY, heldReasonLine, type HeldRow } from './heldReason';
 import { packChoiceOfRow } from './heldPack';
 
 export { HELD_REASK_NOTE };
@@ -26,34 +33,84 @@ export function canCancelHeld(approval: Pick<OperatorApproval, 'status'>): boole
   return approval.status === 'NEEDS_ACTIONS';
 }
 
-export const HELD_CANCEL_COPY = {
+/**
+ * Canceling a post that waits for the plan's actions (namespace
+ * 'screensHeldCancel'): its button, its confirm, and what the card says
+ * after. American spelling in English ("canceled").
+ */
+export const HELD_CANCEL_COPY_EN = {
+  /** The button on a waiting post's card. */
   button: 'Cancel this post',
+  /** The confirm's title. */
   title: 'Cancel this post?',
+  /** The confirm's line. */
   detail: 'It will not be published.',
-  // The same confirm as TikTok's.
-  confirm: TIKTOK_COPY.cancelHeldConfirm,
-  keep: TIKTOK_COPY.cancelHeldKeep,
+  /** The confirm's button: the same as TikTok's (not a text of its own). */
+  get confirm(): string {
+    return TIKTOK_COPY.cancelHeldConfirm;
+  },
+  /** The confirm's button that keeps it waiting: the same as TikTok's (not a text of its own). */
+  get keep(): string {
+    return TIKTOK_COPY.cancelHeldKeep;
+  },
+  /** On the card once canceled. */
   cancelledLine: 'You canceled this before it went out. Nothing was posted.',
+  /** Right after the cancel. */
   cancelledNotice: 'Canceled. Nothing was posted, and it will not go out when your actions come back.',
+  /** Staff viewing as the owner cannot cancel it. */
   staffRefusal: 'Only the account owner can cancel this.',
 } as const;
+
+export const HELD_CANCEL_COPY = localized(HELD_CANCEL_COPY_EN, 'screensHeldCancel');
 
 /**
  * A change to the site is made, not posted: a page, a product or a new
  * design waits for actions the same way (every change asks, 2026-09-22), and
  * "Nothing was posted" would send the owner looking for a post.
  */
-export const HELD_SITE_CHANGE_CANCEL_COPY = {
+export const HELD_SITE_CHANGE_CANCEL_COPY_EN = {
+  /** The button on a waiting change's card (a change to the owner's site: a page, a product, a design). */
   button: 'Cancel this change',
+  /** The confirm's title. */
   title: 'Cancel this change?',
+  /** The confirm's line. */
   detail: 'Your site stays as it is, and the change is not made when your actions come back.',
+  /** The confirm's button. */
   confirm: 'Cancel the change',
-  keep: TIKTOK_COPY.cancelHeldKeep,
+  /** The confirm's button that keeps it waiting: the same as TikTok's (not a text of its own). */
+  get keep(): string {
+    return TIKTOK_COPY.cancelHeldKeep;
+  },
+  /** On the card once canceled. */
   cancelledLine: 'You canceled this before it was made. Your site did not change.',
-  // The API's own answer to the cancel of a change to the site (HELD_TEXT.cancelledChange).
+  /** Right after the cancel: the API's own answer (HELD_TEXT.cancelledChange). */
   cancelledNotice: 'Canceled. Your site did not change, and this change will not be made when your actions come back.',
-  staffRefusal: HELD_CANCEL_COPY.staffRefusal,
+  /** Staff viewing as the owner cannot cancel it: the same as a post's (not a text of its own). */
+  get staffRefusal(): string {
+    return HELD_CANCEL_COPY.staffRefusal;
+  },
 } as const;
+
+/** The cancel of a held change to the site, in the page's language (namespace 'screensHeldCancelChange'). */
+export const HELD_SITE_CHANGE_CANCEL_COPY = localized(HELD_SITE_CHANGE_CANCEL_COPY_EN, 'screensHeldCancelChange');
+
+/**
+ * The line on a card held for the plan's actions, and on one asked again
+ * after 72 hours (namespace 'screensHeldItems'). "Actions" are the plan's
+ * monthly allowance of work.
+ */
+export const HELD_ITEMS_COPY_EN = {
+  /** A held change to the owner's site; {0} the 72 hours line ("After 72 hours, we ask you again first."). */
+  heldChange: (reask: string) => `You approved this and it is not lost. Your action allowance is used up, so it is waiting: your team makes this change by itself as soon as actions come back. ${reask}`,
+  /** A held post; {0} the 72 hours line. */
+  heldPost: (reask: string) => `You approved this and it is not lost. Your action allowance is used up, so it is waiting: it publishes by itself as soon as actions come back. ${reask}`,
+  /** A post held more than 72 hours, back for the owner's yes; {0} the day it was held since ("October 1"). */
+  staleHoldPost: (day: string) => `Held since ${day}: we asked you again before posting.`,
+  /** The same for a change to the owner's site; {0} the day. */
+  staleHoldChange: (day: string) => `Held since ${day}: we asked you again before making this change.`,
+};
+
+export const HELD_ITEMS_COPY = localized(HELD_ITEMS_COPY_EN, 'screensHeldItems');
 
 export interface HeldCancelWords {
   button: string;
@@ -106,8 +163,8 @@ export function heldLine(row: HeldRow & { packChoice?: unknown; changesSite?: bo
   if (reason) return reason;
   if (goesToTikTok) return TIKTOK_COPY.heldTikTok;
   return row.changesSite
-    ? `You approved this and it is not lost. Your action allowance is used up, so it is waiting: your team makes this change by itself as soon as actions come back. ${HELD_REASK_NOTE}`
-    : `You approved this and it is not lost. Your action allowance is used up, so it is waiting: it publishes by itself as soon as actions come back. ${HELD_REASK_NOTE}`;
+    ? HELD_ITEMS_COPY.heldChange(HELD_REASON_COPY.reask)
+    : HELD_ITEMS_COPY.heldPost(HELD_REASON_COPY.reask);
 }
 
 /**
@@ -125,6 +182,6 @@ export function staleHoldLine(
   if (!Number.isFinite(t)) return null;
   // In UTC, as the API's own ask says it (heldSinceText): the card and the
   // bell, email or WhatsApp message name the same day.
-  const day = new Date(t).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
-  return `Held since ${day}: we asked you again before ${approval.changesSite ? 'making this change' : 'posting'}.`;
+  const day = new Date(t).toLocaleDateString(formatTag('en-US'), { month: 'long', day: 'numeric', timeZone: 'UTC' });
+  return approval.changesSite ? HELD_ITEMS_COPY.staleHoldChange(day) : HELD_ITEMS_COPY.staleHoldPost(day);
 }

@@ -3,7 +3,7 @@ import type { OperatorApproval } from './types';
 import { YouTubeVisibilityChoice } from './YouTubeVisibilityChoice';
 import {
   YOUTUBE_DESCRIPTION_MAX_BYTES, YOUTUBE_TITLE_MAX_CHARS, YOUTUBE_UPLOAD_COPY,
-  youtubeChoiceHint, youtubeDescriptionBytes, youtubeDescriptionProblem, youtubeFieldId, youtubeNotLinkedNote,
+  youtubeChoiceHint, youtubeCount, youtubeDescriptionBytes, youtubeDescriptionProblem, youtubeFieldId, youtubeNotLinkedNote,
   youtubeOptions, youtubeSyntheticMedia, youtubeTitleLength, youtubeTitleProblem,
   type YouTubeUploadForm,
 } from './youtubeVisibility';
@@ -126,7 +126,7 @@ export const YouTubeUploadSection: React.FC<{
             data-testid="yt-description-count"
             style={{ ...(descriptionBytes > YOUTUBE_DESCRIPTION_MAX_BYTES ? PROBLEM : DIM), whiteSpace: 'nowrap' }}
           >
-            {descriptionBytes.toLocaleString('en-US')}/{YOUTUBE_DESCRIPTION_MAX_BYTES.toLocaleString('en-US')} bytes
+            {c.byteCount(youtubeCount(descriptionBytes), youtubeCount(YOUTUBE_DESCRIPTION_MAX_BYTES))}
           </span>
         </div>
       </div>

@@ -3,11 +3,14 @@
  * shows its whole email, an order change what happens to the order, a coupon
  * the coupon itself. Each links the screen where the thing lives (in the
  * dashboard; the plugin's host sends those links there). Plain text only:
- * nothing here is rendered as HTML.
+ * nothing here is rendered as HTML. In the page's language
+ * (storeApprovalCopy.ts; dates and amounts as the language writes them).
  */
 
 import React from 'react';
 import type { OperatorApproval } from './types';
+import { STORE_APPROVAL_COPY, twoDecimals } from './storeApprovalCopy';
+import { formatTag } from '../copyLanguage';
 import { HostLink } from '../host/HostLink';
 import { TYPE, bareList, recessed, small, textLink } from './styles';
 
@@ -34,48 +37,56 @@ export function orderApprovalView(row: Row): { order: string; lines: string[]; h
   if (row.toolName !== 'update_order') return null;
   const p = (row.params ?? {}) as Record<string, any>;
   const order = str(String(p.order ?? '')).replace(/^#/, '');
+  const c = STORE_APPROVAL_COPY;
   const lines: string[] = [];
   const shipped = p.shipped === true || (p.shipped && typeof p.shipped === 'object');
   if (shipped) {
-    lines.push('Marked shipped: its status becomes Completed.');
+    lines.push(c.markedShipped);
     const s = typeof p.shipped === 'object' ? p.shipped : {};
     const parcel = [str(s.carrier), str(s.trackingNumber)].filter(Boolean).join(', ');
-    if (parcel) lines.push(`Parcel: ${parcel}`);
-    lines.push(p.emailCustomer === false ? 'The customer gets no email about it.' : 'The customer gets an email about it.');
+    if (parcel) lines.push(c.parcel(parcel));
+    lines.push(p.emailCustomer === false ? c.noEmail : c.email);
   } else if (str(p.status)) {
-    lines.push(p.status === 'cancelled' ? 'Cancelled: its items go back into stock, and nothing is refunded.' : `New status: ${str(p.status).replace('-', ' ')}.`);
+    lines.push(p.status === 'cancelled' ? c.cancelled : c.newStatus(statusWords(str(p.status))));
   }
   if (p.note && typeof p.note === 'object' && str(p.note.text)) {
-    lines.push(p.note.toCustomer === true ? `A note emailed to the customer: "${str(p.note.text)}"` : 'A private note on the order.');
+    lines.push(p.note.toCustomer === true ? c.noteToCustomer(str(p.note.text)) : c.privateNote);
   }
   const b = business(row);
   return { order, lines, href: b && /^\d+$/.test(order) ? `/store/orders/${order}?business=${b}` : null };
+}
+
+/** An order status in words: the store's own word in the page's language, else the status as written ("on hold"). */
+function statusWords(status: string): string {
+  const known: Record<string, string> = STORE_APPROVAL_COPY.statuses;
+  return Object.prototype.hasOwnProperty.call(known, status) ? known[status] : status.replace('-', ' ');
 }
 
 /** A coupon to make, change or stop: the code large, the discount and its limits in words. */
 export function couponApprovalView(row: Row): { code: string; discount: string | null; lines: string[] } | null {
   if (row.toolName !== 'save_coupon') return null;
   const p = (row.params ?? {}) as Record<string, any>;
+  const c = STORE_APPROVAL_COPY;
   const code = str(p.code).toUpperCase();
-  if (p.action === 'expire') return { code, discount: null, lines: ['Stops working from now. Orders that already used it keep their discount.'] };
+  if (p.action === 'expire') return { code, discount: null, lines: [c.expires] };
   const amount = Number(p.amount);
   const discount = Number.isFinite(amount) && amount > 0
-    ? p.discountType === 'percent' ? `${amount}% off`
-      : p.discountType === 'fixed_product' ? `${amount.toFixed(2)} off each product`
-        : p.discountType === 'fixed_cart' ? `${amount.toFixed(2)} off the order` : null
+    ? p.discountType === 'percent' ? c.percentOff(amount)
+      : p.discountType === 'fixed_product' ? c.offEachProduct(twoDecimals(amount))
+        : p.discountType === 'fixed_cart' ? c.offOrder(twoDecimals(amount)) : null
     : null;
   const lines: string[] = [];
   const per = Number(p.usagePerCustomer);
-  if (Number.isInteger(per) && per > 0) lines.push(per === 1 ? 'Each customer can use it once.' : `Each customer can use it ${per} times.`);
+  if (Number.isInteger(per) && per > 0) lines.push(c.perCustomer(per));
   const all = Number(p.usageLimit);
-  if (Number.isInteger(all) && all > 0) lines.push(`It can be used ${all} ${all === 1 ? 'time' : 'times'} in all.`);
-  if (typeof p.minimumSpend === 'number' && p.minimumSpend > 0) lines.push(`It needs an order of at least ${p.minimumSpend.toFixed(2)}.`);
+  if (Number.isInteger(all) && all > 0) lines.push(c.usageLimit(all));
+  if (typeof p.minimumSpend === 'number' && p.minimumSpend > 0) lines.push(c.minimumSpend(twoDecimals(p.minimumSpend)));
   if (/^\d{4}-\d{2}-\d{2}$/.test(str(p.expires))) {
     const d = new Date(`${p.expires}T12:00:00Z`);
-    lines.push(`It ends on ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}.`);
+    lines.push(c.endsOn(d.toLocaleDateString(formatTag('en-GB'), { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })));
   }
-  if (p.freeShipping === true) lines.push('It gives free shipping.');
-  if (p.individualUse === true) lines.push('It cannot be combined with other coupons.');
+  if (p.freeShipping === true) lines.push(c.freeShipping);
+  if (p.individualUse === true) lines.push(c.individualUse);
   return { code, discount, lines };
 }
 
@@ -97,7 +108,7 @@ export function StoreApprovalView({ approval, className, style }: { approval: Ro
       <div className={className} style={{ ...box, ...style }} data-testid="reply-approval">
         {reply.subject && <p style={strong}>{reply.subject}</p>}
         <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', color: 'var(--text)' }} data-testid="reply-approval-body">{reply.body}</p>
-        {reply.href && <HostLink to={reply.href} style={linkUnder}>Open the message</HostLink>}
+        {reply.href && <HostLink to={reply.href} style={linkUnder}>{STORE_APPROVAL_COPY.openMessage}</HostLink>}
       </div>
     );
   }
@@ -105,9 +116,9 @@ export function StoreApprovalView({ approval, className, style }: { approval: Ro
   if (order) {
     return (
       <div className={className} style={{ ...box, ...style }} data-testid="order-approval">
-        <p style={strong}>{`Order ${order.order}`}</p>
+        <p style={strong}>{STORE_APPROVAL_COPY.order(order.order)}</p>
         <Lines lines={order.lines} />
-        {order.href && <HostLink to={order.href} style={linkUnder}>Open the order</HostLink>}
+        {order.href && <HostLink to={order.href} style={linkUnder}>{STORE_APPROVAL_COPY.openOrder}</HostLink>}
       </div>
     );
   }

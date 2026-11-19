@@ -15,13 +15,26 @@
  * team's words.
  *
  * MIRRORS the API's TEAM_NOTE_MARKER. The API keeps the marker out of the
- * facts, so its first use starts the note.
+ * facts, so its first use starts the note. The marker is the API's, in
+ * English, and is only read; the label a card draws before the note is in
+ * the page's language (TEAM_NOTE_COPY; English is the source, the French is
+ * written by hand in src/i18n/fr.json, namespace screensTeamNote, the other
+ * languages by the dashboard's translation script).
  */
+import { localized } from '@yotako/webmaven-ui';
 
 export const TEAM_NOTE_MARKER = 'Your team\'s note: ';
 
-/** How the note is introduced on a card. */
-export const TEAM_NOTE_LABEL = 'Your team\'s note:';
+/** The label before the AI team's own note on a change, on an approval card (namespace 'screensTeamNote'). */
+export const TEAM_NOTE_COPY_EN = {
+  /** Before the note, which follows in quotes on the same line: the words are the team's (AI operators), not facts. */
+  label: 'Your team\'s note:',
+};
+
+export const TEAM_NOTE_COPY = localized(TEAM_NOTE_COPY_EN, 'screensTeamNote');
+
+/** How the note is introduced on a card. In English, for importers; a card reads TEAM_NOTE_COPY.label when it draws. */
+export const TEAM_NOTE_LABEL = TEAM_NOTE_COPY_EN.label;
 
 export interface SentenceParts {
   /** What the change does: the sentence without the note. */

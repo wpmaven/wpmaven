@@ -30,10 +30,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 if (!class_exists('WebMaven_Store_Periods')) {
     require_once dirname(__DIR__) . '/class-webmaven-store-periods.php';
 }
@@ -55,7 +51,7 @@ final class WebMaven_Cap_Store_Customers {
     const ORDERS_MAX = 5000;
     const PAID = ['processing', 'completed'];
     const MONTHS = 24;
-    const CACHE = 'wm_store_buyers_v1';
+    const CACHE = 'webmaven_store_buyers_v1';
     const CACHE_TTL = 600;
     const PER_PAGE = 25;
     const SEGMENTS = ['all', 'new', 'returning', 'lapsed', 'top'];
@@ -145,11 +141,11 @@ final class WebMaven_Cap_Store_Customers {
         $p = is_array($params) ? $params : [];
         $segment = $p['segment'] ?? 'all';
         if (!in_array($segment, self::SEGMENTS, true)) {
-            throw self::error('VALIDATION', 'segment is one of: ' . implode(', ', self::SEGMENTS) . '.');
+            throw self::error('VALIDATION', 'segment is one of: ' . implode(', ', self::SEGMENTS) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $sort = $p['sort'] ?? 'recent';
         if (!in_array($sort, self::SORTS, true)) {
-            throw self::error('VALIDATION', 'sort is one of: ' . implode(', ', self::SORTS) . '.');
+            throw self::error('VALIDATION', 'sort is one of: ' . implode(', ', self::SORTS) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $page = max(1, (int) ($p['page'] ?? 1));
         $all = self::buyers();
@@ -198,7 +194,7 @@ final class WebMaven_Cap_Store_Customers {
     public static function customer_read($params = [], $step_id = null) {
         self::require_store();
         $p = is_array($params) ? $params : [];
-        $email = is_string($p['email'] ?? null) ? strtolower(trim(sanitize_text_field($p['email']))) : '';
+        $email = is_string($p['email'] ?? null) ? strtolower(trim(sanitize_email($p['email']))) : '';
         $name = is_string($p['name'] ?? null) ? trim(sanitize_text_field($p['name'])) : '';
         if ($email === '' && $name === '') {
             throw self::error('VALIDATION', 'Give the customer\'s email or name.');
@@ -220,10 +216,10 @@ final class WebMaven_Cap_Store_Customers {
                 }));
             }
             if (!$matches) {
-                throw self::error('NOT_FOUND', 'No customer called ' . $name . ' bought from your store in the last two years.');
+                throw self::error('NOT_FOUND', 'No customer called ' . $name . ' bought from your store in the last two years.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if (count($matches) > 1) {
-                throw self::error('VALIDATION', count($matches) . ' customers match ' . $name . '. Give their email to choose one.');
+                throw self::error('VALIDATION', count($matches) . ' customers match ' . $name . '. Give their email to choose one.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $found = $matches[0];
         }
@@ -386,7 +382,7 @@ final class WebMaven_Cap_Store_Customers {
             return 0;
         }
         global $wpdb;
-        return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE LOWER(email) = %s AND status <> 'spam'", WebMaven_Leads::table(), $email));
+        return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE LOWER(email) = %s AND status <> 'spam'", WebMaven_Leads::table(), $email)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; one count for one customer's details, read as the table is now
     }
 
     private static function country_name(string $code): string {

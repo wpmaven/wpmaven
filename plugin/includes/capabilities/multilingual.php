@@ -1,8 +1,11 @@
 <?php
 /**
  * Multilingual (2026-09-22): the plugin side of the API's multilingual_setup
- * reads and its two owner-approved writes (multilingual_add_languages,
- * multilingual_save_translation).
+ * reads and its owner-approved translation write
+ * (multilingual_save_translation). Adding a language
+ * (multilingual_add_languages) would change the multilingual plugin's own
+ * model and download WordPress's language packs: this edition answers it
+ * REQUIRES_AGENT.
  *
  * The API used to send wp_get_languages, wp_configure_languages and
  * wp_save_translation, which no plugin build ever handled. Contract, as the
@@ -18,23 +21,17 @@
  *   multilingual_post {post_id}
  *     -> {post: {id, type, status, title, content, excerpt, builder},
  *         language, translations: {code: {id, status, title}}}
- *   multilingual_add_languages {languages: [{locale, name, slug?, rtl?}], default_language?}
- *     -> {plugin, added, already, before: {languages, default_language},
- *         after: {languages, default_language}, language_packs}
  *   multilingual_save_translation {source_post_id, language, title, content,
  *                                  excerpt?, status?, slug?, overwrite?}
  *     -> {saved, created, post_id, language, source_post_id, source_language,
  *         status, before, after, edit_url, permalink, not_copied}
  *
- * Polylang: languages are added through Polylang's own model (the
- * Languages->add() of 3.7+, add_language() before it), exactly what its
- * Languages screen calls; translations are linked with
- * pll_set_post_language() + pll_save_post_translations().
+ * Polylang: translations are linked with pll_set_post_language() +
+ * pll_save_post_translations().
  * WPML: translations are linked with the documented
- * wpml_set_element_language_details action. WPML has no public API for adding
- * languages, so that is refused with the WPML > Languages screen.
+ * wpml_set_element_language_details action.
  * TranslatePress translates strings on the fly and keeps no translated posts;
- * both writes are refused with the screen where the owner does it.
+ * the write is refused with the screen where the owner does it.
  *
  * A refusal RETURNS {success: false, error, code} (never cached, read by the
  * API's pluginFailure). Nothing is written before every input is checked.
@@ -47,14 +44,9 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
     $handlers['multilingual_status'] = ['WebMaven_Cap_Multilingual', 'status'];
     $handlers['multilingual_post'] = ['WebMaven_Cap_Multilingual', 'post'];
-    $handlers['multilingual_add_languages'] = ['WebMaven_Cap_Multilingual', 'add_languages'];
     $handlers['multilingual_save_translation'] = ['WebMaven_Cap_Multilingual', 'save_translation'];
     return $handlers;
 });
@@ -66,9 +58,6 @@ final class WebMaven_Cap_Multilingual {
 
     /** Source posts looked at per type when counting translations. */
     const COUNT_CAP = 2000;
-
-    /** Languages accepted in one call. */
-    const MAX_LANGUAGES = 10;
 
     /** Language codes written right to left (WordPress locales, first part). */
     const RTL_CODES = ['ar', 'arc', 'ary', 'azb', 'ckb', 'dv', 'fa', 'haz', 'he', 'ps', 'sd', 'ug', 'ur', 'yi'];
@@ -95,7 +84,8 @@ final class WebMaven_Cap_Multilingual {
             'strings' => null,
             'rtl_theme' => self::rtl_theme(),
             'can' => [
-                'add_languages' => $plugin === 'polylang',
+                // Adding a language downloads language packs: never in this edition.
+                'add_languages' => $plugin === 'polylang' && WebMaven_Edition::has_agent(),
                 'save_translations' => $plugin === 'polylang' || $plugin === 'wpml',
             ],
             'screens' => self::SCREENS[$plugin],
@@ -154,156 +144,6 @@ final class WebMaven_Cap_Multilingual {
         return $out;
     }
 
-    /** multilingual_add_languages: Polylang only; verified by reading the list again. */
-    public static function add_languages($params = [], $step_id = null) {
-        $plugin = self::detect();
-        if ($plugin !== 'polylang') {
-            return self::refuse_plugin($plugin, 'languages');
-        }
-
-        // Check every input before anything is written.
-        $before = self::languages('polylang');
-        $existing_locales = array_column($before['languages'], 'locale');
-        $existing_slugs = array_column($before['languages'], 'code');
-        $requested = isset($params['languages']) && is_array($params['languages']) ? array_values($params['languages']) : [];
-        if (!$requested && empty($params['default_language'])) {
-            return self::fail('Nothing was changed: no language was given.', 'invalid_input');
-        }
-        if (count($requested) > self::MAX_LANGUAGES) {
-            return self::fail('Nothing was changed: at most ' . self::MAX_LANGUAGES . ' languages can be added at once.', 'invalid_input');
-        }
-        $problems = [];
-        $to_add = [];
-        $already = [];
-        $slugs_taken = $existing_slugs;
-        foreach ($requested as $i => $lang) {
-            $n = $i + 1;
-            if (!is_array($lang)) {
-                $problems[] = "language $n is not an object";
-                continue;
-            }
-            $locale = isset($lang['locale']) && is_string($lang['locale']) ? trim($lang['locale']) : '';
-            if (!preg_match('/^[a-z]{2,3}(_[A-Z]{2})?(_[a-z0-9]+)?$/', $locale)) {
-                $problems[] = "language $n has no valid WordPress locale (like fr_FR or pt_BR)";
-                continue;
-            }
-            if (in_array($locale, $existing_locales, true)) {
-                $already[] = $locale;
-                continue;
-            }
-            $name = isset($lang['name']) && is_string($lang['name']) ? trim(wp_strip_all_tags($lang['name'])) : '';
-            if ($name === '' || strlen($name) > 60) {
-                $problems[] = "$locale needs a name of 1 to 60 characters";
-                continue;
-            }
-            $slug = isset($lang['slug']) && is_string($lang['slug']) && $lang['slug'] !== '' ? strtolower(trim($lang['slug'])) : self::slug_for($locale, $slugs_taken);
-            if (!preg_match('/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/', $slug)) {
-                $problems[] = "$locale has an invalid language code \"$slug\"";
-                continue;
-            }
-            if (in_array($slug, $slugs_taken, true)) {
-                $problems[] = "the language code \"$slug\" is already used on this site";
-                continue;
-            }
-            $slugs_taken[] = $slug;
-            $primary = strtolower(explode('_', $locale)[0]);
-            $rtl = array_key_exists('rtl', $lang) ? (bool) $lang['rtl'] : in_array($primary, self::RTL_CODES, true);
-            $to_add[] = ['locale' => $locale, 'name' => $name, 'slug' => $slug, 'rtl' => $rtl];
-        }
-        $default = isset($params['default_language']) && is_string($params['default_language']) && $params['default_language'] !== ''
-            ? strtolower(trim($params['default_language'])) : null;
-        if ($default !== null && !in_array($default, $slugs_taken, true)) {
-            $problems[] = "the default language \"$default\" is not one of the site's languages";
-        }
-        if ($problems) {
-            return self::fail('Nothing was changed: ' . implode('; ', $problems) . '.', 'invalid_input', ['problems' => $problems]);
-        }
-
-        $added = [];
-        $failed = [];
-        $order = count($before['languages']);
-        foreach ($to_add as $lang) {
-            $args = [
-                'name' => $lang['name'],
-                'slug' => $lang['slug'],
-                'locale' => $lang['locale'],
-                'rtl' => $lang['rtl'] ? 1 : 0,
-                'term_group' => $order++,
-            ];
-            $flag = self::flag_for($lang['locale']);
-            if ($flag !== '') {
-                $args['flag'] = $flag;
-            }
-            try {
-                $result = self::polylang_add($args);
-            } catch (\Throwable $e) {
-                $result = new WP_Error('pll_add_failed', $e->getMessage());
-            }
-            if (self::is_error($result)) {
-                $failed[] = ['locale' => $lang['locale'], 'error' => $result->get_error_message()];
-            } elseif ($result === false) {
-                $failed[] = ['locale' => $lang['locale'], 'error' => 'Polylang refused the language'];
-            } else {
-                $added[] = $lang;
-            }
-        }
-
-        // Verified on the list Polylang reads, not on the calls' answers.
-        self::polylang_clean_cache();
-        $mid = self::languages('polylang');
-        $mid_locales = array_column($mid['languages'], 'locale');
-        foreach ($added as $k => $lang) {
-            if (!in_array($lang['locale'], $mid_locales, true)) {
-                $failed[] = ['locale' => $lang['locale'], 'error' => 'Polylang did not list the language after adding it'];
-                unset($added[$k]);
-            }
-        }
-        $added = array_values($added);
-
-        $default_change = null;
-        if ($default !== null && $default !== $mid['default_language']) {
-            if (!in_array($default, array_column($mid['languages'], 'code'), true)) {
-                $failed[] = ['locale' => $default, 'error' => 'the default language was not changed: that language is not on the site'];
-            } else {
-                try {
-                    self::polylang_set_default($default);
-                } catch (\Throwable $e) {
-                    $failed[] = ['locale' => $default, 'error' => 'the default language was not changed: ' . $e->getMessage()];
-                }
-                self::polylang_clean_cache();
-                $default_change = ['before' => $mid['default_language'], 'after' => pll_default_language('slug') ?: null];
-                if ($default_change['after'] !== $default) {
-                    $failed[] = ['locale' => $default, 'error' => 'Polylang did not make it the default language'];
-                }
-            }
-        }
-
-        // WordPress's own translation files for each new locale, as the
-        // Languages screen downloads them. A failure leaves the language in
-        // place with WordPress's own texts in English.
-        $packs = [];
-        foreach ($added as $lang) {
-            $packs[$lang['locale']] = self::language_pack($lang['locale']);
-        }
-
-        $after = self::languages('polylang');
-        $out = [
-            'plugin' => 'polylang',
-            'added' => array_map(function ($l) { return ['locale' => $l['locale'], 'code' => $l['slug'], 'name' => $l['name'], 'rtl' => $l['rtl']]; }, $added),
-            'already' => $already,
-            'failed' => $failed,
-            'default_language' => $default_change,
-            'language_packs' => $packs ? $packs : (object) [],
-            'before' => ['languages' => $before['languages'], 'default_language' => $before['default_language']],
-            'after' => ['languages' => $after['languages'], 'default_language' => $after['default_language']],
-        ];
-        $changed = $added || ($default_change && $default_change['before'] !== $default_change['after']);
-        if (!$changed && $failed) {
-            return self::fail('No language was added: ' . implode('; ', array_map(function ($f) { return $f['locale'] . ': ' . $f['error']; }, $failed)) . '.', 'not_saved', $out);
-        }
-        return $out;
-    }
-
     /** multilingual_save_translation: a linked translation of a post or page. */
     public static function save_translation($params = [], $step_id = null) {
         $plugin = self::detect();
@@ -333,7 +173,7 @@ final class WebMaven_Cap_Multilingual {
         }
         $state = self::languages($plugin);
         $codes = array_column($state['languages'], 'code');
-        $lang = isset($params['language']) && is_string($params['language']) ? strtolower(trim($params['language'])) : '';
+        $lang = isset($params['language']) && is_string($params['language']) ? sanitize_key($params['language']) : '';
         if (!in_array($lang, $codes, true)) {
             return self::fail(
                 'Nothing was saved: "' . $lang . '" is not one of the site\'s languages (' . implode(', ', $codes) . ').',
@@ -343,17 +183,17 @@ final class WebMaven_Cap_Multilingual {
         if ($plugin === 'polylang' && function_exists('pll_is_translated_post_type') && !pll_is_translated_post_type($source->post_type)) {
             return self::fail("Nothing was saved: Polylang is not set to translate {$source->post_type}s (Languages > Settings > Custom post types).", 'not_translatable');
         }
-        $title = isset($params['title']) && is_string($params['title']) ? trim($params['title']) : '';
-        $content = isset($params['content']) && is_string($params['content']) ? $params['content'] : '';
+        $title = isset($params['title']) && is_string($params['title']) ? sanitize_text_field($params['title']) : '';
+        $content = isset($params['content']) && is_string($params['content']) ? self::clean_content($params['content']) : '';
         if ($title === '' && trim($content) === '') {
             return self::fail('Nothing was saved: the translation has no title and no content.', 'invalid_input');
         }
-        $excerpt = isset($params['excerpt']) && is_string($params['excerpt']) ? $params['excerpt'] : null;
+        $excerpt = isset($params['excerpt']) && is_string($params['excerpt']) ? sanitize_textarea_field($params['excerpt']) : null;
         $status = isset($params['status']) && is_string($params['status']) && $params['status'] !== '' ? $params['status'] : null;
         if ($status !== null && !in_array($status, ['draft', 'publish', 'pending'], true)) {
             return self::fail('Nothing was saved: the status must be draft, pending or publish.', 'invalid_input');
         }
-        $overwrite = !empty($params['overwrite']);
+        $overwrite = rest_sanitize_boolean($params['overwrite'] ?? false);
 
         $source_lang = self::post_language($plugin, $source);
         if ($source_lang === $lang) {
@@ -434,15 +274,15 @@ final class WebMaven_Cap_Multilingual {
             pll_save_post_translations($group);
             $linked = (int) pll_get_post($source->ID, $lang) === $id;
         } else {
-            $details = apply_filters('wpml_element_language_details', null, ['element_id' => $source->ID, 'element_type' => $source->post_type]);
-            do_action('wpml_set_element_language_details', [
+            $details = apply_filters('wpml_element_language_details', null, ['element_id' => $source->ID, 'element_type' => $source->post_type]); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
+            do_action('wpml_set_element_language_details', [ // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
                 'element_id' => $id,
-                'element_type' => apply_filters('wpml_element_type', $source->post_type),
+                'element_type' => apply_filters('wpml_element_type', $source->post_type), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
                 'trid' => $details ? $details->trid : null,
                 'language_code' => $lang,
                 'source_language_code' => $source_lang,
             ]);
-            $mine = apply_filters('wpml_element_language_details', null, ['element_id' => $id, 'element_type' => $source->post_type]);
+            $mine = apply_filters('wpml_element_language_details', null, ['element_id' => $id, 'element_type' => $source->post_type]); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
             $linked = $mine && $details && $mine->language_code === $lang && (string) $mine->trid === (string) $details->trid;
         }
         $saved = get_post($id);
@@ -515,8 +355,8 @@ final class WebMaven_Cap_Multilingual {
                 ];
             }
         } elseif ($plugin === 'wpml') {
-            $active = apply_filters('wpml_active_languages', null, ['skip_missing' => 0]);
-            $default = apply_filters('wpml_default_language', null) ?: null;
+            $active = apply_filters('wpml_active_languages', null, ['skip_missing' => 0]); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
+            $default = apply_filters('wpml_default_language', null) ?: null; // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
             global $sitepress;
             foreach ((array) $active as $code => $l) {
                 $l = (array) $l;
@@ -611,7 +451,7 @@ final class WebMaven_Cap_Multilingual {
             'order' => 'ASC',
             // Polylang filters queries by the current language; this one names its own.
             'lang' => '',
-            'tax_query' => [$tax],
+            'tax_query' => [$tax], // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Polylang keeps each post's language as a term, so a language's posts are a taxonomy query by design; counted for the languages status the team asks for
             'no_found_rows' => true,
         ]));
     }
@@ -620,10 +460,9 @@ final class WebMaven_Cap_Multilingual {
     private static function wpml_content($default, array $codes) {
         global $wpdb;
         $table = $wpdb->prefix . 'icl_translations';
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether the multilingual plugin's table exists, which no WordPress function tells; asked for the languages status the team asks for
             return null;
         }
-        $statuses = "'publish','draft','pending','private','future'";
         $out = [];
         foreach (self::CONTENT_TYPES as $type => $label) {
             if (!post_type_exists($type)) {
@@ -631,9 +470,10 @@ final class WebMaven_Cap_Multilingual {
             }
             $element = 'post_' . $type;
             $by_language = array_fill_keys($codes, 0);
-            $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT t.language_code AS code, COUNT(*) AS n FROM {$table} t JOIN {$wpdb->posts} p ON p.ID = t.element_id
-                 WHERE t.element_type = %s AND p.post_status IN ({$statuses}) GROUP BY t.language_code",
+            $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML's own translations table, which its API reads post by post only; counted for the languages status the team asks for, as the site is now
+                "SELECT t.language_code AS code, COUNT(*) AS n FROM %i t JOIN {$wpdb->posts} p ON p.ID = t.element_id
+                 WHERE t.element_type = %s AND p.post_status IN ('publish','draft','pending','private','future') GROUP BY t.language_code",
+                $table,
                 $element
             ));
             foreach ((array) $rows as $r) {
@@ -648,15 +488,18 @@ final class WebMaven_Cap_Multilingual {
                 }
             }
             if ($default) {
-                $rows = $wpdb->get_results($wpdb->prepare(
+                $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML's own translations table, which its API reads post by post only; counted for the languages status the team asks for, as the site is now
                     "SELECT t2.language_code AS code, COUNT(DISTINCT t1.element_id) AS n
-                     FROM {$table} t1
-                     JOIN {$table} t2 ON t2.trid = t1.trid AND t2.language_code <> t1.language_code AND t2.element_type = t1.element_type
+                     FROM %i t1
+                     JOIN %i t2 ON t2.trid = t1.trid AND t2.language_code <> t1.language_code AND t2.element_type = t1.element_type
                      JOIN {$wpdb->posts} p1 ON p1.ID = t1.element_id
                      JOIN {$wpdb->posts} p2 ON p2.ID = t2.element_id
                      WHERE t1.element_type = %s AND t1.language_code = %s
-                       AND p1.post_status IN ({$statuses}) AND p2.post_status IN ({$statuses})
+                       AND p1.post_status IN ('publish','draft','pending','private','future')
+                       AND p2.post_status IN ('publish','draft','pending','private','future')
                      GROUP BY t2.language_code",
+                    $table,
+                    $table,
                     $element,
                     $default
                 ));
@@ -697,13 +540,13 @@ final class WebMaven_Cap_Multilingual {
                 continue;
             }
             $table = $wpdb->prefix . 'trp_dictionary_' . strtolower($default_locale) . '_' . strtolower($l['locale']);
-            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether the multilingual plugin's table exists, which no WordPress function tells; asked for the languages status the team asks for
                 $out[$l['code']] = null;
                 continue;
             }
             $counts = ['total' => 0, 'translated' => 0, 'machine' => 0, 'reviewed' => 0];
             // status: 0 not translated, 1 machine translated, 2 reviewed by a person.
-            foreach ((array) $wpdb->get_results("SELECT status, COUNT(*) AS n FROM `{$table}` GROUP BY status") as $r) {
+            foreach ((array) $wpdb->get_results($wpdb->prepare('SELECT status, COUNT(*) AS n FROM %i GROUP BY status', $table)) as $r) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- TranslatePress's own dictionary table, which no WordPress function reads; counted for the languages status the team asks for, as the site is now
                 $n = (int) $r->n;
                 $counts['total'] += $n;
                 if ((int) $r->status === 1) {
@@ -777,7 +620,7 @@ final class WebMaven_Cap_Multilingual {
             return $lang ? (string) $lang : null;
         }
         if ($plugin === 'wpml') {
-            $details = apply_filters('wpml_element_language_details', null, ['element_id' => $post->ID, 'element_type' => $post->post_type]);
+            $details = apply_filters('wpml_element_language_details', null, ['element_id' => $post->ID, 'element_type' => $post->post_type]); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
             return $details && !empty($details->language_code) ? (string) $details->language_code : null;
         }
         return null;
@@ -789,13 +632,13 @@ final class WebMaven_Cap_Multilingual {
             return array_map('intval', (array) pll_get_post_translations($post->ID));
         }
         if ($plugin === 'wpml') {
-            $element = apply_filters('wpml_element_type', $post->post_type);
-            $trid = apply_filters('wpml_element_trid', null, $post->ID, $element);
+            $element = apply_filters('wpml_element_type', $post->post_type); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
+            $trid = apply_filters('wpml_element_trid', null, $post->ID, $element); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
             if (!$trid) {
                 return [];
             }
             $out = [];
-            foreach ((array) apply_filters('wpml_get_element_translations', null, $trid, $element) as $code => $t) {
+            foreach ((array) apply_filters('wpml_get_element_translations', null, $trid, $element) as $code => $t) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
                 if (is_object($t) && !empty($t->element_id)) {
                     $out[(string) $code] = (int) $t->element_id;
                 }
@@ -849,7 +692,7 @@ final class WebMaven_Cap_Multilingual {
             foreach ($terms as $term_id) {
                 $t = $plugin === 'polylang'
                     ? pll_get_term($term_id, $lang)
-                    : apply_filters('wpml_object_id', $term_id, $taxonomy, false, $lang);
+                    : apply_filters('wpml_object_id', $term_id, $taxonomy, false, $lang); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API, called only when WPML runs the site's languages
                 if ($t) {
                     $mapped[] = (int) $t;
                 } else {
@@ -865,100 +708,16 @@ final class WebMaven_Cap_Multilingual {
         }
     }
 
-    // ── Polylang writes, across its versions ───────────────────────────────
-
-    private static function polylang_add(array $args) {
-        $model = PLL()->model;
-        // 3.7+: languages live on PLL_Model::$languages.
-        if (isset($model->languages) && is_object($model->languages) && method_exists($model->languages, 'add')) {
-            return $model->languages->add($args);
-        }
-        if (method_exists($model, 'add_language')) {
-            return $model->add_language($args);
-        }
-        // Before 3.7 only the admin model adds languages, and the webhook
-        // request does not load it.
-        if (class_exists('PLL_Admin_Model')) {
-            $options = PLL()->options;
-            $admin = new PLL_Admin_Model($options);
-            return $admin->add_language($args);
-        }
-        return new WP_Error('pll_no_api', 'this Polylang version has no way to add a language from code');
-    }
-
-    private static function polylang_set_default($slug) {
-        $model = PLL()->model;
-        if (isset($model->languages) && is_object($model->languages) && method_exists($model->languages, 'update_default')) {
-            $r = $model->languages->update_default($slug);
-        } elseif (method_exists($model, 'update_default_lang')) {
-            $r = $model->update_default_lang($slug);
-        } elseif (class_exists('PLL_Admin_Model')) {
-            $options = PLL()->options;
-            $admin = new PLL_Admin_Model($options);
-            $r = $admin->update_default_lang($slug);
-        } else {
-            throw new Exception('this Polylang version has no way to change the default language from code');
-        }
-        // Polylang 3.7 answers an EMPTY WP_Error on success.
-        if (self::is_error($r)) {
-            throw new Exception($r->get_error_message());
-        }
-    }
-
-    /** A WP_Error that carries an error. Polylang returns empty ones for success. */
-    private static function is_error($r) {
-        return is_wp_error($r) && (!method_exists($r, 'has_errors') || $r->has_errors());
-    }
-
-    private static function polylang_clean_cache() {
-        $model = PLL()->model;
-        if (isset($model->languages) && is_object($model->languages) && method_exists($model->languages, 'clean_cache')) {
-            $model->languages->clean_cache();
-        } elseif (method_exists($model, 'clean_languages_cache')) {
-            $model->clean_languages_cache();
-        }
-    }
-
-    /** A code for the URL that no other language on the site uses: fr, then fr-ca. */
-    private static function slug_for($locale, array $taken) {
-        $parts = explode('_', $locale);
-        $slug = strtolower($parts[0]);
-        if (in_array($slug, $taken, true) && isset($parts[1])) {
-            $slug .= '-' . strtolower($parts[1]);
-        }
-        return $slug;
-    }
-
-    /** Polylang's flag for the locale's country, only when Polylang ships it. */
-    private static function flag_for($locale) {
-        $parts = explode('_', $locale);
-        if (!isset($parts[1]) || !defined('POLYLANG_DIR')) {
+    /**
+     * A translation's content is saved as new content is: the designed
+     * pages' tags (block attributes through WordPress's block-aware kses),
+     * their <style> kept, never a <script>.
+     */
+    private static function clean_content(string $content): string {
+        if ($content === '') {
             return '';
         }
-        $flag = strtolower($parts[1]);
-        return file_exists(POLYLANG_DIR . '/flags/' . $flag . '.png') ? $flag : '';
-    }
-
-    /** installed | failed | not_needed */
-    private static function language_pack($locale) {
-        if ($locale === 'en_US') {
-            return 'not_needed';
-        }
-        if (in_array($locale, get_available_languages(), true)) {
-            return 'installed';
-        }
-        if (!current_user_can('install_languages')) {
-            return 'failed';
-        }
-        try {
-            require_once ABSPATH . 'wp-admin/includes/translation-install.php';
-            if (!wp_can_install_language_pack()) {
-                return 'failed';
-            }
-            return wp_download_language_pack($locale) ? 'installed' : 'failed';
-        } catch (\Throwable $e) {
-            return 'failed';
-        }
+        return class_exists('WebMaven_Cap_Blocks') ? WebMaven_Cap_Blocks::clean($content) : wp_kses_post($content);
     }
 
     // ── Answers ─────────────────────────────────────────────────────────────

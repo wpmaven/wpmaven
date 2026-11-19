@@ -21,8 +21,10 @@ import { FeatureOnWpmaven } from './FeatureOnWpmaven';
 import { ShareYourSite } from './ShareYourSite';
 import { SHARE_ROW_GAP, prettyHost } from './share';
 import { SECTION_LABEL } from './styles';
+import { YOUR_WEBSITE_COPY, YOUR_WEBSITE_COPY_EN } from './homeCopy';
 
-export const YOUR_WEBSITE_TITLE = 'Your website';
+/** The card's title in English, for importers; the card reads YOUR_WEBSITE_COPY.title when it draws. */
+export const YOUR_WEBSITE_TITLE = YOUR_WEBSITE_COPY_EN.title;
 
 export interface YourWebsiteCardProps {
   host: ScreensHost;
@@ -67,7 +69,7 @@ export const YourWebsiteCard: React.FC<YourWebsiteCardProps> = ({ card = true, .
   if (!card) return <YourWebsiteRow {...props} />;
   return (
     <GlassCard padding={24} data-testid="your-website-card">
-      <h3 style={{ ...SECTION_LABEL, margin: '0 0 10px', fontFamily: 'var(--font-ui)' }}>{YOUR_WEBSITE_TITLE}</h3>
+      <h3 style={{ ...SECTION_LABEL, margin: '0 0 10px', fontFamily: 'var(--font-ui)' }}>{YOUR_WEBSITE_COPY.title}</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <YourWebsiteRow {...props} />
       </div>

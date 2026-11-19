@@ -22,9 +22,10 @@ class WebMaven_Admin {
      * Register WP admin menu pages.
      */
     public function register_admin_pages() {
-        // Main Dashboard page - appears at top of admin menu. Its name is the
-        // brand's on a site under an agency's or a partner's brand, "Site
-        // assistant" while that brand is unknown, WPMaven otherwise (1.2.31).
+        // Main Dashboard page. Its name is the brand's on a site under an
+        // agency's or a partner's brand, "Site assistant" while that brand is
+        // unknown, WPMaven otherwise (1.2.31). It takes no menu position, so
+        // WordPress adds it below its own entries.
         $name = WebMaven_Brand::name();
         add_menu_page(
             $name,
@@ -32,8 +33,7 @@ class WebMaven_Admin {
             'edit_posts',
             'webmaven-dashboard',
             [$this, 'render_dashboard_page'],
-            WebMaven_Brand::menu_icon(),
-            2  // Position near top
+            WebMaven_Brand::menu_icon()
         );
 
         // Dashboard submenu (same as parent)
@@ -67,18 +67,26 @@ class WebMaven_Admin {
     /** Set on a user who dismissed the connect notice. */
     const CONNECT_NOTICE_DISMISSED = 'webmaven_connect_notice_dismissed';
 
+    /** The WordPress screens WPMaven's own notices may show on: the Dashboard and Plugins. */
+    const NOTICE_SCREENS = ['dashboard', 'plugins'];
+
+    /** Whether the current screen is one of NOTICE_SCREENS. */
+    public static function on_notice_screen(): bool {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        return is_object($screen) && in_array((string) $screen->id, self::NOTICE_SCREENS, true);
+    }
+
     /**
-     * Until the site is connected: a notice on WordPress's screens with
-     * "Connect" (the plugin's own screen), never a redirect after
-     * activation. For administrators, not on the plugin's screens, and gone
-     * once dismissed (per user).
+     * Until the site is connected: a notice with "Connect" (the plugin's own
+     * screen), never a redirect after activation. For administrators, on the
+     * Dashboard and Plugins screens only, gone once connected or dismissed
+     * (per user).
      */
     public function connect_notice() {
         if (WebMaven_Brand::is_connected() || !current_user_can('manage_options')) {
             return;
         }
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        if ($screen && strpos((string) $screen->id, 'webmaven') !== false) {
+        if (!self::on_notice_screen()) {
             return;
         }
         if (get_user_meta(get_current_user_id(), self::CONNECT_NOTICE_DISMISSED, true)) {
@@ -107,10 +115,11 @@ class WebMaven_Admin {
     /**
      * Once, after the single plugin (WPMaven WordPress) moved the site to
      * this plugin and WPMaven Agent (its option webmaven_edition_move): what
-     * changed, for the first administrator who opens wp-admin.
+     * changed, for the first administrator who opens the Dashboard or the
+     * Plugins screen. Dismissible, and never shown again.
      */
     public function moved_notice() {
-        if (!current_user_can('activate_plugins')) {
+        if (!current_user_can('activate_plugins') || !self::on_notice_screen()) {
             return;
         }
         $move = get_option('webmaven_edition_move', []);
@@ -147,28 +156,35 @@ class WebMaven_Admin {
             return;
         }
 
-        // WordPress's own React and ReactDOM, and the chat's markdown
-        // renderer from the plugin itself.
+        // The first paint's styles and theme, in the head, and the room the
+        // page keeps for WordPress's notices above the app.
+        $this->enqueue_app_shell();
+
+        // WordPress's own React, ReactDOM and JSX runtime (6.6 and later),
+        // and the chat's markdown renderer from the plugin itself.
         $this->register_vendor_scripts();
 
         // Determine which script to load
         $script_handle = 'webmaven-dashboard';
         $script_file = 'dashboard.js';
-        $deps = ['react', 'react-dom', 'marked'];
+        $deps = ['react', 'react-dom', 'react-jsx-runtime', 'webmaven-marked'];
 
-        // Check if script file exists
+        // A copy of the plugin without its app (a source checkout that was
+        // never built) loads nothing; a developer running with WP_DEBUG is
+        // told which file is missing.
         $script_path = WEBMAVEN_WP_DIR . 'assets/' . $script_file;
         if (!file_exists($script_path)) {
-            // Fallback: show error message in console
-            add_action('admin_notices', function() use ($script_file) {
-                echo '<div class="notice notice-warning"><p>';
-                echo esc_html(WebMaven_Brand::name()) . ': ' . sprintf(
-                    /* translators: %s: the name of the app's script file */
-                    esc_html__('The %s file is missing. Please run the build process.', 'wpmaven'),
-                    '<code>' . esc_html($script_file) . '</code>'
-                );
-                echo '</p></div>';
-            });
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                add_action('admin_notices', function() use ($script_file) {
+                    echo '<div class="notice notice-warning"><p>';
+                    echo esc_html(WebMaven_Brand::name()) . ': ' . sprintf(
+                        /* translators: %s: the name of the app's script file */
+                        esc_html__('The %s file is missing from the plugin.', 'wpmaven'),
+                        '<code>' . esc_html($script_file) . '</code>'
+                    );
+                    echo '</p></div>';
+                });
+            }
             return;
         }
 
@@ -273,7 +289,7 @@ class WebMaven_Admin {
             // Whose name and mark the app shows (1.2.31, WebMaven_Brand).
             'brand' => WebMaven_Brand::for_script($settings['dashboard_url'] ?? WEBMAVEN_WP_DASHBOARD_URL),
             // The hosting partner's code for the connect and setup links
-            // (1.2.31, WPMaven Agent's partner kit). Not a secret.
+            // (1.2.31, WebMaven_Hosting; none in this edition). Not a secret.
             'partner' => WebMaven_Hosting::partner_for_script(),
             'user' => [
                 'id' => $current_user->ID,
@@ -286,7 +302,7 @@ class WebMaven_Admin {
                 // 'owner', 'store', 'content' or null. The app shows only the
                 // screens of this tier; the API enforces it from the claim.
                 'tier' => WebMaven_Actor::current_tier(),
-                // A login WPMaven made here: 'owner', 'staff' or null.
+                // The sign-in marker of this account (WebMaven_Actor), or null.
                 'wpm' => WebMaven_Actor::wpm_marker($current_user->ID),
             ],
             // The guided tours (1.7.0): when this user last came in through a
@@ -411,7 +427,7 @@ class WebMaven_Admin {
             wp_enqueue_style('webmaven-app-fonts', $local, [], WEBMAVEN_WP_VERSION);
             return;
         }
-        wp_enqueue_style('webmaven-app-fonts', self::APP_FONTS_URL, [], null);
+        wp_enqueue_style('webmaven-app-fonts', self::APP_FONTS_URL, [], null); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- the kit imports this exact address: a version query would make it another address and load the fonts twice
         add_filter('wp_resource_hints', function ($urls, $relation) {
             if ($relation === 'preconnect') {
                 $urls[] = 'https://fonts.googleapis.com';
@@ -423,15 +439,17 @@ class WebMaven_Admin {
 
     /**
      * marked for the WP-admin app's chat, served by the plugin itself
-     * (1.2.26): wp-admin loads no third-party script. React and ReactDOM are
-     * WordPress's own ('react' and 'react-dom', React 18 since WordPress
-     * 6.2). The file in assets/vendor/ is the npm release byte for byte
-     * (marked 12.0.0, its tarball checked against the registry's integrity
-     * when vendored), and a test pins its SHA-256.
+     * (1.2.26): wp-admin loads no third-party script. React, ReactDOM and
+     * the JSX runtime are WordPress's own ('react', 'react-dom' and
+     * 'react-jsx-runtime', the last since WordPress 6.6). The file in
+     * assets/vendor/ is the npm release byte for byte (marked 18.2.1's
+     * lib/marked.umd.js, which sets window.marked; its tarball checked
+     * against the registry's integrity when vendored), and a test pins its
+     * SHA-256.
      */
     private function register_vendor_scripts() {
         $vendor = WEBMAVEN_WP_URL . 'assets/vendor/';
-        wp_register_script('marked', $vendor . 'marked.min.js', [], '12.0.0', true);
+        wp_register_script('webmaven-marked', $vendor . 'marked.umd.js', [], '18.2.1', true);
     }
 
     // ── Page Rendering ──────────────────────────────────────────
@@ -496,15 +514,13 @@ class WebMaven_Admin {
      * is unknown, a ring in the text colour, never our mark.
      */
     private function print_app_root($root_id) {
-        // The styles and the theme come first, so the first paint has both.
-        $this->output_fullscreen_styles();
-        $this->output_theme_script();
-
+        // Its styles and the theme script are in the head already
+        // (enqueue_app_shell), so the first paint has both.
         echo '<div id="' . esc_attr($root_id) . '" class="webmaven-app-container">';
         echo '<div class="webmaven-loading" role="status">';
         // LOADING_MARK is this class's own fixed SVG markup.
         $mark = WebMaven_Brand::is_wpmaven() ? self::LOADING_MARK : '<div class="webmaven-loading-ring" aria-hidden="true"></div>';
-        echo $mark; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo $mark; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- LOADING_MARK is this class's own fixed SVG markup, or the fixed ring
         echo '<p>' . esc_html(self::loading_text()) . '</p>';
         echo '</div>';
         echo '</div>';
@@ -516,10 +532,43 @@ class WebMaven_Admin {
      * splash otherwise follows the computer's setting until the app starts.
      * "System" leaves it to the computer.
      */
-    private function output_theme_script() {
-        echo "<script>(function(){try{var p=JSON.parse(localStorage.getItem('webmaven-theme-preferences')||'{}').mode;\n"
-            . "var t=p?p:localStorage.getItem('webmaven-theme');\n"
-            . "if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();</script>\n";
+    const THEME_SCRIPT = "(function(){try{var p=JSON.parse(localStorage.getItem('webmaven-theme-preferences')||'{}').mode;\n"
+        . "var t=p?p:localStorage.getItem('webmaven-theme');\n"
+        . "if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();";
+
+    /**
+     * The notices WordPress and other plugins print at the top of the page
+     * stay in view: the app's container is fixed over the content area, so
+     * it starts below them (--wm-notices-height, the height of everything
+     * printed before it), and moves when one is dismissed or added.
+     */
+    const NOTICES_SCRIPT = "(function(){var app=document.querySelector('.webmaven-app-container');"
+        . "if(!app||!app.parentNode)return;var root=document.documentElement;"
+        . "function place(){var h=0;for(var el=app.parentNode.firstElementChild;el&&el!==app;el=el.nextElementSibling){"
+        . "if(!el.getClientRects().length)continue;var s=getComputedStyle(el);if(s.position==='fixed'||s.position==='absolute')continue;"
+        . "h+=el.getBoundingClientRect().height+(parseFloat(s.marginTop)||0)+(parseFloat(s.marginBottom)||0);}"
+        . "root.style.setProperty('--wm-notices-height',Math.ceil(h)+'px');}"
+        . "place();if(window.MutationObserver){new MutationObserver(place).observe(app.parentNode,{childList:true});}"
+        . "window.addEventListener('resize',place);window.addEventListener('load',place);})();";
+
+    /**
+     * The page around the app, before the app's script runs: the styles of
+     * the first paint and of Focus mode (assets/app-shell.css), the theme
+     * script in the head (so the first paint is in the owner's theme), and
+     * the notices' room after the page's content. The two scripts are
+     * handles without a file of their own: WordPress prints each one's
+     * inline code where the handle belongs.
+     */
+    private function enqueue_app_shell() {
+        wp_enqueue_style('webmaven-app-shell', WEBMAVEN_WP_URL . 'assets/app-shell.css', [], WEBMAVEN_WP_VERSION);
+
+        wp_register_script('webmaven-app-theme', false, [], WEBMAVEN_WP_VERSION, false);
+        wp_enqueue_script('webmaven-app-theme');
+        wp_add_inline_script('webmaven-app-theme', self::THEME_SCRIPT);
+
+        wp_register_script('webmaven-app-notices', false, [], WEBMAVEN_WP_VERSION, true);
+        wp_enqueue_script('webmaven-app-notices');
+        wp_add_inline_script('webmaven-app-notices', self::NOTICES_SCRIPT);
     }
 
     /** The user meta that keeps a user's Focus mode: '1' on, '0' off. */
@@ -527,8 +576,8 @@ class WebMaven_Admin {
 
     /**
      * Whether the app covers the whole window for this user: their own
-     * choice, or the default when they never made one (off; WPMaven Agent
-     * keeps the full screen its sites always had, webmaven_focus_mode_default).
+     * choice, or the default when they never made one (off, unless another
+     * plugin sets it: webmaven_focus_mode_default).
      */
     public static function focus_mode(): bool {
         $saved = function_exists('get_user_meta') ? (string) get_user_meta(get_current_user_id(), self::FOCUS_MODE_META, true) : '';
@@ -538,179 +587,13 @@ class WebMaven_Admin {
         return function_exists('apply_filters') && (bool) apply_filters('webmaven_focus_mode_default', false);
     }
 
-    /**
-     * Output CSS for full-screen mode and the first paint.
-     */
-    private function output_fullscreen_styles() {
-        ?>
-        <style>
-            /* Hide WordPress admin UI for full-screen experience */
-            .webmaven-fullscreen #wpcontent {
-                margin-left: 0 !important;
-                padding-left: 0 !important;
-            }
-            .webmaven-fullscreen #wpbody-content {
-                padding-bottom: 0 !important;
-            }
-            .webmaven-fullscreen #adminmenumain,
-            .webmaven-fullscreen #wpadminbar,
-            .webmaven-fullscreen #wpfooter,
-            .webmaven-fullscreen .update-nag,
-            .webmaven-fullscreen .notice:not(.webmaven-notice) {
-                display: none !important;
-            }
-            .webmaven-fullscreen #wpcontent,
-            .webmaven-fullscreen #wpbody,
-            .webmaven-fullscreen #wpbody-content {
-                height: 100vh !important;
-                overflow: hidden !important;
-            }
-            html:has(.webmaven-fullscreen) {
-                padding-top: 0 !important;
-                overflow: hidden !important;
-                height: 100vh !important;
-            }
-            body.webmaven-fullscreen {
-                overflow: hidden !important;
-                height: 100vh !important;
-            }
-
-            /*
-             * Without Focus mode, the app sits in WordPress's content area:
-             * the admin bar above it, the menu to its left (folded, or gone
-             * on a phone). --wm-app-height is the height the app's own
-             * layouts take.
-             */
-            body:not(.webmaven-fullscreen) .webmaven-app-container {
-                top: var(--wp-admin--admin-bar--height, 32px) !important;
-                left: 160px !important;
-                --wm-app-height: calc(100vh - var(--wp-admin--admin-bar--height, 32px));
-            }
-            body.folded:not(.webmaven-fullscreen) .webmaven-app-container {
-                left: 36px !important;
-            }
-            @media screen and (max-width: 960px) {
-                body.auto-fold:not(.webmaven-fullscreen) .webmaven-app-container {
-                    left: 36px !important;
-                }
-            }
-            @media screen and (max-width: 782px) {
-                body:not(.webmaven-fullscreen) .webmaven-app-container {
-                    left: 0 !important;
-                }
-            }
-
-            /* App container: the kit's ground (--bg), light and dark. */
-            .webmaven-app-container {
-                position: fixed;
-                --wm-app-height: 100vh;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: #F5F6F8;
-                z-index: 99999;
-            }
-
-            /* The first paint, as the app's loading screen draws it (AppLoading):
-               an 80px loader, 16px above the line, in the kit's colours. The
-               mark's colours are the kit's --wm-mark-* for each theme, set here
-               on the splash only: the app sets its own when it starts. */
-            .webmaven-loading {
-                --wm-mark-ink: #15121F;
-                --wm-mark-violet: #6A4BFF;
-                --wm-mark-orange: #FF6A3D;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100%;
-                gap: 16px;
-                color: #6E7382;
-            }
-            .webmaven-loading-mark {
-                display: block;
-                width: 80px;
-                height: 80px;
-                animation: webmaven-pulse 2.4s ease-in-out infinite;
-            }
-            /* Under a brand, or while it is unknown: a ring in the text colour,
-               in the same 80px box. */
-            .webmaven-loading-ring {
-                box-sizing: border-box;
-                width: 32px;
-                height: 32px;
-                margin: 24px;
-                border: 3px solid rgba(110, 115, 130, 0.2);
-                border-top-color: currentColor;
-                border-radius: 50%;
-                animation: webmaven-spin 0.8s linear infinite;
-            }
-            .webmaven-loading p {
-                color: inherit;
-                font-family: "Inter", sans-serif;
-                font-size: 13px;
-                line-height: 1.5;
-                margin: 0;
-            }
-            @keyframes webmaven-spin {
-                to { transform: rotate(360deg); }
-            }
-            @keyframes webmaven-pulse {
-                50% { opacity: 0.6; }
-            }
-            @media (prefers-reduced-motion: reduce) {
-                .webmaven-loading-mark,
-                .webmaven-loading-ring {
-                    animation: none;
-                }
-            }
-
-            /* Dark: the data-theme attribute the theme script above (and then
-               the app) sets on <html>; with none, the computer's setting. */
-            html[data-theme="dark"] .webmaven-app-container {
-                background: #0E0F13;
-            }
-            html[data-theme="dark"] .webmaven-loading {
-                --wm-mark-ink: #F4F3F8;
-                --wm-mark-violet: #8C74FF;
-                --wm-mark-orange: #FF7A50;
-                color: #9BA0AF;
-            }
-            html[data-theme="dark"] .webmaven-loading-ring {
-                border-color: rgba(155, 160, 175, 0.2);
-                border-top-color: currentColor;
-            }
-
-            @media (prefers-color-scheme: dark) {
-                html:not([data-theme]) .webmaven-app-container,
-                html[data-theme="system"] .webmaven-app-container {
-                    background: #0E0F13;
-                }
-                html:not([data-theme]) .webmaven-loading,
-                html[data-theme="system"] .webmaven-loading {
-                    --wm-mark-ink: #F4F3F8;
-                    --wm-mark-violet: #8C74FF;
-                    --wm-mark-orange: #FF7A50;
-                    color: #9BA0AF;
-                }
-                html:not([data-theme]) .webmaven-loading-ring,
-                html[data-theme="system"] .webmaven-loading-ring {
-                    border-color: rgba(155, 160, 175, 0.2);
-                    border-top-color: currentColor;
-                }
-            }
-        </style>
-        <?php
-    }
-
     // ── WordPress's own screens ("Advanced") ───────────────────
 
     /**
      * The WordPress screens the current user may open, in this order, each
-     * only with its capability, with WordPress's own translated labels: the
+     * only with its capability, under the names WordPress's menu gives them: the
      * full-screen app hides the admin menu, and these bring it back (the
-     * brand's entry sits near the top of that menu to come back). Orders
+     * brand's entry sits just before Appearance in that menu to come back). Orders
      * follow WooCommerce's storage (HPOS or posts).
      *
      * @return array<int, array{key: string, label: string, url: string}>
@@ -732,24 +615,24 @@ class WebMaven_Admin {
                 && \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
             $add('orders', __('Orders', 'wpmaven'), $hpos ? 'admin.php?page=wc-orders' : 'edit.php?post_type=shop_order');
         }
-        // WordPress's own words for its own screens, in the site's language.
+        // WordPress's screens, under the names its menu gives them.
         if (current_user_can('edit_posts')) {
-            $add('posts', translate('Posts', 'default'), 'edit.php');
+            $add('posts', __('Posts', 'wpmaven'), 'edit.php');
         }
         if (current_user_can('edit_pages')) {
-            $add('pages', translate('Pages', 'default'), 'edit.php?post_type=page');
+            $add('pages', __('Pages', 'wpmaven'), 'edit.php?post_type=page');
         }
         if (current_user_can('upload_files')) {
-            $add('media', translate('Media', 'default'), 'upload.php');
+            $add('media', __('Media', 'wpmaven'), 'upload.php');
         }
         if (current_user_can('switch_themes')) {
-            $add('appearance', translate('Appearance', 'default'), 'themes.php');
+            $add('appearance', __('Appearance', 'wpmaven'), 'themes.php');
         }
         if (current_user_can('activate_plugins')) {
-            $add('plugins', translate('Plugins', 'default'), 'plugins.php');
+            $add('plugins', __('Plugins', 'wpmaven'), 'plugins.php');
         }
         if (current_user_can('manage_options')) {
-            $add('settings', translate('Settings', 'default'), 'options-general.php');
+            $add('settings', __('Settings', 'wpmaven'), 'options-general.php');
         }
         return $links;
     }

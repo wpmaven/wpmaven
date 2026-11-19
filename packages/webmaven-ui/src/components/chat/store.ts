@@ -20,6 +20,7 @@
  *  - never the old `welcome` greeting.
  */
 import { operatorTitle } from '../operator/catalog';
+import { KIT_COPY } from '../../lib/kitCopy';
 import {
   CHAT_TURN_FAILED_TEXT,
   CO_CEO_OPERATOR,
@@ -225,7 +226,7 @@ export function chatTitleOf(options: Pick<CoCeoChatOptions, 'lead' | 'title'>): 
 
 /** The dashboard's line when a message did not reach the team. */
 export function chatSendFailedLine(title: string): string {
-  return `Your message did not reach your ${title}. It is back in the box, so press Send to try again.`;
+  return KIT_COPY.coCeoChat.sendFailed(title);
 }
 
 export const CHAT_NEW_CHAT_FAILED_TEXT = 'A new chat could not be opened just now. Try again in a minute.';
@@ -241,14 +242,14 @@ function sentenceOf(error: unknown): string | null {
  * to a question above, the question is what to do first.
  */
 export function chatBusyReason(state: Pick<CoCeoChatState, 'busy' | 'opening' | 'draft' | 'messages'>, title: string): string | null {
-  if (state.opening) return 'Opening a new chat…';
+  if (state.opening) return KIT_COPY.coCeoChat.opening;
   if (!state.busy) return null;
   if (state.messages.some((m) => m.approval && (m.approval.status === 'waiting' || m.approval.status === 'sending'))) {
-    return `Your ${title} is waiting for your answer above.`;
+    return KIT_COPY.coCeoChat.waitingForYou(title);
   }
   return state.draft.trim()
-    ? `You can send this as soon as your ${title} answers.`
-    : `You can write your next message while your ${title} answers.`;
+    ? KIT_COPY.coCeoChat.sendWhenAnswered(title)
+    : KIT_COPY.coCeoChat.writeWhileAnswering(title);
 }
 
 /**
@@ -941,7 +942,7 @@ export function createCoCeoChatStore(adapter: CoCeoChatAdapter, initialOptions: 
       if (state.conversation?.id !== conversation.id) return false;
       setStatus('waiting');
       localSeq += 1;
-      const line = sentenceOf(err) ?? `Your answer did not reach your ${title()}. Try again.`;
+      const line = sentenceOf(err) ?? KIT_COPY.coCeoChat.answerFailed(title());
       set({ messages: [...state.messages, { id: `error:${localSeq}`, kind: 'error', role: 'system', text: line, operator: null, createdAt: null, metadata: {} }] }, 'append');
       return false;
     }
@@ -1054,6 +1055,6 @@ export function createCoCeoChatStore(adapter: CoCeoChatAdapter, initialOptions: 
 /** The failed answer as an older visit reads it back: its words are no longer in the box, so it offers to put them back. */
 export function chatFailedReplyText(message: ChatMessage, title: string): string {
   if (!message.failed || message.answeredHere) return message.text;
-  const earlier = `Your ${title} could not finish this. Put it back in the box to send it again.`;
+  const earlier = KIT_COPY.coCeoChat.couldNotFinish(title);
   return message.text.startsWith(CHAT_TURN_FAILED_TEXT) ? earlier + message.text.slice(CHAT_TURN_FAILED_TEXT.length) : message.text;
 }

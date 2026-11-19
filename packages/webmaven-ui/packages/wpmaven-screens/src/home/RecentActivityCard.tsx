@@ -18,14 +18,9 @@ import { teamBusiness } from '../team/reads';
 import { openPage } from '../approvals/ReceiptNote';
 import { readRecentActivity, type ActivityItem } from './reads';
 import { SectionProblem, isRefusal, sectionErrorText } from './SectionState';
+import { RECENT_ACTIVITY_COPY } from './recentActivityCopy';
 
-export const RECENT_ACTIVITY_COPY = {
-  title: 'Recent activity',
-  seeAll: 'See all',
-  empty: 'Nothing has happened here yet.',
-  loading: 'Loading the activity',
-  loadFailed: 'The activity could not be loaded. Try again in a minute.',
-};
+export { RECENT_ACTIVITY_COPY } from './recentActivityCopy';
 
 /** How many rows the card shows. */
 export const RECENT_ACTIVITY_ROWS = 5;

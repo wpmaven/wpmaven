@@ -5,7 +5,7 @@ import { openPage } from '../approvals/ReceiptNote';
 import { useSectionSiteShare } from './share';
 import { VISUALLY_HIDDEN, useHomeSectionStyles } from './styles';
 import {
-  checklistShows, milestoneLadder,
+  MILESTONE_COPY, checklistShows, milestoneLadder,
   type MilestoneAction, type MilestoneIcon, type MilestoneInputs, type RungState,
 } from './milestoneLadder';
 
@@ -76,8 +76,10 @@ const ICONS: Record<MilestoneIcon, React.FC<React.SVGProps<SVGSVGElement>>> = {
   promotion: MegaphoneIcon,
 };
 
-/** What a screen reader hears before each rung's name. */
-const SPOKEN: Record<RungState, string> = { done: 'Done: ', current: 'Now: ', next: 'Next: ' };
+/** What a screen reader hears before each rung's name, in the page's language. */
+function spoken(state: RungState): string {
+  return state === 'done' ? MILESTONE_COPY.spokenDone : state === 'current' ? MILESTONE_COPY.spokenNow : MILESTONE_COPY.spokenNext;
+}
 
 export interface MilestoneHandlers {
   /** Opens a page of the dashboard (through the host: the plugin opens its own page, or the dashboard). */
@@ -145,7 +147,7 @@ export const MilestoneChecklist: React.FC<{
   if (loading) {
     return (
       <div aria-busy="true" data-testid="milestone-checklist">
-        <div style={LABEL}>Milestones</div>
+        <div style={LABEL}>{MILESTONE_COPY.title}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} height={40} rounded="md" />)}
         </div>
@@ -164,7 +166,7 @@ export const MilestoneChecklist: React.FC<{
    *  (ShareYourSite's rule). */
   const wordsOf = (a: MilestoneAction): { full: string; short: string } => {
     if (!('share' in a)) return { full: a.label, short: a.short };
-    if (shared.state === 'copied') return { full: 'Copied', short: 'Copied' };
+    if (shared.state === 'copied') return { full: MILESTONE_COPY.copied, short: MILESTONE_COPY.copied };
     return shared.canNative ? { full: a.label, short: a.short } : { full: a.copyLabel, short: a.copyShort };
   };
   const iconOf = (a: MilestoneAction) => ('share' in a && !shared.canNative ? ClipboardDocumentIcon : ICONS[a.icon]);
@@ -175,7 +177,7 @@ export const MilestoneChecklist: React.FC<{
 
   return (
     <div data-testid="milestone-checklist" className="wms-milestones">
-      <div id={labelId} style={LABEL}>Milestones</div>
+      <div id={labelId} style={LABEL}>{MILESTONE_COPY.title}</div>
       <ol aria-labelledby={labelId} style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {rungs.map((r) => {
           const pct = r.count ? Math.round((r.count.value / r.count.target) * 100) : 0;
@@ -193,7 +195,7 @@ export const MilestoneChecklist: React.FC<{
               <CheckCircle done={r.state === 'done'} />
               <div className="wms-ms-main">
                 <span className="wms-ms-name" style={{ fontSize: 'var(--text-data)', fontWeight: 600, color: 'var(--text)' }}>
-                  <span style={VISUALLY_HIDDEN}>{SPOKEN[r.state]}</span>
+                  <span style={VISUALLY_HIDDEN}>{spoken(r.state)}</span>
                   {r.label}
                 </span>
                 {r.count && (
@@ -205,7 +207,7 @@ export const MilestoneChecklist: React.FC<{
                     )}
                     <span
                       role="progressbar"
-                      aria-label={`${r.label}: ${r.count.value} of ${r.count.target}`}
+                      aria-label={MILESTONE_COPY.progress(r.label, r.count.value, r.count.target)}
                       aria-valuemin={0}
                       aria-valuemax={r.count.target}
                       aria-valuenow={r.count.value}

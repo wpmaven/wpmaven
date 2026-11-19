@@ -209,12 +209,12 @@ class WebMaven_Default_Content {
         $translated = function () {
             return [
                 // WordPress's own words, as it wrote them in the site's language.
-                'hello_title' => function_exists('translate') ? translate('Hello world!', 'default') : 'Hello world!',
-                'hello_slug' => function_exists('translate_with_gettext_context') ? translate_with_gettext_context('hello-world', 'Default post slug', 'default') : 'hello-world',
-                'sample_title' => function_exists('translate') ? translate('Sample Page', 'default') : 'Sample Page',
-                'sample_slug' => function_exists('translate') ? translate('sample-page', 'default') : 'sample-page',
-                'privacy_title' => function_exists('translate') ? translate('Privacy Policy', 'default') : 'Privacy Policy',
-                'privacy_slug' => function_exists('translate') ? translate('privacy-policy', 'default') : 'privacy-policy',
+                'hello_title' => function_exists('translate') ? translate('Hello world!', 'default') : 'Hello world!', // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own default content is recognised by WordPress's own translation of its words, which a translation of ours would not match
+                'hello_slug' => function_exists('translate_with_gettext_context') ? translate_with_gettext_context('hello-world', 'Default post slug', 'default') : 'hello-world', // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own default content is recognised by WordPress's own translation of its words, which a translation of ours would not match
+                'sample_title' => function_exists('translate') ? translate('Sample Page', 'default') : 'Sample Page', // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own default content is recognised by WordPress's own translation of its words, which a translation of ours would not match
+                'sample_slug' => function_exists('translate') ? translate('sample-page', 'default') : 'sample-page', // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own default content is recognised by WordPress's own translation of its words, which a translation of ours would not match
+                'privacy_title' => function_exists('translate') ? translate('Privacy Policy', 'default') : 'Privacy Policy', // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own default content is recognised by WordPress's own translation of its words, which a translation of ours would not match
+                'privacy_slug' => function_exists('translate') ? translate('privacy-policy', 'default') : 'privacy-policy', // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own default content is recognised by WordPress's own translation of its words, which a translation of ours would not match
             ];
         };
         $current = $translated();

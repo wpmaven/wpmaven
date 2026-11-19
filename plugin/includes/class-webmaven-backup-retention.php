@@ -1,6 +1,9 @@
 <?php
 /**
- * What stays in the site's backups folder ({uploads}/webmaven-backups).
+ * What stays in the site's backups folder ({uploads}/wpmaven/backups, DIR;
+ * releases before 1.12.0 wrote to {uploads}/webmaven-backups, OLD_DIR, which
+ * is still listed, kept bounded and restored from for one release: every
+ * rule below takes one folder or a list of them).
  *
  * backup_create (WebMaven_Webhook_Actions) writes a full database dump and a
  * zip of every upload there, on the owner's own hosting: left alone, a
@@ -14,7 +17,11 @@
  *  - when the disk clearly has no room for an archive the size of the last
  *    one, the oldest archive goes first, as long as two stay to fall back on
  *    while the new one is written; still no room, and the backup is refused
- *    in plain words (make_room, room_problem).
+ *    in plain words (make_room, room_problem);
+ *  - an archive the caller asks to keep while it writes a new one (`keep`,
+ *    keep_on_request: the one a restore is about to put back, 2026-11-16)
+ *    is never removed by either rule. Nothing asks unless the WPMaven API
+ *    sends it, so a site keeps its newest three as before.
  *
  * Only what backup_create itself names is ever removed: an archive is
  * backup-<Ymd>-<His>.zip (before 2026-09-22) or
@@ -44,6 +51,23 @@ class WebMaven_Backup_Retention {
     /** How many archives stay: the newest ones. */
     const KEEP = 3;
 
+    /** The backups folder under uploads. */
+    const DIR = 'wpmaven/backups';
+
+    /** The folder releases before 1.12.0 wrote to. */
+    const OLD_DIR = 'webmaven-backups';
+
+    /** The folders that hold archives under $uploads_basedir: the backups folder, then the older one. */
+    public static function folders($uploads_basedir) {
+        $base = rtrim((string) $uploads_basedir, '/\\');
+        return [$base . '/' . self::DIR, $base . '/' . self::OLD_DIR];
+    }
+
+    /** One folder or a list of them, as a list. */
+    private static function roots($root) {
+        return array_values(array_filter(is_array($root) ? $root : [$root], 'is_string'));
+    }
+
     /** A staging folder older than this (seconds) was left by a backup that never finished. */
     const STAGE_MAX_AGE = 86400;
 
@@ -58,6 +82,9 @@ class WebMaven_Backup_Retention {
 
     /** Archives that always stay while a new one is written: making room never goes below this. */
     const KEEP_WHILE_WRITING = 2;
+
+    /** Archives a backup_create call may ask to keep while it writes (`keep`), at most. */
+    const MAX_KEEP_ON_REQUEST = 5;
 
     /**
      * Tests stand in for the disk here: a callable given the folder, answering
@@ -121,17 +148,20 @@ class WebMaven_Backup_Retention {
     }
 
     /**
-     * The archives backup_create wrote in $root, newest first: by the stamp
-     * in the name, then by the file's time, then by name.
+     * The archives backup_create wrote in $root (a folder or a list of them),
+     * newest first: by the stamp in the name, then by the file's time, then
+     * by name.
      *
      * @return array<int, array{name: string, path: string, stamp: string, mtime: int}>
      */
     public static function archives($root) {
-        $real = self::real_root($root);
-        if ($real === null) {
-            return [];
+        $archives = [];
+        foreach (self::roots($root) as $one) {
+            $real = self::real_root($one);
+            if ($real !== null) {
+                $archives = array_merge($archives, self::own_entries($real, self::ARCHIVE_RE, false));
+            }
         }
-        $archives = self::own_entries($real, self::ARCHIVE_RE, false);
         usort($archives, function ($a, $b) {
             return strcmp($b['stamp'], $a['stamp']) ?: ($b['mtime'] <=> $a['mtime']) ?: strcmp($b['name'], $a['name']);
         });
@@ -144,14 +174,41 @@ class WebMaven_Backup_Retention {
     }
 
     /**
+     * The archives a backup_create call asks the folder to keep while it
+     * writes (its `keep`): only names backup_create gives an archive, each
+     * once, at most MAX_KEEP_ON_REQUEST. Anything else is dropped, so the
+     * list never names a file of anyone else's or a path.
+     *
+     * @return string[]
+     */
+    public static function keep_on_request($raw) {
+        $names = [];
+        if (!is_array($raw)) {
+            return $names;
+        }
+        foreach ($raw as $name) {
+            if (self::is_archive_name($name) && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+            if (count($names) >= self::MAX_KEEP_ON_REQUEST) {
+                break;
+            }
+        }
+        return $names;
+    }
+
+    /**
      * Keep the newest $keep archives of $root and remove the older ones.
      * $just_written (an archive's file name) always stays, whatever the
-     * clock said. An archive that cannot be removed is logged and listed
-     * under 'failed': the caller's backup is made all the same.
+     * clock said, and so does every archive named in $keep_also (the
+     * caller's keep_on_request), beside the newest ones. An archive that
+     * cannot be removed is logged and listed under 'failed': the caller's
+     * backup is made all the same.
      *
      * @return array{kept: string[], removed: string[], failed: string[]}
      */
-    public static function prune($root, $just_written = null, $keep = self::KEEP) {
+    public static function prune($root, $just_written = null, $keep = self::KEEP, $keep_also = []) {
+        $keep_also = is_array($keep_also) ? $keep_also : [];
         $keep = max(1, (int) $keep);
         $out = ['kept' => [], 'removed' => [], 'failed' => []];
         $archives = self::archives($root);
@@ -167,7 +224,7 @@ class WebMaven_Backup_Retention {
             $archives = array_values($archives);
         }
         foreach ($archives as $i => $archive) {
-            if ($i < $keep) {
+            if ($i < $keep || in_array($archive['name'], $keep_also, true)) {
                 $out['kept'][] = $archive['name'];
                 continue;
             }
@@ -194,13 +251,16 @@ class WebMaven_Backup_Retention {
      */
     public static function sweep_stale_stages($root, $max_age = self::STAGE_MAX_AGE, $now = null) {
         $out = ['removed' => [], 'failed' => []];
-        $real = self::real_root($root);
-        if ($real === null) {
-            return $out;
+        $stages = [];
+        foreach (self::roots($root) as $one) {
+            $real = self::real_root($one);
+            if ($real !== null) {
+                $stages = array_merge($stages, self::own_entries($real, self::STAGE_RE, true));
+            }
         }
         $now = $now === null ? time() : (int) $now;
         $limit = $now - max(0, (int) $max_age);
-        foreach (self::own_entries($real, self::STAGE_RE, true) as $stage) {
+        foreach ($stages as $stage) {
             $named = self::stamp_time($stage['stamp']);
             if ($named === null || $named >= $limit || $stage['mtime'] >= $limit) {
                 continue;
@@ -233,7 +293,7 @@ class WebMaven_Backup_Retention {
             return null;
         }
         if ($free_bytes === null) {
-            $free_bytes = self::free_space($root);
+            $free_bytes = self::free_space(self::roots($root)[0] ?? '');
         }
         if ($free_bytes === false || $free_bytes === null || !is_numeric($free_bytes)) {
             return null;
@@ -257,7 +317,9 @@ class WebMaven_Backup_Retention {
      * back on while the new one is written. The newest is never removed and
      * the folder never goes below two archives here. A site that kept every
      * archive (nothing removed one before 1.4.0) loses its oldest one at a
-     * time, only until there is room.
+     * time, only until there is room. An archive named in $keep_also (the
+     * caller's keep_on_request) is never the one removed: the oldest of the
+     * others goes instead, and with none left the backup is refused.
      *
      * 'problem': null when there is room now (or the server does not tell
      * its free space), else the sentence of room_problem. 'removed': the
@@ -265,7 +327,8 @@ class WebMaven_Backup_Retention {
      *
      * @return array{problem: ?string, removed: string[]}
      */
-    public static function make_room($root) {
+    public static function make_room($root, $keep_also = []) {
+        $keep_also = is_array($keep_also) ? $keep_also : [];
         $removed = [];
         $problem = self::room_problem($root);
         while ($problem !== null) {
@@ -273,7 +336,17 @@ class WebMaven_Backup_Retention {
             if (count($archives) <= self::KEEP_WHILE_WRITING) {
                 break;
             }
-            $oldest = $archives[count($archives) - 1];
+            // The oldest archive the caller did not ask to keep; never the newest.
+            $oldest = null;
+            for ($i = count($archives) - 1; $i >= 1; $i--) {
+                if (!in_array($archives[$i]['name'], $keep_also, true)) {
+                    $oldest = $archives[$i];
+                    break;
+                }
+            }
+            if ($oldest === null) {
+                break;
+            }
             // The path is own_entries': an archive of the folder's own
             // listing, a real file directly inside the folder; the oldest of
             // at least three, so never the newest.

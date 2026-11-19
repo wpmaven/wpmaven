@@ -10,30 +10,46 @@ if (!defined('ABSPATH')) exit;
 require_once __DIR__ . '/class-webmaven-log.php';
 require_once __DIR__ . '/class-webmaven-option-allowlist.php';
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 require_once __DIR__ . '/class-webmaven-hosting.php';
 
 class WebMaven_WordPress_Commands {
 
     /**
-     * Option keys stored RAW, bypassing content sanitization.
-     * - wm_posts_tpl: the designed post-card HTML template. It carries literal
-     *   %%URL%%/%%TITLE%%/%%IMG%% tokens that kses would mangle (a token inside
-     *   href is not a valid URL); the theme escapes every token at render time.
-     * - wm_posts_imgs: array of image URLs — each is passed through
+     * Option keys whose value is not text but a design's own data.
+     * - webmaven_posts_tpl: the designed post-card HTML template, cleaned like
+     *   a designed page's markup (sanitize_llm_content). Its literal
+     *   %%URL%%/%%TITLE%%/%%IMG%% tokens hold no protocol, so kses keeps them
+     *   in href and src, and the theme escapes every token at render time.
+     * - webmaven_posts_imgs: array of image URLs — each is passed through
      *   esc_url_raw and the list is stored JSON-encoded.
      */
-    const RAW_OPTION_KEYS = ['wm_posts_tpl', 'wm_posts_imgs'];
+    const RAW_OPTION_KEYS = ['webmaven_posts_tpl', 'webmaven_posts_imgs'];
 
     /**
-     * webhook_* actions execute_command's convention bridge never reaches.
-     * A restore imports whatever archive its gcsPath names; only the API's
-     * top-level backup_restore, from a Backup row it created, may run it.
+     * The webhook actions execute_command also answers, by the same name
+     * (WebMaven_Webhook_Actions::webhook_<name>). An explicit list: a new
+     * action is never reachable through execute_command until it is named
+     * here. Restoring a backup, the site's addresses and the build's
+     * finalization are never on it (they answer REQUIRES_AGENT).
      */
-    const BRIDGE_EXCLUDED_COMMANDS = ['backup_restore'];
+    const ACTION_COMMANDS = [
+        'get_post_full', 'get_content_summary', 'get_global_styles', 'get_post_revisions',
+        'update_theme_option', 'test_functionality', 'discover_plugin_details',
+        'create_page', 'upload_media', 'cleanup_default_content', 'set_site_identity',
+        'woocommerce_is_active', 'woocommerce_get_currency', 'woocommerce_create_product', 'woocommerce_list_products',
+        'create_coupon', 'create_form', 'gift_cards_status', 'gift_cards_create_product',
+        'backup_create', 'backup_list',
+    ];
+
+    /** The post types create_post writes (the list is filterable: webmaven_post_type_allowed). */
+    const POST_TYPES = ['post', 'page', 'product'];
+
+    /**
+     * WPMaven's own post meta that update_post may set besides the SEO
+     * plugins' (WebMaven_SEO_Fields): never another plugin's data, such as a
+     * page builder's layout.
+     */
+    const POST_META_KEYS = ['_webmaven_meta_description', '_webmaven_fullhtml', '_webmaven_page', '_yoast_wpseo_focuskw'];
 
     /** @var WebMaven_Webhook_Actions|null Injected so execute_command can delegate to webhook_<name> actions */
     private $webhook_actions = null;
@@ -47,17 +63,167 @@ class WebMaven_WordPress_Commands {
 
     /**
      * Prepare the stored value for a RAW option key (see RAW_OPTION_KEYS).
-     * wm_posts_tpl is stored as the raw string; wm_posts_imgs is stored as a
-     * JSON-encoded array of esc_url_raw-sanitized URLs.
+     * webmaven_posts_tpl is stored as designed markup cleaned by
+     * sanitize_llm_content; webmaven_posts_imgs is stored as a JSON-encoded
+     * array of esc_url_raw-sanitized URLs.
      */
     public static function prepare_raw_option_value($option, $value) {
-        if ($option === 'wm_posts_imgs') {
-            return wp_json_encode(array_map('esc_url_raw', (array) $value));
+        if ($option === 'webmaven_posts_imgs') {
+            $urls = [];
+            foreach ((array) $value as $url) {
+                if (is_scalar($url)) {
+                    $urls[] = esc_url_raw((string) $url);
+                }
+            }
+            return wp_json_encode($urls);
         }
-        return (string) $value;
+        return (new self())->sanitize_llm_content(is_scalar($value) ? (string) $value : '');
+    }
+
+    /**
+     * An option value cleaned for the option it is written to, one of the
+     * options WebMaven_Option_Allowlist lets WPMaven change (names matched as
+     * that list matches them: case-insensitive, trimmed). WooCommerce's price
+     * separators and privacy texts get WooCommerce's own cleaning
+     * (wp_kses_post: a separator may be a space, a privacy text may hold a
+     * link); the store's sender address sanitize_email; the structured data
+     * and the site details' registry are JSON, cleaned by shape; the site
+     * details and the summary may span lines. A name off the list is written
+     * only where the list is widened (webmaven_option_allowed), and its value
+     * is then written as given, as WebMaven_Option_Allowlist::theme_mod_value
+     * does.
+     */
+    public static function clean_option_value($option, $value) {
+        $name = is_scalar($option) ? strtolower(trim((string) $option)) : '';
+        if (in_array($name, self::RAW_OPTION_KEYS, true)) {
+            return self::prepare_raw_option_value($name, $value);
+        }
+        switch ($name) {
+            case 'woocommerce_price_thousand_sep':
+            case 'woocommerce_price_decimal_sep':
+            case 'woocommerce_checkout_privacy_policy_text':
+            case 'woocommerce_registration_privacy_policy_text':
+                return is_scalar($value) ? wp_kses_post((string) $value) : '';
+            case 'woocommerce_email_from_address':
+                return is_scalar($value) ? sanitize_email((string) $value) : '';
+            case 'webmaven_structured_data':
+            case 'webmaven_var_registry':
+                return self::clean_json_text($value);
+        }
+        if ($name === 'webmaven_llms_summary' || preg_match('/^webmaven_(?:var|biz)_/', $name)) {
+            return self::clean_value($value, true);
+        }
+        $listed = in_array($name, WebMaven_Option_Allowlist::CORE, true)
+            || in_array($name, WebMaven_Option_Allowlist::STORE, true)
+            || (class_exists('WebMaven_Self_Protect') && WebMaven_Self_Protect::is_content_option($name));
+        return $listed ? self::clean_value($value) : $value;
+    }
+
+    /**
+     * A value from a call cleaned leaf by leaf: text through
+     * sanitize_text_field, or sanitize_textarea_field when it may span lines;
+     * a value that is only a web address through esc_url_raw, which keeps the
+     * percent-encoded characters sanitize_text_field drops; a list element by
+     * element, its keys as text. Numbers, booleans and null pass as they are.
+     */
+    public static function clean_value($value, $multiline = false) {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $key => $item) {
+                $out[is_string($key) ? sanitize_text_field($key) : $key] = self::clean_value($item, $multiline);
+            }
+            return $out;
+        }
+        if (is_string($value)) {
+            if (preg_match('#^https?://\S+$#i', $value)) {
+                return esc_url_raw($value);
+            }
+            return $multiline ? sanitize_textarea_field($value) : sanitize_text_field($value);
+        }
+        if (is_int($value) || is_float($value) || is_bool($value) || $value === null) {
+            return $value;
+        }
+        return '';
+    }
+
+    /**
+     * A JSON text (the structured data, the site details' registry) cleaned
+     * by its shape, each leaf with clean_value. A text with nothing to clean
+     * is kept as it was sent, byte for byte; other text is cleaned as text.
+     */
+    private static function clean_json_text($value) {
+        if (!is_string($value)) {
+            return self::clean_value($value, true);
+        }
+        $data = json_decode($value, true);
+        if (!is_array($data)) {
+            return sanitize_textarea_field($value);
+        }
+        $clean = self::clean_value($data, true);
+        return $clean === $data ? $value : wp_json_encode($clean);
+    }
+
+    /**
+     * A query argument from a call: one word, or a list of words, each
+     * cleaned with $clean. sanitize_text_field by default, which keeps the
+     * case and the punctuation WordPress's query words use (comment_ID,
+     * id=>parent, image/png).
+     */
+    private static function query_arg($value, $clean = 'sanitize_text_field') {
+        if (is_array($value)) {
+            $out = [];
+            foreach ($value as $key => $item) {
+                $out[is_string($key) ? sanitize_text_field($key) : $key] = is_scalar($item) ? $clean((string) $item) : '';
+            }
+            return $out;
+        }
+        return is_scalar($value) ? $clean((string) $value) : '';
+    }
+
+    /** What get_users answers for each user: no email address, no password or key. */
+    const LISTED_USER_FIELDS = ['ID', 'user_login', 'display_name', 'user_registered', 'roles'];
+
+    /** The statuses a remote call may give a post, a page or a product: WordPress's own. */
+    const WRITE_STATUSES = ['publish', 'draft', 'pending', 'private', 'future'];
+
+    /** The statuses a remote call may list by: those, the bin, attachments' and every status. */
+    const READ_STATUSES = ['publish', 'draft', 'pending', 'private', 'future', 'trash', 'inherit', 'any'];
+
+    /**
+     * A post status a remote call sent, as one of $allowed: an unknown one
+     * (another plugin's status, or a WordPress internal one such as
+     * auto-draft) refuses the call. A list, for a query only
+     * (READ_STATUSES), keeps its known statuses, and refuses the call when
+     * none is known; a write takes one status.
+     */
+    public static function remote_post_status($value, array $allowed) {
+        if (is_array($value) && $allowed !== self::READ_STATUSES) {
+            throw new \Exception('A status is one word: ' . implode(', ', $allowed) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
+        }
+        if (is_array($value)) {
+            $known = [];
+            foreach ($value as $item) {
+                $item = is_scalar($item) ? sanitize_key((string) $item) : '';
+                if (in_array($item, $allowed, true) && !in_array($item, $known, true)) {
+                    $known[] = $item;
+                }
+            }
+            if (!$known) {
+                throw new \Exception('None of these statuses is one WPMaven uses: ' . implode(', ', $allowed) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
+            }
+            return $known;
+        }
+        $status = is_scalar($value) ? sanitize_key((string) $value) : '';
+        if (!in_array($status, $allowed, true)) {
+            throw new \Exception('The status "' . $status . '" is not one WPMaven uses: ' . implode(', ', $allowed) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
+        }
+        return $status;
     }
 
     public function execute_command($command, $args) {
+        // A command is a name: switch compares loosely, and a JSON true would
+        // match the first case.
+        $command = is_string($command) ? $command : '';
         switch ($command) {
             // Post operations
             case 'create_post':
@@ -91,11 +257,11 @@ class WebMaven_WordPress_Commands {
             case 'set_featured_image':
                 return $this->set_featured_image_command($args);
 
-            // User operations (creating or changing a user is WPMaven Agent's)
+            // Users: read only (this edition creates and changes none)
             case 'get_users':
                 return $this->get_users($args);
                 
-            // Plugin operations (installing and switching plugins is WPMaven Agent's)
+            // Plugins: read only (this edition installs and switches none)
             case 'get_plugins':
                 return $this->get_plugins($args);
                 
@@ -117,14 +283,12 @@ class WebMaven_WordPress_Commands {
             case 'wp_delete_option':
                 return $this->delete_option($args);
 
-            // Batch option operations (for plugin post-install configuration)
+            // Several options at once, each checked as update_option checks it
             case 'batch_update_options':
             case 'wp_batch_update_options':
                 return $this->batch_update_options($args);
 
-            // Media operations
-            case 'upload_file':
-                return $this->upload_file_command($args);
+            // Media operations (uploading goes through upload_media)
             case 'delete_file':
                 return $this->delete_file($args);
             case 'get_files':
@@ -135,16 +299,8 @@ class WebMaven_WordPress_Commands {
                 return $this->get_system_info($args);
             case 'clear_cache':
                 return $this->clear_cache($args);
-            case 'optimize_database':
-                return $this->optimize_database($args);
-            case 'backup_database':
-                return $this->backup_database($args);
-            case 'restore_database':
-                return $this->restore_database($args);
-            case 'update_core':
-                return $this->update_core($args);
                 
-            // Theme operations (installing and switching themes is WPMaven Agent's)
+            // Themes: read only (this edition installs and switches none)
             case 'get_themes':
             case 'wp_get_themes':
                 return $this->wp_get_themes($args);
@@ -163,7 +319,7 @@ class WebMaven_WordPress_Commands {
             case 'get_menus':
                 return $this->get_menus($args);
                 
-            // Widget operations (a widget's HTML is WPMaven Agent's to write)
+            // Widgets: read and delete (this edition writes no widget HTML)
             case 'delete_widget':
                 return $this->delete_widget($args);
             case 'get_widgets':
@@ -176,32 +332,29 @@ class WebMaven_WordPress_Commands {
                 return $this->get_theme_options($args);
                 
             default:
-                // Convention bridge: delegate to any webhook_<command> action
-                // before the REST fallback. Native cases above always win;
-                // 'execute_command' is blocked case-insensitively (method
-                // dispatch is case-insensitive too) to avoid self-recursion.
-                // backup_restore is not reachable this way (2026-09-22): a
-                // restore imports whatever archive its gcsPath names, so it
-                // runs only as the top-level action the API sends from a
-                // Backup row it created.
-                if (in_array(strtolower($command), self::BRIDGE_EXCLUDED_COMMANDS, true)) {
-                    throw new Exception('The command ' . $command . ' is not available through execute_command. Restores go through the backup tools, from a backup WPMaven created.');
-                }
-                if (strtolower($command) !== 'execute_command' && $this->webhook_actions && method_exists($this->webhook_actions, 'webhook_' . $command)) {
+                $command = is_string($command) ? sanitize_text_field($command) : '';
+                // The webhook actions this command also answers, by name and
+                // only those (ACTION_COMMANDS). A restore is never one of them.
+                if (in_array($command, self::ACTION_COMMANDS, true) && $this->webhook_actions && method_exists($this->webhook_actions, 'webhook_' . $command)) {
                     return $this->webhook_actions->{'webhook_' . $command}($args);
                 }
-                // WPMaven Agent's commands, when Agent is here.
+                if (strtolower($command) === 'backup_restore') {
+                    throw new Exception('The command ' . $command . ' is not available through execute_command. Restores go through the backup tools, from a backup WPMaven created.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
+                }
+                // Commands another plugin registered (webmaven_command_handlers).
                 $handlers = self::command_handlers();
                 if (isset($handlers[$command])) {
                     return call_user_func($handlers[$command], $args);
                 }
-                // WPMaven Agent maps any other command to the site's REST API.
+                // A command no handler took: another plugin may answer it
+                // (webmaven_command_fallback). Otherwise this edition does
+                // not run it (REQUIRES_AGENT), or the name is unknown.
                 $answer = apply_filters('webmaven_command_fallback', null, $command, $args);
                 if ($answer !== null) {
                     return $answer;
                 }
                 WebMaven_Requires_Agent::check($command);
-                throw new Exception('Unknown command: ' . $command);
+                throw new Exception('Unknown command: ' . $command); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
     }
 
@@ -330,9 +483,10 @@ class WebMaven_WordPress_Commands {
             $content
         );
 
-        // Extract <script> blocks before wp_kses (it strips them entirely).
-        // Unlike styles, scripts are NOT re-inserted inline — they get saved as
-        // separate .js files and enqueued via wp_enqueue_scripts.
+        // Take out the inline <script> blocks before wp_kses (it would strip
+        // them anyway). Unlike styles, they are never put back: the page is
+        // saved without them, and they are handed to the
+        // webmaven_page_scripts action once the page is saved.
         $script_blocks = [];
         $content = preg_replace_callback(
             '/<script\b([^>]*)>(.*?)<\/script>/si',
@@ -342,7 +496,7 @@ class WebMaven_WordPress_Commands {
                 $js = trim($match[2]);
                 if ($js === '') return '';
                 $script_blocks[] = $js;
-                return ''; // Remove from content — scripts go to files
+                return ''; // Removed from the content
             },
             $content
         );
@@ -381,6 +535,10 @@ class WebMaven_WordPress_Commands {
             case 'create_page':
             case 'create_post':
                 $key_parts[] = $params['slug'] ?? $params['title'] ?? '';
+                // The same address word in another language is another page.
+                if (!empty($params['lang']) && is_string($params['lang'])) {
+                    $key_parts[] = 'lang:' . $params['lang'];
+                }
                 // Upsert exists to re-apply changed content onto the same slug —
                 // fingerprint it so the 15-min replay cache doesn't mask the
                 // second apply. Non-upsert keys are unchanged.
@@ -419,6 +577,20 @@ class WebMaven_WordPress_Commands {
     }
 
     /**
+     * A page (or a post) by its address: WordPress's get_page_by_path, except
+     * where an add-on answers (a site in several languages, where several
+     * pages share an address word: then the page of $lang, the main language
+     * by default, never another language's).
+     */
+    private static function page_by_path($path, $output = OBJECT, $post_type = 'page', $lang = '') {
+        $found = apply_filters('webmaven_page_by_path', false, (string) $path, (string) $output, $post_type, (string) $lang);
+        if ($found !== false) {
+            return $found;
+        }
+        return get_page_by_path($path, $output, $post_type);
+    }
+
+    /**
      * IDs of the pages WooCommerce is assigned to (cart, checkout, my account,
      * shop, terms). Read from WooCommerce's page options even while
      * WooCommerce is inactive, so re-activating it finds its pages intact.
@@ -436,12 +608,27 @@ class WebMaven_WordPress_Commands {
         return array_values(array_unique($ids));
     }
 
+    /** Whether create_post may write this post type: posts, pages and products (filterable: webmaven_post_type_allowed). */
+    public static function post_type_allowed($type): bool {
+        if (!is_string($type) || $type === '') {
+            return false;
+        }
+        return in_array($type, self::POST_TYPES, true)
+            || (function_exists('apply_filters') && (bool) apply_filters('webmaven_post_type_allowed', false, $type));
+    }
+
     public function create_post($args) {
+        $post_type = isset($args['post_type']) && is_string($args['post_type']) && $args['post_type'] !== '' ? sanitize_key($args['post_type']) : 'post';
+        // Templates, global styles and custom CSS are the theme's: only posts,
+        // pages and products are written here.
+        if (!self::post_type_allowed($post_type)) {
+            throw new WebMaven_Requires_Agent('Creating a "' . sanitize_key($post_type) . '" needs WPMaven Agent: WPMaven from WordPress.org creates posts, pages and products only. The owner can install WPMaven Agent from their WPMaven dashboard.');
+        }
         $post_data = [
-            'post_title' => $args['title'] ?? 'New Post',
-            'post_content' => $this->sanitize_llm_content($args['content'] ?? ''),
-            'post_status' => $args['status'] ?? 'draft',
-            'post_type' => $args['post_type'] ?? 'post'
+            'post_title' => sanitize_text_field($args['title'] ?? 'New Post'),
+            'post_content' => $this->sanitize_llm_content(isset($args['content']) && is_scalar($args['content']) ? (string) $args['content'] : ''),
+            'post_status' => self::remote_post_status($args['status'] ?? 'draft', self::WRITE_STATUSES),
+            'post_type' => $post_type
         ];
 
         // Original dates (1.2.6, site migration): `date` is the site's local
@@ -468,14 +655,14 @@ class WebMaven_WordPress_Commands {
 
         // Include slug/post_name if provided
         if (isset($args['post_name'])) {
-            $post_data['post_name'] = sanitize_title($args['post_name']);
+            $post_data['post_name'] = is_scalar($args['post_name']) ? sanitize_title((string) $args['post_name']) : '';
         } elseif (isset($args['slug'])) {
-            $post_data['post_name'] = sanitize_title($args['slug']);
+            $post_data['post_name'] = is_scalar($args['slug']) ? sanitize_title((string) $args['slug']) : '';
         }
 
-        // Include excerpt if provided
+        // Include excerpt if provided (plain text, which may span lines)
         if (isset($args['excerpt'])) {
-            $post_data['post_excerpt'] = $args['excerpt'];
+            $post_data['post_excerpt'] = sanitize_textarea_field($args['excerpt']);
         }
 
         // Include parent if provided
@@ -485,7 +672,7 @@ class WebMaven_WordPress_Commands {
 
         // Include page template if provided
         if (isset($args['page_template'])) {
-            $post_data['page_template'] = $args['page_template'];
+            $post_data['page_template'] = sanitize_text_field($args['page_template']);
         }
 
         // Include menu order if provided
@@ -497,7 +684,7 @@ class WebMaven_WordPress_Commands {
         if (!empty($args['categories'])) {
             $cat_ids = [];
             foreach ((array) $args['categories'] as $cat_name) {
-                $cat_name = trim($cat_name);
+                $cat_name = sanitize_text_field($cat_name);
                 if (empty($cat_name)) continue;
                 $term = term_exists($cat_name, 'category');
                 if (!$term) {
@@ -514,8 +701,14 @@ class WebMaven_WordPress_Commands {
 
         // Handle tags — wp_insert_post auto-creates missing tags
         if (!empty($args['tags'])) {
-            $post_data['tags_input'] = array_map('trim', (array) $args['tags']);
+            $post_data['tags_input'] = array_map('sanitize_text_field', (array) $args['tags']);
         }
+
+        // A site in several languages (an add-on answers): the language this
+        // page or post is written in ('' for the main language). Its upsert
+        // finds the page of that language at the address, never another
+        // language's. Otherwise: '' and nothing changes.
+        $lang = (string) apply_filters('webmaven_post_language', '', $args);
 
         // Upsert-by-slug (opt-in): when the slug is already taken by a post of
         // the same type, update that post in place instead of letting WordPress
@@ -534,7 +727,7 @@ class WebMaven_WordPress_Commands {
         // A new design for a site the owner runs ("New design, keep my
         // content", 2026-10-10): every designed page is a CANDIDATE, a draft
         // under <slug>-wpmaven that nobody sees until the design switch
-        // publishes it at the owner's address (WPMaven Agent's design switch). A run
+        // publishes it at the owner's address (a switch this edition does not run). A run
         // again updates its own draft; the owner's page at the slug, and any
         // page with the same title, are never read or touched here.
         $candidate = $upsert && !empty($args['candidate']);
@@ -544,7 +737,7 @@ class WebMaven_WordPress_Commands {
         $left_alone = null;
         $upsert_updated = false;
         // The planned page this content is (its slug in the site plan), kept
-        // as _wm_page so the theme finds the page's styles wherever the page
+        // as _webmaven_page so the theme finds the page's styles wherever the page
         // lives, and so a later build knows which page is which.
         $wm_page = isset($args['wm_page']) && is_string($args['wm_page']) ? sanitize_title($args['wm_page']) : '';
         // A publish run again after a partial one says when it last wrote
@@ -555,7 +748,7 @@ class WebMaven_WordPress_Commands {
         if ($candidate && !empty($post_data['post_name'])) {
             $post_data['post_name'] .= self::branded_site() ? '-new' : '-wpmaven';
             $post_data['post_status'] = 'draft';
-            $ours = get_page_by_path($post_data['post_name'], OBJECT, $post_data['post_type']);
+            $ours = self::page_by_path($post_data['post_name'], OBJECT, $post_data['post_type'], $lang);
             if ($ours && WebMaven_AI_Marking::is_ai_generated($ours->ID)) {
                 $post_data['ID'] = $ours->ID;
                 $upsert_updated = true;
@@ -564,7 +757,7 @@ class WebMaven_WordPress_Commands {
                 $post_data['post_name'] .= '-2';
             }
         } elseif ($upsert && !empty($post_data['post_name'])) {
-            $existing = get_page_by_path($post_data['post_name'], OBJECT, $post_data['post_type']);
+            $existing = self::page_by_path($post_data['post_name'], OBJECT, $post_data['post_type'], $lang);
             // WooCommerce's own pages (cart, checkout, my account, shop, terms)
             // are never overwritten or deleted: a generated page that happens
             // to share the slug is created as a new page instead (WordPress
@@ -611,7 +804,7 @@ class WebMaven_WordPress_Commands {
                     $post_data['post_name'] .= self::branded_site() ? '-new' : '-wpmaven';
                     $post_data['post_status'] = 'draft';
                     // Our own draft from an earlier run of the build is updated in place.
-                    $ours = get_page_by_path($post_data['post_name'], OBJECT, $post_data['post_type']);
+                    $ours = self::page_by_path($post_data['post_name'], OBJECT, $post_data['post_type'], $lang);
                     $existing = ($ours && WebMaven_AI_Marking::is_ai_generated($ours->ID)) ? $ours : null;
                 }
             }
@@ -639,10 +832,18 @@ class WebMaven_WordPress_Commands {
         // WordPress unslashes what it is given, so the data is slashed: a
         // backslash in the content (a css escape, a path) is kept, as the
         // edit engine's rewrite_fullhtml_page keeps it.
-        $post_id = wp_insert_post(wp_slash($post_data));
+        do_action('webmaven_post_save_start', $lang);
+        try {
+            $post_id = wp_insert_post(wp_slash($post_data));
+        } finally {
+            do_action('webmaven_post_save_end');
+        }
+        if ($lang !== '' && !is_wp_error($post_id) && (int) $post_id > 0) {
+            do_action('webmaven_post_language_saved', (int) $post_id, $lang);
+        }
 
         if (is_wp_error($post_id)) {
-            throw new Exception('Failed to create post: ' . $post_id->get_error_message());
+            throw new Exception('Failed to create post: ' . $post_id->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // Mark as WebMaven-generated full-HTML content. The generated theme reads
@@ -669,10 +870,11 @@ class WebMaven_WordPress_Commands {
             delete_post_meta($post_id, WebMaven_AI_Marking::META_KEY);
         }
         if ($wm_page !== '') {
-            update_post_meta($post_id, '_wm_page', $wm_page);
+            update_post_meta($post_id, '_webmaven_page', $wm_page);
         }
 
-        // Save extracted LLM scripts as a page-specific .js file
+        // The inline scripts taken out of the content (sanitize_llm_content),
+        // for webmaven_page_scripts. This edition keeps none of them.
         if (!empty($this->_extracted_scripts)) {
             do_action('webmaven_page_scripts', (int) $post_id, $this->_extracted_scripts);
             $this->_extracted_scripts = [];
@@ -686,7 +888,8 @@ class WebMaven_WordPress_Commands {
             require_once ABSPATH . 'wp-admin/includes/media.php';
             require_once ABSPATH . 'wp-admin/includes/file.php';
             require_once ABSPATH . 'wp-admin/includes/image.php';
-            $attachment_id = media_sideload_image($args['featured_image_url'], $post_id, '', 'id');
+            $image_url = is_scalar($args['featured_image_url']) ? esc_url_raw((string) $args['featured_image_url']) : '';
+            $attachment_id = media_sideload_image($image_url, $post_id, '', 'id');
             if (!is_wp_error($attachment_id)) {
                 set_post_thumbnail($post_id, $attachment_id);
             }
@@ -765,7 +968,7 @@ class WebMaven_WordPress_Commands {
         $parsed = is_string($value) ? \DateTime::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC')) : false;
         if (!$parsed || $parsed->format('Y-m-d H:i:s') !== $value || (int) $parsed->format('Y') < 1000) {
             $shown = is_scalar($value) ? (string) $value : gettype($value);
-            throw new Exception("Invalid {$key} '{$shown}': expected a real date and time as 'Y-m-d H:i:s'" . ($key === 'date' ? ' in the site timezone' : ' in UTC'));
+            throw new Exception("Invalid {$key} '{$shown}': expected a real date and time as 'Y-m-d H:i:s'" . ($key === 'date' ? ' in the site timezone' : ' in UTC')); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }
@@ -785,7 +988,7 @@ class WebMaven_WordPress_Commands {
     /**
      * Rewrite a page's content in place the way create_post writes a
      * full-HTML page: sanitize_llm_content (the same kses allowlist, inline
-     * scripts moved to the page's script file), the _webmaven_fullhtml flag
+     * scripts taken out), the _webmaven_fullhtml flag
      * and the AI marker. Status, slug and dates stay as they are. The content
      * is slashed for wp_update_post, so a backslash in it is kept. Used by
      * the edit engine's wm_page_update (capabilities/edit-operations.php).
@@ -819,35 +1022,37 @@ class WebMaven_WordPress_Commands {
 
         update_post_meta($post_id, '_webmaven_fullhtml', 1);
         WebMaven_AI_Marking::mark_post($post_id);
-        // The page's script file follows its content: written when the new
-        // content has inline scripts, removed when it has none (WPMaven
-        // Agent's; without it the scripts are left out).
+        // The inline scripts taken out of the new content, for
+        // webmaven_page_scripts. This edition keeps none of them.
         do_action('webmaven_page_scripts', $post_id, $scripts);
         return $post_id;
     }
 
     public function update_post($args) {
-        if (!isset($args['id'])) {
+        $id = isset($args['id']) && is_scalar($args['id']) ? (int) $args['id'] : 0;
+        if ($id <= 0) {
             throw new Exception('Post ID is required for update');
         }
-        $this->refuse_owners_post_if_protected($args, $args['id'], 'edit');
+        $this->refuse_owners_post_if_protected($args, $id, 'edit');
 
-        $post_data = ['ID' => $args['id']];
+        $post_data = ['ID' => $id];
 
-        if (isset($args['title'])) $post_data['post_title'] = $args['title'];
-        if (isset($args['content'])) $post_data['post_content'] = $this->sanitize_llm_content($args['content'] ?? '');
-        if (isset($args['status'])) $post_data['post_status'] = $args['status'];
-        if (isset($args['excerpt'])) $post_data['post_excerpt'] = $args['excerpt'];
+        if (isset($args['title'])) $post_data['post_title'] = sanitize_text_field($args['title']);
+        if (isset($args['content'])) $post_data['post_content'] = $this->sanitize_llm_content(is_scalar($args['content']) ? (string) $args['content'] : '');
+        if (isset($args['status'])) $post_data['post_status'] = self::remote_post_status($args['status'], self::WRITE_STATUSES);
+        if (isset($args['excerpt'])) $post_data['post_excerpt'] = sanitize_textarea_field($args['excerpt']);
 
-        // Meta input (custom fields, Yoast, etc.)
+        // Meta input: WPMaven's own fields and the SEO plugins' only, never
+        // another plugin's data (a page builder's layout, a form's settings).
+        $meta_refused = [];
         if (!empty($args['meta_input']) && is_array($args['meta_input'])) {
-            $post_data['meta_input'] = $args['meta_input'];
+            $post_data['meta_input'] = self::clean_post_meta(self::allowed_post_meta($args['meta_input'], $meta_refused));
         }
 
         $post_id = wp_update_post(wp_slash($post_data));
 
         if (is_wp_error($post_id)) {
-            throw new Exception('Failed to update post: ' . $post_id->get_error_message());
+            throw new Exception('Failed to update post: ' . $post_id->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // Keep the full-HTML flag in sync when content is (re)written, so edited
@@ -858,51 +1063,97 @@ class WebMaven_WordPress_Commands {
             WebMaven_AI_Marking::mark_post($post_id);
         }
 
-        // Save extracted LLM scripts as a page-specific .js file
+        // The inline scripts taken out of the content (sanitize_llm_content),
+        // for webmaven_page_scripts. This edition keeps none of them.
         if (!empty($this->_extracted_scripts)) {
             do_action('webmaven_page_scripts', (int) $post_id, $this->_extracted_scripts);
             $this->_extracted_scripts = [];
         }
 
-        // Update individual meta fields if provided separately
+        // Update individual meta fields if provided separately (the same keys).
         if (!empty($args['meta']) && is_array($args['meta'])) {
-            foreach ($args['meta'] as $key => $value) {
-                update_post_meta($post_id, sanitize_key($key), sanitize_text_field($value));
+            foreach (self::allowed_post_meta($args['meta'], $meta_refused) as $key => $value) {
+                update_post_meta($post_id, $key, is_scalar($value) ? sanitize_text_field((string) $value) : '');
             }
         }
 
-        return [
+        $out = [
             'post_id' => $post_id,
             'post_url' => get_permalink($post_id),
             'edit_url' => get_edit_post_link($post_id)
         ];
+        // Only when a field was left out, so every other answer keeps its shape.
+        if ($meta_refused) {
+            $out['meta_refused'] = array_values(array_unique($meta_refused));
+        }
+        return $out;
+    }
+
+    /**
+     * The meta fields update_post may write (POST_META_KEYS and the SEO
+     * plugins' fields), the others named in $refused. The list is filterable
+     * (webmaven_post_meta_allowed).
+     */
+    /**
+     * The values of meta fields allowed_post_meta let through, cleaned: those
+     * of WPMaven's own and the SEO plugins' fields with clean_value (a share
+     * image address stays an address). A field the filter adds is written as
+     * given.
+     */
+    private static function clean_post_meta(array $meta): array {
+        $seo = class_exists('WebMaven_SEO_Fields') ? WebMaven_SEO_Fields::meta_keys() : [];
+        foreach ($meta as $key => $value) {
+            if (in_array($key, self::POST_META_KEYS, true) || in_array($key, $seo, true)) {
+                $meta[$key] = self::clean_value($value);
+            }
+        }
+        return $meta;
+    }
+
+    public static function allowed_post_meta(array $meta, array &$refused): array {
+        $seo = class_exists('WebMaven_SEO_Fields') ? WebMaven_SEO_Fields::meta_keys() : [];
+        $out = [];
+        foreach ($meta as $key => $value) {
+            $key = is_string($key) ? $key : '';
+            if ($key === '') {
+                continue;
+            }
+            if (in_array($key, self::POST_META_KEYS, true) || in_array($key, $seo, true)
+                || (function_exists('apply_filters') && (bool) apply_filters('webmaven_post_meta_allowed', false, $key))) {
+                $out[$key] = $value;
+            } else {
+                $refused[] = $key;
+            }
+        }
+        return $out;
     }
 
     public function delete_post($args) {
-        if (!isset($args['id'])) {
+        $id = isset($args['id']) && is_scalar($args['id']) ? (int) $args['id'] : 0;
+        if ($id <= 0) {
             throw new Exception('Post ID is required for deletion');
         }
-        $this->refuse_owners_post_if_protected($args, $args['id'], 'delete');
+        $this->refuse_owners_post_if_protected($args, $id, 'delete');
 
-        $result = wp_delete_post($args['id'], $args['force'] ?? false);
+        $result = wp_delete_post($id, !empty($args['force']) && rest_sanitize_boolean($args['force']));
         
         if (!$result) {
             throw new Exception('Failed to delete post');
         }
         
-        return ['deleted' => true, 'post_id' => $args['id']];
+        return ['deleted' => true, 'post_id' => $id];
     }
     
     public function get_posts($args) {
         $query_args = [
-            'post_type' => $args['post_type'] ?? 'post',
-            'post_status' => $args['status'] ?? 'publish',
-            'numberposts' => $args['number'] ?? 10,
-            'fields' => $args['fields'] ?? 'all'
+            'post_type' => self::query_arg($args['post_type'] ?? 'post', 'sanitize_key'),
+            'post_status' => self::remote_post_status($args['status'] ?? 'publish', self::READ_STATUSES),
+            'numberposts' => intval($args['number'] ?? 10),
+            'fields' => self::query_arg($args['fields'] ?? 'all')
         ];
 
         if (isset($args['date_query'])) {
-            $query_args['date_query'] = $args['date_query'];
+            $query_args['date_query'] = self::clean_value($args['date_query']);
         }
 
         $posts = get_posts($query_args);
@@ -945,32 +1196,33 @@ class WebMaven_WordPress_Commands {
             throw new \Exception('Term name is required');
         }
 
+        $name = sanitize_text_field($args['name']);
         $term_args = [];
         if (!empty($args['description'])) $term_args['description'] = sanitize_text_field($args['description']);
-        if (!empty($args['slug'])) $term_args['slug'] = sanitize_title($args['slug']);
+        if (!empty($args['slug']) && is_scalar($args['slug'])) $term_args['slug'] = sanitize_title((string) $args['slug']);
         if (!empty($args['parent'])) $term_args['parent'] = intval($args['parent']);
 
         // Check if it already exists
-        $existing = term_exists($args['name'], $taxonomy);
+        $existing = term_exists($name, $taxonomy);
         if ($existing) {
             $term_id = is_array($existing) ? $existing['term_id'] : $existing;
             return [
                 'term_id' => (int) $term_id,
-                'name' => $args['name'],
+                'name' => $name,
                 'taxonomy' => $taxonomy,
                 'already_existed' => true,
             ];
         }
 
-        $result = wp_insert_term(sanitize_text_field($args['name']), $taxonomy, $term_args);
+        $result = wp_insert_term($name, $taxonomy, $term_args);
 
         if (is_wp_error($result)) {
-            throw new \Exception($result->get_error_message());
+            throw new \Exception($result->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         return [
             'term_id' => (int) $result['term_id'],
-            'name' => $args['name'],
+            'name' => $name,
             'taxonomy' => $taxonomy,
             'already_existed' => false,
         ];
@@ -980,9 +1232,9 @@ class WebMaven_WordPress_Commands {
         $query_args = [
             'taxonomy' => $taxonomy,
             'hide_empty' => !empty($args['hide_empty']),
-            'number' => $args['number'] ?? 100,
-            'orderby' => $args['orderby'] ?? 'name',
-            'order' => $args['order'] ?? 'ASC',
+            'number' => absint($args['number'] ?? 100),
+            'orderby' => self::query_arg($args['orderby'] ?? 'name'),
+            'order' => self::query_arg($args['order'] ?? 'ASC'),
         ];
 
         if (!empty($args['search'])) {
@@ -992,7 +1244,7 @@ class WebMaven_WordPress_Commands {
         $terms = get_terms($query_args);
 
         if (is_wp_error($terms)) {
-            throw new \Exception($terms->get_error_message());
+            throw new \Exception($terms->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         $result = [];
@@ -1031,9 +1283,10 @@ class WebMaven_WordPress_Commands {
             require_once ABSPATH . 'wp-admin/includes/media.php';
             require_once ABSPATH . 'wp-admin/includes/file.php';
             require_once ABSPATH . 'wp-admin/includes/image.php';
-            $attachment_id = media_sideload_image($args['image_url'], $post_id, '', 'id');
+            $image_url = is_scalar($args['image_url']) ? esc_url_raw((string) $args['image_url']) : '';
+            $attachment_id = media_sideload_image($image_url, $post_id, '', 'id');
             if (is_wp_error($attachment_id)) {
-                throw new \Exception('Failed to download image: ' . $attachment_id->get_error_message());
+                throw new \Exception('Failed to download image: ' . $attachment_id->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $result = set_post_thumbnail($post_id, $attachment_id);
         } else {
@@ -1055,10 +1308,10 @@ class WebMaven_WordPress_Commands {
 
     public function get_comments_command($args) {
         $query_args = [
-            'number' => $args['number'] ?? 20,
-            'status' => $args['status'] ?? 'approve',
-            'orderby' => $args['orderby'] ?? 'comment_date_gmt',
-            'order' => $args['order'] ?? 'DESC',
+            'number' => absint($args['number'] ?? 20),
+            'status' => self::query_arg($args['status'] ?? 'approve', 'sanitize_key'),
+            'orderby' => self::query_arg($args['orderby'] ?? 'comment_date_gmt'),
+            'order' => self::query_arg($args['order'] ?? 'DESC'),
         ];
 
         if (isset($args['post_id'])) {
@@ -1101,7 +1354,8 @@ class WebMaven_WordPress_Commands {
 
         $comment_data = ['comment_ID' => intval($args['comment_id'])];
 
-        if (isset($args['status'])) {
+        $status = isset($args['status']) ? sanitize_key($args['status']) : '';
+        if ($status !== '') {
             $status_map = [
                 'approve' => 1,
                 'approved' => 1,
@@ -1110,7 +1364,7 @@ class WebMaven_WordPress_Commands {
                 'spam' => 'spam',
                 'trash' => 'trash',
             ];
-            $comment_data['comment_approved'] = $status_map[$args['status']] ?? $args['status'];
+            $comment_data['comment_approved'] = $status_map[$status] ?? $status;
         }
         if (isset($args['content'])) {
             $comment_data['comment_content'] = wp_kses_post($args['content']);
@@ -1119,10 +1373,10 @@ class WebMaven_WordPress_Commands {
         $result = wp_update_comment($comment_data);
 
         if (is_wp_error($result)) {
-            throw new \Exception($result->get_error_message());
+            throw new \Exception($result->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        return ['success' => true, 'comment_id' => $args['comment_id']];
+        return ['success' => true, 'comment_id' => $comment_data['comment_ID']];
     }
 
     public function delete_comment_command($args) {
@@ -1130,14 +1384,15 @@ class WebMaven_WordPress_Commands {
             throw new \Exception('comment_id is required');
         }
 
+        $comment_id = intval($args['comment_id']);
         $force = !empty($args['force']);
-        $result = wp_delete_comment(intval($args['comment_id']), $force);
+        $result = wp_delete_comment($comment_id, $force);
 
         if (!$result) {
             throw new \Exception('Failed to delete comment');
         }
 
-        return ['success' => true, 'comment_id' => $args['comment_id']];
+        return ['success' => true, 'comment_id' => $comment_id];
     }
 
     // ===== USER OPERATIONS =====
@@ -1146,12 +1401,12 @@ class WebMaven_WordPress_Commands {
     
     public function get_users($args) {
         // Never return user_pass, user_activation_key or session tokens,
-        // whatever `fields` asks for (2026-09-22, "Users + AI WP-CLI"). Fetch
+        // whatever `fields` asks for (2026-09-22). Fetch
         // full objects so `roles` is available, then project every row through
         // the safe redactor before it can be json_encode'd back to the API.
         $query_args = [
-            'number' => $args['number'] ?? 10,
-            'role' => $args['role'] ?? '',
+            'number' => intval($args['number'] ?? 10),
+            'role' => self::query_arg($args['role'] ?? ''),
             'fields' => 'all',
         ];
 
@@ -1159,8 +1414,15 @@ class WebMaven_WordPress_Commands {
         $safe = array_map(['WebMaven_User_Secrets', 'redact_user'], $users);
 
         // An explicit (safe) fields subset narrows the projection; 'all' or no
-        // fields returns every safe field.
-        $subset = WebMaven_User_Secrets::safe_fields_subset($args['fields'] ?? 'all');
+        // fields returns every listed field. The users' email addresses are
+        // not listed: they stay on the site unless another plugin lists them
+        // (webmaven_listed_user_fields, within the safe fields only).
+        $listed = function_exists('apply_filters') ? apply_filters('webmaven_listed_user_fields', self::LISTED_USER_FIELDS) : self::LISTED_USER_FIELDS;
+        $listed = array_values(array_intersect(WebMaven_User_Secrets::SAFE_USER_FIELDS, is_array($listed) ? $listed : self::LISTED_USER_FIELDS));
+        $subset = array_values(array_intersect(WebMaven_User_Secrets::safe_fields_subset(self::query_arg($args['fields'] ?? 'all')), $listed));
+        if (!$subset) {
+            $subset = $listed;
+        }
         if ($subset !== WebMaven_User_Secrets::SAFE_USER_FIELDS) {
             $safe = array_map(function ($row) use ($subset) {
                 $out = [];
@@ -1263,6 +1525,9 @@ class WebMaven_WordPress_Commands {
     public function update_option($args) {
         // Support both parameter naming conventions
         $option = $args['option'] ?? $args['option_name'] ?? null;
+        // The name as the guards below and WordPress then read it; never
+        // lowercased, since WordPress's own names keep their case (WPLANG).
+        $option = is_scalar($option) ? sanitize_text_field((string) $option) : '';
         $value = $args['value'] ?? $args['option_value'] ?? null;
 
         if (!$option || !isset($value)) {
@@ -1272,29 +1537,26 @@ class WebMaven_WordPress_Commands {
         // Security: the core options that could compromise the site (one
         // list for every option command, see CORE_PROTECTED_OPTIONS).
         if (WebMaven_Self_Protect::is_core_protected_option($option)) {
-            throw new Exception('Cannot modify protected option: ' . $option);
+            throw new Exception('Cannot modify protected option: ' . $option); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // WPMaven's connection and hosting options, and the plugin-state
         // options that keep it active (edge key + primary host: only
         // set_edge_config writes them).
         if (WebMaven_Self_Protect::is_protected_option($option)) {
-            throw new Exception('Cannot modify protected option: ' . $option);
+            throw new Exception('Cannot modify protected option: ' . $option); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // The store currency relabels every price: only the Store currency
         // setting changes it (2026-09-30).
         if (WebMaven_Self_Protect::is_store_currency_option($option)) {
-            throw new Exception(WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL);
+            throw new Exception(WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        // Only the options on WPMaven's list; another plugin's are WPMaven Agent's.
+        // Only the options on WPMaven's list; another plugin's answer REQUIRES_AGENT.
         WebMaven_Option_Allowlist::check($option);
 
-        // RAW keys are stored without content sanitization (see RAW_OPTION_KEYS)
-        if (in_array($option, self::RAW_OPTION_KEYS, true)) {
-            $value = self::prepare_raw_option_value($option, $value);
-        }
+        $value = self::clean_option_value($option, $value);
 
         $result = update_option($option, $value);
 
@@ -1305,22 +1567,26 @@ class WebMaven_WordPress_Commands {
         if (!isset($args['option'])) {
             throw new Exception('Option name is required');
         }
+        $option = is_scalar($args['option']) ? sanitize_text_field((string) $args['option']) : '';
+        if ($option === '') {
+            throw new Exception('Option name is required');
+        }
         
         // The edge key is a secret: no generic read of the edge options.
-        if (WebMaven_Hosting::is_edge_option($args['option'])) {
-            throw new Exception('Cannot read protected option: ' . $args['option']);
+        if (WebMaven_Hosting::is_edge_option($option)) {
+            throw new Exception('Cannot read protected option: ' . $option); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // Auth-related options (2026-09-22): the plugin's own OAuth credentials
         // and tokens (webmaven_wp_*) and the core secret keys/salts must never
         // be read back to the API. The write side already refuses webmaven_wp_;
         // this closes the read side too.
-        if (WebMaven_User_Secrets::is_secret_option($args['option'])) {
-            throw new Exception('Cannot read protected option: ' . $args['option']);
+        if (WebMaven_User_Secrets::is_secret_option($option)) {
+            throw new Exception('Cannot read protected option: ' . $option); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        $default = $args['default'] ?? false;
-        $value = get_option($args['option'], $default);
+        $default = self::clean_value($args['default'] ?? false);
+        $value = get_option($option, $default);
 
         // Every other secret stays on the site too (2026-09-22): a
         // secret-named option comes back as "[redacted]", and so do the
@@ -1330,10 +1596,10 @@ class WebMaven_WordPress_Commands {
         // as not set.
         $redacted = 0;
         if ($value !== $default) {
-            $value = WebMaven_User_Secrets::redact_option_value($args['option'], $value, $redacted);
+            $value = WebMaven_User_Secrets::redact_option_value($option, $value, $redacted);
         }
 
-        $out = ['option' => $args['option'], 'value' => $value];
+        $out = ['option' => $option, 'value' => $value];
         if ($redacted > 0) {
             $out['redacted'] = $redacted;
         }
@@ -1344,27 +1610,28 @@ class WebMaven_WordPress_Commands {
         if (!isset($args['option'])) {
             throw new Exception('Option name is required');
         }
+        $option = is_scalar($args['option']) ? sanitize_text_field((string) $args['option']) : '';
 
         // The same core options update_option refuses: deleting siteurl,
         // admin_email, a salt or the roles option is no safer than writing it.
-        if (WebMaven_Self_Protect::is_core_protected_option($args['option'])) {
-            throw new Exception('Cannot modify protected option: ' . $args['option']);
+        if (WebMaven_Self_Protect::is_core_protected_option($option)) {
+            throw new Exception('Cannot modify protected option: ' . $option); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        if (WebMaven_Self_Protect::is_protected_option($args['option'])) {
-            throw new Exception('Cannot modify protected option: ' . $args['option']);
+        if (WebMaven_Self_Protect::is_protected_option($option)) {
+            throw new Exception('Cannot modify protected option: ' . $option); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        if (WebMaven_Self_Protect::is_store_currency_option($args['option'])) {
-            throw new Exception(WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL);
+        if (WebMaven_Self_Protect::is_store_currency_option($option)) {
+            throw new Exception(WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        // Only the options on WPMaven's list; another plugin's are WPMaven Agent's.
-        WebMaven_Option_Allowlist::check($args['option']);
+        // Only the options on WPMaven's list; another plugin's answer REQUIRES_AGENT.
+        WebMaven_Option_Allowlist::check($option);
 
-        $result = delete_option($args['option']);
+        $result = delete_option($option);
 
-        return ['deleted' => $result, 'option' => $args['option']];
+        return ['deleted' => $result, 'option' => $option];
     }
 
     /**
@@ -1378,22 +1645,29 @@ class WebMaven_WordPress_Commands {
         $title = isset($args['title']) ? sanitize_text_field((string) $args['title']) : '';
 
         if (!$page_id && $slug) {
-            $page = get_page_by_path($slug);
+            $page = self::page_by_path($slug);
             if ($page) $page_id = (int) $page->ID;
         }
         if (!$page_id && $title) {
-            global $wpdb;
-            $found = $wpdb->get_var($wpdb->prepare(
-                "SELECT ID FROM {$wpdb->posts} WHERE post_title = %s AND post_type = 'page' AND post_status IN ('publish','draft','private') ORDER BY ID ASC LIMIT 1",
-                $title
-            ));
-            if ($found) $page_id = (int) $found;
+            // WP_Query's title argument: the oldest page with exactly this title.
+            $found = get_posts([
+                'post_type' => 'page',
+                'title' => $title,
+                'post_status' => ['publish', 'draft', 'private'],
+                'numberposts' => 1,
+                'orderby' => 'ID',
+                'order' => 'ASC',
+                'fields' => 'ids',
+                // Every language's pages: Polylang otherwise lists one.
+                'lang' => '',
+            ]);
+            if ($found) $page_id = (int) $found[0];
         }
         if (!$page_id) {
             throw new Exception('page_id, slug, or title required to set homepage');
         }
         if (!get_post($page_id)) {
-            throw new Exception("Page {$page_id} not found");
+            throw new Exception("Page {$page_id} not found"); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $this->refuse_owners_post_if_protected($args, $page_id, 'make the homepage of');
         update_option('show_on_front', 'page');
@@ -1421,7 +1695,7 @@ class WebMaven_WordPress_Commands {
         if ($post_id > 0 && class_exists('WebMaven_AI_Marking') && WebMaven_AI_Marking::is_ai_generated($post_id)) {
             return;
         }
-        throw new Exception("This page or post (#{$post_id}) is the owner's, not one WPMaven made: the first build leaves it alone and does not {$verb} it. Ask for the change after the build, so the owner can approve it.");
+        throw new Exception("This page or post (#{$post_id}) is the owner's, not one WPMaven made: the first build leaves it alone and does not {$verb} it. Ask for the change after the build, so the owner can approve it."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
     }
 
     /**
@@ -1431,7 +1705,7 @@ class WebMaven_WordPress_Commands {
         $page_id = isset($args['page_id']) ? (int) $args['page_id'] : 0;
         $slug = isset($args['slug']) ? sanitize_title((string) $args['slug']) : '';
         if (!$page_id && $slug) {
-            $page = get_page_by_path($slug);
+            $page = self::page_by_path($slug);
             if ($page) $page_id = (int) $page->ID;
         }
         if (!$page_id) {
@@ -1455,12 +1729,11 @@ class WebMaven_WordPress_Commands {
     }
 
     /**
-     * Batch update multiple options at once
-     * Used primarily for plugin post-install configuration (skipping wizards, setting defaults)
+     * Several options at once, each through the same checks as update_option.
      */
     public function batch_update_options($args) {
-        $options = $args['options'] ?? [];
-        $delete_transients = $args['delete_transients'] ?? [];
+        $options = is_array($args['options'] ?? null) ? $args['options'] : [];
+        $delete_transients = is_array($args['delete_transients'] ?? null) ? $args['delete_transients'] : [];
 
         if (empty($options) && empty($delete_transients)) {
             return [
@@ -1477,17 +1750,17 @@ class WebMaven_WordPress_Commands {
 
         // Process options
         foreach ($options as $opt) {
-            $option_name = $opt['name'] ?? null;
-            $option_value = $opt['value'] ?? null;
+            $option_name = is_array($opt) && isset($opt['name']) && is_scalar($opt['name']) ? sanitize_text_field((string) $opt['name']) : '';
+            $option_value = is_array($opt) ? ($opt['value'] ?? null) : null;
 
             if (empty($option_name)) {
                 continue;
             }
 
             // Skip the core options (CORE_PROTECTED_OPTIONS and the roles
-            // option; rewrite_rules stays writable, as onboarding needs it).
-            // active_plugins and uninstall_plugins are plugin state, refused
-            // just below.
+            // option). active_plugins and uninstall_plugins are plugin state,
+            // refused just below; rewrite_rules and the other addresses are
+            // off WPMaven's list (REQUIRES_AGENT).
             if (WebMaven_Self_Protect::is_core_protected_option($option_name)) {
                 $failed_options[] = [
                     'name' => $option_name,
@@ -1506,16 +1779,6 @@ class WebMaven_WordPress_Commands {
                 continue;
             }
 
-            // Only the options on WPMaven's list; another plugin's are WPMaven Agent's.
-            if (!WebMaven_Option_Allowlist::allows($option_name)) {
-                $failed_options[] = [
-                    'name' => $option_name,
-                    'error' => WebMaven_Option_Allowlist::refusal($option_name),
-                    'code' => WebMaven_Requires_Agent::CODE,
-                ];
-                continue;
-            }
-
             // The store currency: only the Store currency setting changes it.
             if (WebMaven_Self_Protect::is_store_currency_option($option_name)) {
                 $failed_options[] = [
@@ -1525,10 +1788,17 @@ class WebMaven_WordPress_Commands {
                 continue;
             }
 
-            // RAW keys are stored without content sanitization (see RAW_OPTION_KEYS)
-            if (in_array($option_name, self::RAW_OPTION_KEYS, true)) {
-                $option_value = self::prepare_raw_option_value($option_name, $option_value);
+            // Only the options on WPMaven's list; another plugin's answer REQUIRES_AGENT.
+            if (!WebMaven_Option_Allowlist::allows($option_name)) {
+                $failed_options[] = [
+                    'name' => $option_name,
+                    'error' => WebMaven_Option_Allowlist::refusal($option_name),
+                    'code' => WebMaven_Requires_Agent::CODE,
+                ];
+                continue;
             }
+
+            $option_value = self::clean_option_value($option_name, $option_value);
 
             // Handle different value types
             if (is_array($option_value) || is_object($option_value)) {
@@ -1552,7 +1822,10 @@ class WebMaven_WordPress_Commands {
             if (empty($transient) || !is_scalar($transient)) {
                 continue;
             }
-            $transient = (string) $transient;
+            $transient = sanitize_text_field((string) $transient);
+            if ($transient === '') {
+                continue;
+            }
             if (WebMaven_Self_Protect::is_protected_option($transient)
                 || WebMaven_Self_Protect::is_protected_option('_transient_' . $transient)) {
                 $failed_transients[] = [
@@ -1582,60 +1855,9 @@ class WebMaven_WordPress_Commands {
 
     // ===== MEDIA OPERATIONS =====
     
-    public function upload_file_command($args) {
-        if (!isset($args['file_content']) || !isset($args['filename'])) {
-            throw new Exception('File content and filename are required');
-        }
-        
-        if (!current_user_can('upload_files')) {
-            throw new Exception('Insufficient permissions to upload files');
-        }
-        
-        // Create temporary file
-        $temp_file = wp_tempnam($args['filename']);
-        file_put_contents($temp_file, base64_decode($args['file_content']));
-        
-        // Prepare file array for wp_handle_upload
-        $file_array = [
-            'name' => $args['filename'],
-            'tmp_name' => $temp_file,
-            'type' => $args['mime_type'] ?? 'application/octet-stream'
-        ];
-        
-        $upload = wp_handle_upload($file_array, ['test_form' => false]);
-        
-        if (isset($upload['error'])) {
-            throw new Exception('Upload failed: ' . $upload['error']);
-        }
-        
-        // Create attachment
-        $attachment = [
-            'post_mime_type' => $upload['type'],
-            'post_title' => sanitize_file_name($args['filename']),
-            'post_content' => '',
-            'post_status' => 'inherit'
-        ];
-        
-        $attachment_id = wp_insert_attachment($attachment, $upload['file']);
-        
-        if (is_wp_error($attachment_id)) {
-            throw new Exception('Failed to create attachment: ' . $attachment_id->get_error_message());
-        }
-        
-        // Generate attachment metadata
-        require_once ABSPATH . 'wp-admin/includes/image.php';
-        $attachment_data = wp_generate_attachment_metadata($attachment_id, $upload['file']);
-        wp_update_attachment_metadata($attachment_id, $attachment_data);
-        
-        return [
-            'attachment_id' => $attachment_id,
-            'url' => $upload['url'],
-            'file' => $upload['file']
-        ];
-    }
-    
     public function delete_file($args) {
-        if (!isset($args['id'])) {
+        $id = isset($args['id']) && is_scalar($args['id']) ? (int) $args['id'] : 0;
+        if ($id <= 0) {
             throw new Exception('File ID is required');
         }
         
@@ -1643,21 +1865,21 @@ class WebMaven_WordPress_Commands {
             throw new Exception('Insufficient permissions to delete files');
         }
         
-        $result = wp_delete_attachment($args['id'], $args['force'] ?? false);
+        $result = wp_delete_attachment($id, !empty($args['force']) && rest_sanitize_boolean($args['force']));
         
         if (!$result) {
             throw new Exception('Failed to delete file');
         }
         
-        return ['deleted' => true, 'file_id' => $args['id']];
+        return ['deleted' => true, 'file_id' => $id];
     }
     
     public function get_files($args) {
         $query_args = [
             'post_type' => 'attachment',
             'post_status' => 'inherit',
-            'numberposts' => $args['number'] ?? 20,
-            'post_mime_type' => $args['mime_type'] ?? ''
+            'numberposts' => intval($args['number'] ?? 20),
+            'post_mime_type' => self::query_arg($args['mime_type'] ?? '')
         ];
         
         $files = get_posts($query_args);
@@ -1697,66 +1919,21 @@ class WebMaven_WordPress_Commands {
         ];
     }
     
+    /**
+     * Empties WordPress's object cache. The transients in the database stay:
+     * they are rows of the options table, and this edition runs no raw SQL
+     * write (another plugin may add to the answer: webmaven_clear_cache).
+     */
     public function clear_cache($args) {
-        // Clear WordPress cache
         if (function_exists('wp_cache_flush')) {
             wp_cache_flush();
         }
-        
-        // Clear object cache
         if (function_exists('wp_cache_delete')) {
             wp_cache_delete('alloptions', 'options');
         }
-        
-        // Clear transients
-        global $wpdb;
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_%'");
-        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_site_transient_%'");
-        
-        return ['cache_cleared' => true];
-    }
-    
-    public function optimize_database($args) {
-        global $wpdb;
-        
-        $tables = $wpdb->get_results("SHOW TABLES", ARRAY_N);
-        $optimized = 0;
-        
-        foreach ($tables as $table) {
-            $table_name = $table[0];
-            $result = $wpdb->query("OPTIMIZE TABLE {$table_name}");
-            if ($result !== false) {
-                $optimized++;
-            }
-        }
-        
-        return ['optimized_tables' => $optimized];
-    }
-    
-    /**
-     * Retired (1.2.6). It copied every table of the database into ONE
-     * autoloaded wpai_backup_* option, which WordPress then loaded into memory
-     * on every page, and nothing could restore it. Refuses and points to the
-     * working path: the backup_create action (database dump plus media in an
-     * archive), listed by backup_list and restored by backup_restore.
-     */
-    public function backup_database($args) {
-        return [
-            'success' => false,
-            'error' => 'backup_database is retired: it copied the whole database into a WordPress option and could not be restored. Use the backup_create action instead (it saves the database and media as an archive); backup_list lists the archives and backup_restore restores one.',
-        ];
-    }
-
-    /**
-     * Retired (1.2.6). It restored from a file under
-     * wp-content/ai-assistant-backups/ that nothing ever writes, dropping each
-     * table first. Refuses and points to backup_restore.
-     */
-    public function restore_database($args) {
-        return [
-            'success' => false,
-            'error' => 'restore_database is retired: it read a backup file that nothing creates. Use the backup_restore action with an archive made by backup_create (backup_list lists them).',
-        ];
+        $answer = ['cache_cleared' => true, 'transients_cleared' => false];
+        $more = apply_filters('webmaven_clear_cache', null, is_array($args) ? self::clean_value($args) : []);
+        return is_array($more) ? array_merge($answer, $more) : $answer;
     }
 
     /** Set once the leftover wpai_backup_* options no longer autoload. */
@@ -1775,51 +1952,18 @@ class WebMaven_WordPress_Commands {
             return null;
         }
         global $wpdb;
-        $names = (array) $wpdb->get_col($wpdb->prepare(
+        $names = (array) $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the backup options an older release wrote, found by the prefix of their names, which get_option cannot list; read once, on the first request after the update
             "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
             $wpdb->esc_like('wpai_backup_') . '%'
         ));
         if (!empty($names)) {
-            if (function_exists('wp_set_option_autoload_values')) {
-                // WordPress 6.4+: one query, and it refreshes the caches.
-                wp_set_option_autoload_values(array_fill_keys($names, false));
-            } else {
-                foreach ($names as $name) {
-                    $wpdb->update($wpdb->options, ['autoload' => 'no'], ['option_name' => $name]);
-                }
-                wp_cache_delete('alloptions', 'options');
-            }
+            // One query, and it refreshes the caches (WordPress 6.4 and later).
+            wp_set_option_autoload_values(array_fill_keys($names, false));
         }
         update_option(self::LEGACY_BACKUPS_DONE_OPTION, 1, true);
         return count($names);
     }
     
-    public function update_core($args) {
-        // Check if updates are available
-        require_once ABSPATH . 'wp-admin/includes/update.php';
-        wp_version_check();
-        
-        $core_update = get_core_updates();
-        
-        if (empty($core_update) || !isset($core_update[0])) {
-            return [
-                'updated' => false,
-                'message' => 'WordPress is already up to date',
-                'current_version' => get_bloginfo('version')
-            ];
-        }
-        
-        // Note: Actual core update requires filesystem access and should be done via WP-CLI or admin
-        // This is a placeholder that returns update information
-        return [
-            'updated' => false,
-            'message' => 'Core update requires manual intervention or WP-CLI',
-            'current_version' => get_bloginfo('version'),
-            'available_version' => $core_update[0]->version,
-            'update_available' => true
-        ];
-    }
-
     // ===== THEME OPERATIONS =====
     
     
@@ -1863,8 +2007,10 @@ class WebMaven_WordPress_Commands {
         }
 
         $name = sanitize_text_field($args['name']);
-        $items = $args['items'] ?? [];
-        $location = $args['location'] ?? null;
+        // Each item's fields are cleaned once, here: the page lookups, the
+        // log lines and the answer below all read the cleaned item.
+        $items = is_array($args['items'] ?? null) ? array_map([__CLASS__, 'clean_menu_item'], $args['items']) : [];
+        $location = isset($args['location']) ? sanitize_text_field($args['location']) : null;
         // A connected site (the owner's existing WordPress, 2026-09-22): a
         // menu of theirs that happens to share the planned name keeps every
         // item. "Theirs" is a menu with any item WPMaven did not mark; the
@@ -1899,7 +2045,7 @@ class WebMaven_WordPress_Commands {
         } else {
             $menu_id = wp_create_nav_menu($name);
             if (is_wp_error($menu_id)) {
-                throw new Exception('Failed to create menu: ' . $menu_id->get_error_message());
+                throw new Exception('Failed to create menu: ' . $menu_id->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
 
@@ -1941,7 +2087,7 @@ class WebMaven_WordPress_Commands {
                     WebMaven_Log::write("[WebMaven Menu] Looking up page with slug: '{$item_slug}'");
 
                     // Page menu item - look up by slug
-                    $page = get_page_by_path($item_slug);
+                    $page = self::page_by_path($item_slug);
 
                     // If found page is a draft, prefer a published page with the same slug
                     if ($page && $page->post_status !== 'publish') {
@@ -1998,7 +2144,7 @@ class WebMaven_WordPress_Commands {
 
                     // Last rung: slug derived from the title, published only
                     if (!$page && !empty($item['title'])) {
-                        $by_title_slug = get_page_by_path(sanitize_title($item['title']));
+                        $by_title_slug = self::page_by_path(sanitize_title($item['title']));
                         if ($by_title_slug && $by_title_slug->post_status === 'publish') {
                             $page = $by_title_slug;
                             WebMaven_Log::write("[WebMaven Menu] Resolved '{$item_slug}' via title-derived slug '" . sanitize_title($item['title']) . "'");
@@ -2103,6 +2249,36 @@ class WebMaven_WordPress_Commands {
         return $out;
     }
 
+    /**
+     * One create_menu item with its fields cleaned; a field the item does not
+     * have stays absent, so the fallbacks between them read as before. A page
+     * address is cleaned part by part, so a child page's parent/child stays.
+     */
+    private static function clean_menu_item($item) {
+        if (!is_array($item)) {
+            return [];
+        }
+        $out = [];
+        if (isset($item['title'])) {
+            $out['title'] = sanitize_text_field($item['title']);
+        }
+        foreach (['object_slug', 'slug'] as $key) {
+            if (isset($item[$key])) {
+                $out[$key] = is_scalar($item[$key]) ? implode('/', array_map('sanitize_title', explode('/', (string) $item[$key]))) : '';
+            }
+        }
+        if (isset($item['object'])) {
+            $out['object'] = sanitize_key($item['object']);
+        }
+        if (isset($item['url'])) {
+            $out['url'] = is_scalar($item['url']) ? esc_url_raw((string) $item['url']) : '';
+        }
+        if (isset($item['order'])) {
+            $out['order'] = intval($item['order']);
+        }
+        return $out;
+    }
+
     /** Whether a menu holds any item WPMaven did not create (no AI marker). */
     private function menu_has_owner_items($menu_id): bool {
         $items = wp_get_nav_menu_items($menu_id);
@@ -2144,9 +2320,9 @@ class WebMaven_WordPress_Commands {
             // Add new items
             foreach ($args['items'] as $item) {
                 wp_update_nav_menu_item($menu_id, 0, [
-                    'menu-item-title' => $item['title'] ?? '',
-                    'menu-item-url' => $item['url'] ?? '',
-                    'menu-item-type' => $item['type'] ?? 'custom',
+                    'menu-item-title' => sanitize_text_field($item['title'] ?? ''),
+                    'menu-item-url' => isset($item['url']) && is_scalar($item['url']) ? esc_url_raw((string) $item['url']) : '',
+                    'menu-item-type' => sanitize_key($item['type'] ?? 'custom'),
                     'menu-item-status' => 'publish'
                 ]);
             }
@@ -2167,7 +2343,7 @@ class WebMaven_WordPress_Commands {
         $result = wp_delete_nav_menu($menu_id);
         
         if (is_wp_error($result)) {
-            throw new Exception('Failed to delete menu: ' . $result->get_error_message());
+            throw new Exception('Failed to delete menu: ' . $result->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         
         return [
@@ -2361,8 +2537,21 @@ class WebMaven_WordPress_Commands {
                 $failed[] = ['name' => (string) $option_name, 'error' => 'Not a theme setting name'];
                 continue;
             }
-            set_theme_mod($name, $option_value);
-            $requested[$name] = $option_value;
+            // Only the named display settings, each value cleaned
+            // (WebMaven_Option_Allowlist::THEME_MODS).
+            $allowed = false;
+            $clean = WebMaven_Option_Allowlist::theme_mod_value($name, $option_value, $allowed);
+            if (!$allowed) {
+                $failed[] = ['name' => $name, 'error' => WebMaven_Option_Allowlist::refusal($name), 'code' => WebMaven_Requires_Agent::CODE];
+                continue;
+            }
+            set_theme_mod($name, $clean);
+            $requested[$name] = $clean;
+        }
+        // Nothing on the list was asked: the whole call answers REQUIRES_AGENT.
+        $refused = array_values(array_filter($failed, function ($f) { return ($f['code'] ?? '') === WebMaven_Requires_Agent::CODE; }));
+        if ($requested === [] && $refused !== [] && count($refused) === count($failed)) {
+            throw new WebMaven_Requires_Agent(WebMaven_Option_Allowlist::refusal($refused[0]['name'])); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // What the theme reads now (a pre_set_theme_mod filter may change a value).
@@ -2418,7 +2607,7 @@ class WebMaven_WordPress_Commands {
         $deleted = 0;
         foreach ($stylesheets as $stylesheet) {
             $prefix = 'theme_mods_' . $stylesheet . '_';
-            $names = (array) $wpdb->get_col($wpdb->prepare(
+            $names = (array) $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the options an older release wrote under theme_mods_<theme>_, found by the prefix of their names, which get_option cannot list; read once, on the first request after the update
                 "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
                 $wpdb->esc_like($prefix) . '%'
             ));
@@ -2452,13 +2641,6 @@ class WebMaven_WordPress_Commands {
             'redacted' => $redacted,
         ];
     }
-
-    // ===== WEBHOOK ENDPOINT =====
-    
-    /**
-     * Handle webhook requests from AI backend
-     * Endpoint: /wp-admin/admin-ajax.php?action=ai_assistant_webhook
-     */
 
     /** True on a site under an agency's or a partner's brand, or while it is unknown (WebMaven_Brand, 1.2.31). */
     private static function branded_site() {

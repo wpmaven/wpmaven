@@ -16,6 +16,7 @@
 import type { OperatorApproval } from '../approvals/types';
 import type { ScreensBusiness, ScreensScope, ScreensTransport } from '../host/types';
 import { waitingBadgeCount, type WaitingCounts } from './tabs';
+import { PREPARED_CHANGES_COPY } from './preparedChangesCopy';
 
 /** The approvals a screen asks for at once: the dashboard's twenty, a site's fifty (both apps' lists). */
 export function approvalsLimit(scope: ScreensScope): number {
@@ -91,7 +92,7 @@ export async function readPrepared(transport: ScreensTransport, scope: ScreensSc
   const items = Array.isArray(data?.items) ? (data!.items as PreparedChange[]) : [];
   return items
     .filter((i) => i && typeof i.operationId === 'string' && i.operation && typeof i.operation === 'object')
-    .map((i) => ({ ...i, changed: Array.isArray(i.changed) ? i.changed : [], requestedBy: { name: i.requestedBy?.name || 'A team member' } }));
+    .map((i) => ({ ...i, changed: Array.isArray(i.changed) ? i.changed : [], requestedBy: { name: i.requestedBy?.name || PREPARED_CHANGES_COPY.aTeamMember } }));
 }
 
 /** A connected channel customers write to: a Facebook Page or an Instagram account of one business. */

@@ -43,8 +43,8 @@ final class WebMaven_Tours {
     const MAX_VERSION = 1000;
 
     /**
-     * Unix time of this user's last sign-in through a dashboard link. The
-     * same key WPMaven Agent's owner sign-in writes.
+     * Unix time of this user's last sign-in through a dashboard link, as the
+     * sign-in that made it wrote it.
      */
     const ARRIVED_META = '_webmaven_arrived_from_dashboard';
 

@@ -108,8 +108,8 @@ final class WebMaven_SEO_Head {
         $hidden = get_posts([
             'post_type' => 'any',
             'post_status' => 'publish',
-            'meta_key' => WebMaven_SEO_Fields::OWN_KEYS['noindex'],
-            'meta_value' => '1',
+            'meta_key' => WebMaven_SEO_Fields::OWN_KEYS['noindex'], // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- the pages WPMaven hides from search engines, by its own key (indexed in postmeta) and value; asked only when All in One SEO builds its sitemap
+            'meta_value' => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- the pages WPMaven hides from search engines, by its own key (indexed in postmeta) and value; asked only when All in One SEO builds its sitemap
             'fields' => 'ids',
             'posts_per_page' => 1000,
             'no_found_rows' => true,
@@ -184,7 +184,8 @@ final class WebMaven_SEO_Head {
         if ($image !== null) {
             $tags[] = ['name', 'twitter:image', $image];
         }
-        return $tags;
+        // An add-on may add tags (the page's language and its other versions).
+        return (array) apply_filters('webmaven_seo_head_tags', $tags);
     }
 
     public static function print_tags() {

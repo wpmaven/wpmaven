@@ -110,7 +110,7 @@ class WebMaven_WooCommerce_Metrics implements WebMaven_Metrics_Adapter {
     private function get_top_sellers(string $start, string $end, int $limit = 5): array {
         global $wpdb;
 
-        $results = $wpdb->get_results($wpdb->prepare(
+        $results = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the day's best sellers summed over WooCommerce's order items in one query, which its API cannot do; read for the reports, which need today's figures, so nothing is cached
             "SELECT oi_meta.meta_value AS product_id,
                     SUM(oi_qty.meta_value) AS quantity,
                     SUM(oi_total.meta_value) AS revenue
@@ -155,7 +155,7 @@ class WebMaven_WooCommerce_Metrics implements WebMaven_Metrics_Adapter {
     private function get_top_sellers_hpos(string $start, string $end, int $limit): array {
         global $wpdb;
 
-        return $wpdb->get_results($wpdb->prepare(
+        return $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the day's best sellers summed over WooCommerce's order items in one query, which its API cannot do; read for the reports, which need today's figures, so nothing is cached
             "SELECT oi_meta.meta_value AS product_id,
                     SUM(oi_qty.meta_value) AS quantity,
                     SUM(oi_total.meta_value) AS revenue
@@ -218,15 +218,15 @@ class WebMaven_WooCommerce_Metrics implements WebMaven_Metrics_Adapter {
         }
 
         $store_amount = (int) get_option('woocommerce_notify_low_stock_amount', 2);
-        $highest_own = (int) $wpdb->get_var(
+        $highest_own = (int) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the highest low-stock amount set on any product, in one query no WordPress function makes; read for the reports, which need today's figures, so nothing is cached
             "SELECT MAX(CAST(meta_value AS SIGNED)) FROM {$wpdb->postmeta}
              WHERE meta_key = '_low_stock_amount' AND meta_value <> ''"
         );
         $ceiling = max($store_amount, $highest_own);
 
         // The lookup table holds a quantity only for stock WooCommerce manages.
-        $ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT l.product_id FROM {$table} AS l
+        $ids = $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WooCommerce's product lookup table, which WooCommerce keeps for stock queries like this one; read for the reports, which need today's figures, so nothing is cached
+            "SELECT l.product_id FROM %i AS l
              INNER JOIN {$wpdb->posts} AS p ON p.ID = l.product_id
              WHERE l.stock_quantity IS NOT NULL
                AND l.stock_quantity <= %d
@@ -235,7 +235,7 @@ class WebMaven_WooCommerce_Metrics implements WebMaven_Metrics_Adapter {
                AND p.post_status = 'publish'
              ORDER BY l.stock_quantity ASC, l.product_id ASC
              LIMIT 200",
-            $ceiling
+            $table, $ceiling
         )) ?: [];
 
         $low = [];

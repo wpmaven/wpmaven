@@ -12,16 +12,72 @@
  * provider's own screen in WordPress, in a tab opened inside the click
  * (GatewaySetupHost). A site sets one up only from the owner's own
  * WordPress account (the API's route policy).
+ *
+ * The card's words are in the page's language: English is the source; the
+ * French is written by hand (src/i18n/fr.json, namespaces screensGetPaid,
+ * screensGetPaidWords and screensGetPaidCard), the other languages by the
+ * dashboard's translation script.
+ * Payment providers are named as they are; a provider's own product names
+ * (PayPal's Pay Later) as the provider writes them in that language.
  */
 import type { ReactNode } from 'react';
+import { localized } from '@yotako/webmaven-ui';
 import type { ScreensTransport } from '../host/types';
+import { offeredLocalServices } from './localPayments';
+import { formatKept, formatTag } from '../copyLanguage';
 
 const enc = encodeURIComponent;
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 // ── The store's gateways ─────────────────────────────────────────────────
 
-export type StoreGateway = 'woocommerce_payments' | 'stripe' | 'ppcp';
+/**
+ * Turn on a way to get paid, a card on Home for a business that cannot take
+ * money online yet: its own payment providers (namespace
+ * 'screensGetPaidWords'), the payments account's state, and the setup's
+ * errors.
+ */
+export const GET_PAID_WORDS_EN = {
+  /** Under WooPayments (a payment provider, named as it is). */
+  wooBlurb: 'Accept cards directly in WooCommerce, no extra account needed.',
+  /** Why WooPayments is recommended, beside its Recommended label. */
+  wooRecommend: 'Works natively with your store, no separate account needed.',
+  /** Under Stripe. */
+  stripeBlurb: 'Cards, wallets and more via your Stripe account.',
+  /** Under PayPal; "Pay Later" is PayPal's product, named as PayPal writes it in this language. */
+  paypalBlurb: 'PayPal, Pay Later and card payments.',
+  /** A provider's typical fee; {0} the percentage ("2.9"), {1} the fixed part per sale ("0.30" or "$0.30"). */
+  fee: (pct: string, fixed: string) => `${pct}% + ${fixed}`,
+  /** The setup was refused for too many requests. */
+  tooManyRequests: 'Too many requests at once. Wait a minute and try again.',
+  /** The setup could not start; {0} the provider's name. */
+  setupFailed: (provider: string) => `We could not start the ${provider} setup on your site. Please try again in a moment.`,
+  /** The new tab's title and words while the provider's setup page in WordPress is on its way. */
+  openingAdmin: 'Opening WordPress admin',
+  /** The payments account's line: not set up yet. */
+  notStarted: 'Take card payments on your store, set up in a few minutes right here.',
+  /** The payments account's line: setup started. */
+  onboarding: 'You started setting up payments. Stripe still needs a few details.',
+  /** The payments account's line: Stripe is checking. */
+  inReview: 'Stripe is checking your details. It usually takes a few minutes, sometimes a day or two.',
+  /** The payments account's line: Stripe needs details by a date; {0} the date ("October 14"). */
+  actionNeededBy: (date: string) => `Stripe needs a few more details by ${date} to keep your payments on.`,
+  /** The payments account's line: Stripe needs details. */
+  actionNeeded: 'Stripe needs a few more details to keep your payments on.',
+  /** The payments account's line: it takes payments. */
+  active: 'Your store takes payments. Payouts go to your bank every week.',
+  /** The payments account's line: the Stripe account was unlinked. */
+  disconnected: 'Your Stripe account is no longer linked to this store.',
+};
+
+export const GET_PAID_WORDS = localized(GET_PAID_WORDS_EN, 'screensGetPaidWords');
+
+/**
+ * A gateway the card sets up: WooPayments, Stripe, PayPal, or since
+ * 2026-11-16 a local payment service's id ("razorpay", "mollie"), named by
+ * the payment status (localPayments.ts).
+ */
+export type StoreGateway = 'woocommerce_payments' | 'stripe' | 'ppcp' | (string & Record<never, never>);
 
 export type GatewayConnection = 'connected' | 'pending' | 'none';
 
@@ -83,21 +139,21 @@ export const STORE_GATEWAYS: GatewayMeta[] = [
   {
     id: 'woocommerce_payments',
     title: 'WooPayments',
-    blurb: 'Accept cards directly in WooCommerce, no extra account needed.',
+    get blurb() { return GET_PAID_WORDS.wooBlurb; },
     fee: { pct: 2.9, fixed: 0.3 },
     recommended: true,
-    recommendReason: 'Works natively with your store, no separate account needed.',
+    get recommendReason() { return GET_PAID_WORDS.wooRecommend; },
   },
   {
     id: 'stripe',
     title: 'Stripe',
-    blurb: 'Cards, wallets and more via your Stripe account.',
+    get blurb() { return GET_PAID_WORDS.stripeBlurb; },
     fee: { pct: 2.9, fixed: 0.3 },
   },
   {
     id: 'ppcp',
     title: 'PayPal',
-    blurb: 'PayPal, Pay Later and card payments.',
+    get blurb() { return GET_PAID_WORDS.paypalBlurb; },
     fee: { pct: 3.49, fixed: 0.49 },
   },
 ];
@@ -135,7 +191,12 @@ export function noWayToGetPaidNote(status: PaymentStatus | null | undefined): st
 
 /** "2.9% + 0.30": a light, currency-free fee hint. */
 export function formatFeeModel(meta: GatewayMeta): string {
-  return `${meta.fee.pct}% + ${meta.fee.fixed.toFixed(2)}`;
+  return GET_PAID_WORDS.fee(feePercent(meta), formatKept(meta.fee.fixed, (v) => v.toFixed(2), { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+}
+
+/** The fee's percentage as the page's language writes it ("2.9"). */
+function feePercent(meta: GatewayMeta): string {
+  return formatKept(meta.fee.pct, String, { maximumFractionDigits: 2 });
 }
 
 /** The currency the gateway fee table (STORE_GATEWAYS) is written in: its figures are the US rates. */
@@ -152,7 +213,9 @@ const FEE_TABLE_CURRENCY = 'USD';
 export function typicalFeeText(meta: GatewayMeta, currency: string | null | undefined): string {
   const code = (currency ?? '').trim().toUpperCase();
   if (code !== FEE_TABLE_CURRENCY) return formatFeeModel(meta);
-  return `${meta.fee.pct}% + $${meta.fee.fixed.toFixed(2)}`;
+  return GET_PAID_WORDS.fee(feePercent(meta), formatKept(meta.fee.fixed, (v) => `$${v.toFixed(2)}`, {
+    style: 'currency', currency: FEE_TABLE_CURRENCY, minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }));
 }
 
 /**
@@ -183,7 +246,7 @@ export function paymentStatusOnItsWay(instanceId: string): Promise<PaymentStatus
  */
 export function needsGateway(status: PaymentStatus | null | undefined): boolean {
   return !!status && status.gateways.length > 0 && status.known !== false && !status.primary
-    && (offeredGateways(status).length > 0 || wpmavenOfferedFor(status));
+    && (offeredGateways(status).length > 0 || wpmavenOfferedFor(status) || offeredLocalServices(status).length > 0);
 }
 
 /** The store's gateways; null when the site did not answer or has no store (an older plugin, a site without WooCommerce). */
@@ -224,8 +287,8 @@ export function setupErrorMessage(err: unknown, title: string): string {
       : null;
   const readable = !!said && said.trim().length > 0 && !/^\s*HTTP\s*\d{3}/i.test(said) && !/[{[]/.test(said);
   if (status >= 400 && status < 500 && readable) return said!;
-  if (status === 429) return 'Too many requests at once. Wait a minute and try again.';
-  return `We could not start the ${title} setup on your site. Please try again in a moment.`;
+  if (status === 429) return GET_PAID_WORDS.tooManyRequests;
+  return GET_PAID_WORDS.setupFailed(title);
 }
 
 // ── Finishing a setup in WordPress ───────────────────────────────────────
@@ -244,7 +307,7 @@ export interface PendingTab {
  */
 export function openSetupTab(
   open: (url: string, target: string) => PendingTab | null = (u, t) => window.open(u, t) as PendingTab | null,
-  placeholder = 'Opening WordPress admin',
+  placeholder = GET_PAID_WORDS.openingAdmin,
 ): PendingTab | null {
   const tab = open('', '_blank');
   if (!tab) return null;
@@ -330,48 +393,120 @@ export async function readWpmPayments(transport: ScreensTransport, instanceId: s
 }
 
 /**
- * What the card says about WPMaven Payments. The account is the owner's
- * own, processed by Stripe; WPMaven never holds the money.
+ * What the card says about the product's payments account, WPMaven Payments
+ * (namespace 'screensGetPaid'). The account is the owner's own, processed by
+ * Stripe; the product never holds the money. The dashboard reads these too.
  */
-export const GET_PAID_COPY = {
+/**
+ * Our payment service's name, the same on every address: the service and its
+ * terms are ours (the dashboard's Payments sentences say "WPMaven Payments"
+ * too). A product name, never translated.
+ */
+export const PAYMENTS_SERVICE_NAME = 'WPMaven Payments';
+
+export const GET_PAID_COPY_EN = {
+  /** The card's title. */
   title: 'Turn on a way to get paid',
-  productName: 'WPMaven Payments',
+  /** The payments account's name, our payment service on every address (PAYMENTS_SERVICE_NAME, never translated; not a text of its own). */
+  get productName(): string {
+    return PAYMENTS_SERVICE_NAME;
+  },
+  /** Under the payments account's name. */
   processedBy: 'Payments are processed by Stripe and paid out to your bank.',
+  /** The second button: link a Stripe account the owner already has. */
   useOwnStripe: 'I already use Stripe',
+  /** The main button before setup. */
   notStartedAction: 'Get paid',
+  /** The main button while setup is not finished. */
   onboardingAction: 'Finish setup',
+  /** The main button after the Stripe account was unlinked. */
   disconnectedAction: 'Set up again',
   /** What a person who cannot set it up reads, in the account (the owner and admins can). */
   needsOwner: 'Only the account owner or an admin can set up how this store gets paid.',
 } as const;
+
+export const GET_PAID_COPY = localized(GET_PAID_COPY_EN, 'screensGetPaid');
+
+/**
+ * The card's own sentences around the providers (namespace
+ * 'screensGetPaidCard'): why it shows, the providers' fees, and the setup
+ * finished on the provider's own page in WordPress.
+ */
+export const GET_PAID_CARD_COPY_EN = {
+  /** Under the title: why the card shows. */
+  storefrontLive: 'Your storefront is live, but visitors cannot order until a way to get paid is on.',
+  /** The same when only the owner's own providers are offered; {0} the product's name. */
+  storefrontLiveOwn: (product: string) => `Your storefront is live, but visitors cannot order until one of these is connected. The money goes to your own account, never through ${product}.`,
+  /** Beside the title: how long setting up takes, on this card. */
+  fewMinutes: 'A few minutes, right here',
+  /** Beside the title: how long it takes on a provider's page. */
+  twoMinutes: "About two minutes, on the provider's own page",
+  /** The label beside the recommended way. */
+  recommended: 'Recommended',
+  /** After the payments account's line: how it is set up. */
+  setUpHere: 'Set up in a few minutes, right here, with no other account to create.',
+  /** The toggle that shows the owner's own providers under the recommended way. */
+  otherProviders: 'Or connect a provider you already use',
+  /** Under that toggle. */
+  moneyToProvider: 'The money then goes to your account with that provider.',
+  /** Under a provider; {0} its typical fee ("2.9% + 0.30"). */
+  typicalFees: (fee: string) => `Typical fees ${fee} per sale`,
+  /** A provider's button while its setup is not finished. */
+  finishSetup: 'Finish setup',
+  /** A provider's button. */
+  connect: 'Connect',
+  /** In place of a provider's name that is not known. */
+  thatProvider: 'that provider',
+  /** The site sent no setup page; {0} the provider's name. */
+  noSetupPage: (provider: string) => `Your site did not send back a setup page for ${provider}. Please try again, or pick another provider.`,
+  /** After "...to finish:" when the sign-in failed with no reason. */
+  tryAgain: 'Please try again in a moment.',
+  /** The provider is installed but the sign-in to WordPress failed; {0} the provider's name, {1} why. */
+  signInFailed: (provider: string, why: string) => `${provider} is installed on your site, but we could not sign you in to WordPress to finish: ${why}`,
+  /** Once connected; {0} the provider's name. */
+  connected: (provider: string) => `You are set up to get paid through ${provider}. Your team takes it from here.`,
+  /** The browser blocked the setup tab: the sentence before the link. */
+  blockedTab: 'Your browser blocked the new tab.',
+  /** The link to the setup page; {0} the provider's name. */
+  openSetupPage: (provider: string) => `Open the ${provider} setup page`,
+  /** After that link: the link works for a minute. */
+  blockedAfter: 'within a minute to finish, and this card updates when you are done.',
+  /** An older plugin: the setup page was opened on the site's own WordPress sign-in; {0} the provider's name. */
+  fallbackOpened: (provider: string) => `We opened the ${provider} setup page on your site. Sign in to WordPress there to finish.`,
+  /** An older plugin, tab blocked: after the link to the setup page. */
+  fallbackAfter: 'and sign in to WordPress to finish.',
+};
+
+export const GET_PAID_CARD_COPY = localized(GET_PAID_CARD_COPY_EN, 'screensGetPaidCard');
 
 /** "October 14" (or "October 14, 2027" in another year); null for none or a date that does not parse. */
 export function dueByText(iso: string | null, now = new Date()): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return null;
-  return d.toLocaleDateString('en-US', d.getFullYear() === now.getFullYear()
+  return d.toLocaleDateString(formatTag('en-US'), d.getFullYear() === now.getFullYear()
     ? { month: 'long', day: 'numeric' }
     : { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 /** The short line for each account state (the card, the income pages). */
 export function stateLine(status: { state: WpmPaymentsState; dueBy: string | null }, now = new Date()): string {
+  const w = GET_PAID_WORDS;
   switch (status.state) {
     case 'not_started':
-      return 'Take card payments on your store, set up in a few minutes right here.';
+      return w.notStarted;
     case 'onboarding':
-      return 'You started setting up payments. Stripe still needs a few details.';
+      return w.onboarding;
     case 'in_review':
-      return 'Stripe is checking your details. It usually takes a few minutes, sometimes a day or two.';
+      return w.inReview;
     case 'action_needed': {
       const by = dueByText(status.dueBy, now);
-      return by ? `Stripe needs a few more details by ${by} to keep your payments on.` : 'Stripe needs a few more details to keep your payments on.';
+      return by ? w.actionNeededBy(by) : w.actionNeeded;
     }
     case 'active':
-      return 'Your store takes payments. Payouts go to your bank every week.';
+      return w.active;
     case 'disconnected':
-      return 'Your Stripe account is no longer linked to this store.';
+      return w.disconnected;
     default:
       return '';
   }

@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name:       WPMaven
+ * Plugin Name:       WPMaven - AI Business Creator and Manager
  * Plugin URI:        https://wpmaven.ai
  * Description:       An AI team for your WordPress site: your store, content, search visibility and messages in one place, and a new site built for you if you want one.
- * Version:           1.10.1
- * Requires at least: 6.5
+ * Version:           1.12.0
+ * Requires at least: 6.6
  * Requires PHP:      8.0
  * Author:            WPMaven
  * License:           GPLv2 or later
@@ -17,10 +17,12 @@ if (!defined('ABSPATH')) {
 }
 
 // The single plugin (WPMaven WordPress) holds this plugin's code: while it
-// runs, this plugin waits, and says so to administrators.
+// runs, this plugin waits, and says so to administrators on the Plugins
+// screen, where they deactivate it.
 if (defined('WEBMAVEN_WP_FILE')) {
     add_action('admin_notices', static function () {
-        if (!current_user_can('activate_plugins')) {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if (!current_user_can('activate_plugins') || !is_object($screen) || $screen->id !== 'plugins') {
             return;
         }
         echo '<div class="notice notice-info"><p>'

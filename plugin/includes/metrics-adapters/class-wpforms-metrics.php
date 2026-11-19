@@ -20,7 +20,7 @@ class WebMaven_WPForms_Metrics implements WebMaven_Metrics_Adapter {
         $end   = $date . ' 23:59:59';
 
         // Check if table exists
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether WPForms's table exists, which no WordPress function tells; asked once per report
             return [
                 'period'           => $date,
                 'plugin'           => 'wpforms',
@@ -31,14 +31,14 @@ class WebMaven_WPForms_Metrics implements WebMaven_Metrics_Adapter {
             ];
         }
 
-        $results = $wpdb->get_results($wpdb->prepare(
+        $results = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- read-only counts from WPForms's own tables, which no WordPress function reads; read for the reports, which need today's figures, so nothing is cached
             "SELECT e.form_id, COUNT(*) AS submissions
-             FROM {$table} e
+             FROM %i e
              WHERE e.date >= %s AND e.date <= %s
                AND e.status = 'publish'
              GROUP BY e.form_id
              ORDER BY submissions DESC",
-            $start, $end
+            $table, $start, $end
         ));
 
         $by_form = [];
@@ -69,9 +69,9 @@ class WebMaven_WPForms_Metrics implements WebMaven_Metrics_Adapter {
         $week_start = gmdate('Y-m-d', $ts - (7 * DAY_IN_SECONDS)) . ' 00:00:00';
         $week_end   = gmdate('Y-m-d', $ts - DAY_IN_SECONDS) . ' 23:59:59';
 
-        $week_total = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE date >= %s AND date <= %s AND status = 'publish'",
-            $week_start, $week_end
+        $week_total = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- read-only counts from WPForms's own tables, which no WordPress function reads; read for the reports, which need today's figures, so nothing is cached
+            "SELECT COUNT(*) FROM %i WHERE date >= %s AND date <= %s AND status = 'publish'",
+            $table, $week_start, $week_end
         ));
 
         $avg = $week_total / 7;

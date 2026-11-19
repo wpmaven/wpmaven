@@ -1342,6 +1342,16 @@
     },
     {
       "method": "POST",
+      "path": "/sites/me/languages/outdated",
+      "tiers": [
+        "owner"
+      ],
+      "gate": "pilot",
+      "proxy": false,
+      "spendsAi": false
+    },
+    {
+      "method": "POST",
       "path": "/sites/me/onboarding-skip",
       "tiers": [
         "owner"

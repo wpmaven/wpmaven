@@ -12,7 +12,7 @@
  *   noindex                                       hidden from search engines
  *
  * Reads take the active SEO plugin's keys first, then WPMaven's own
- * (_wme_*). Writes go to the active plugin's keys plus WPMaven's own, so the
+ * (_webmaven_*). Writes go to the active plugin's keys plus WPMaven's own, so the
  * value survives switching the plugin off. Known SEO plugins: Yoast SEO,
  * Rank Math, All in One SEO, SEOPress, The SEO Framework. All in One SEO
  * keeps no per-page "hide from search engines" key WPMaven can write: there
@@ -23,9 +23,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
+require_once __DIR__ . '/class-webmaven-requires-agent.php';
 
 final class WebMaven_SEO_Fields {
 
@@ -34,12 +32,12 @@ final class WebMaven_SEO_Fields {
 
     /** WPMaven's own keys: read last, always written. */
     const OWN_KEYS = [
-        'title' => '_wme_meta_title',
-        'description' => '_wme_meta_description',
-        'ogTitle' => '_wme_og_title',
-        'ogDescription' => '_wme_og_description',
-        'ogImage' => '_wme_og_image',
-        'noindex' => '_wme_noindex',
+        'title' => '_webmaven_meta_title',
+        'description' => '_webmaven_meta_description',
+        'ogTitle' => '_webmaven_og_title',
+        'ogDescription' => '_webmaven_og_description',
+        'ogImage' => '_webmaven_og_image',
+        'noindex' => '_webmaven_noindex',
     ];
 
     /** Longest value kept per text field (search engines show far less; the dashboard counts 60 and 155). */
@@ -78,6 +76,15 @@ final class WebMaven_SEO_Fields {
                 'noindex' => '_genesis_noindex',
             ]],
         ];
+    }
+
+    /** Every per-post key of these fields: WPMaven's own and each SEO plugin's. */
+    public static function meta_keys(): array {
+        $keys = array_values(self::OWN_KEYS);
+        foreach (self::plugins() as $plugin) {
+            $keys = array_merge($keys, array_values($plugin['keys']));
+        }
+        return array_values(array_unique($keys));
     }
 
     /** The active SEO plugin's id ('yoast', 'rankmath'...), or null. */
@@ -195,18 +202,18 @@ final class WebMaven_SEO_Fields {
         $out = [];
         foreach ($fields as $field => $value) {
             if (!in_array($field, self::FIELDS, true)) {
-                throw new Exception('VALIDATION: ' . self::plain($field) . ' is not a search engine field.');
+                throw new Exception('VALIDATION: ' . self::plain($field) . ' is not a search engine field.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if (in_array($field, self::TEXT_FIELDS, true)) {
                 if ($value === null) {
                     $value = '';
                 }
                 if (!is_string($value)) {
-                    throw new Exception('VALIDATION: ' . $field . ' must be text.');
+                    throw new Exception('VALIDATION: ' . $field . ' must be text.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $value = sanitize_text_field($value);
                 if (function_exists('mb_strlen') ? mb_strlen($value) > self::MAX_LENGTH[$field] : strlen($value) > self::MAX_LENGTH[$field]) {
-                    throw new Exception('VALIDATION: ' . $field . ' is longer than ' . self::MAX_LENGTH[$field] . ' characters.');
+                    throw new Exception('VALIDATION: ' . $field . ' is longer than ' . self::MAX_LENGTH[$field] . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $out[$field] = $value;
             } elseif ($field === 'noindex') {
@@ -221,7 +228,7 @@ final class WebMaven_SEO_Fields {
                     $id = (int) $value;
                     $mime = $id > 0 && function_exists('get_post_mime_type') ? (string) get_post_mime_type($id) : '';
                     if ($id <= 0 || strpos($mime, 'image/') !== 0) {
-                        throw new Exception('NOT_FOUND: The image ' . $id . ' is not in the media library.');
+                        throw new Exception('NOT_FOUND: The image ' . $id . ' is not in the media library.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                     }
                     $out[$field] = $id;
                 } elseif (is_string($value) && preg_match('#^https://[^\s"\'<>]+$#i', $value)) {
@@ -336,11 +343,11 @@ final class WebMaven_SEO_Fields {
         $post_id = (int) $post_id;
         $post = $post_id > 0 ? get_post($post_id) : null;
         if (!$post || in_array($post->post_status, ['trash', 'auto-draft', 'inherit'], true)) {
-            throw new Exception('NOT_FOUND: The page ' . $post_id . ' was not found.');
+            throw new Exception('NOT_FOUND: The page ' . $post_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $type = function_exists('get_post_type_object') ? get_post_type_object($post->post_type) : null;
         if (!in_array($post->post_type, ['page', 'post'], true) && !($type && !empty($type->public))) {
-            throw new Exception('NOT_FOUND: The page ' . $post_id . ' was not found.');
+            throw new Exception('NOT_FOUND: The page ' . $post_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $post;
     }
@@ -374,12 +381,13 @@ final class WebMaven_SEO_Fields {
  *               head (with one, its own setting decides: canSetShareImage
  *               false, and WPMaven never writes another plugin's options)
  *   hidden      WordPress's own "discourage search engines" (blog_public 0),
- *               which every SEO plugin honours
+ *               which every SEO plugin honours: read here, never written (a
+ *               call that carries it answers REQUIRES_AGENT)
  *   tagline     WordPress's own tagline (blogdescription)
  */
 final class WebMaven_SEO_Site {
 
-    const SHARE_IMAGE_OPTION = 'wme_default_og_image';
+    const SHARE_IMAGE_OPTION = 'webmaven_default_og_image';
     const TAGLINE_MAX = 200;
 
     public static function share_image() {
@@ -414,8 +422,17 @@ final class WebMaven_SEO_Site {
         $known = ['shareImage', 'hidden', 'tagline'];
         foreach (array_keys($fields) as $key) {
             if (!in_array($key, $known, true)) {
-                throw new Exception('VALIDATION: ' . $key . ' is not a search setting of the site.');
+                throw new Exception('VALIDATION: ' . sanitize_text_field((string) $key) . ' is not a search setting of the site.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
+        }
+        // Search engine visibility (blog_public) can hide the whole site from
+        // search engines: this edition never changes it. The whole call is
+        // refused before anything is written.
+        if (array_key_exists('hidden', $fields)) {
+            throw new WebMaven_Requires_Agent('Changing whether search engines see the site needs WPMaven Agent: WPMaven from WordPress.org does not change search engine visibility. The owner can change it in WordPress under Settings > Reading, or install WPMaven Agent from their WPMaven dashboard.');
+        }
+        if (isset($fields['tagline']) && !is_scalar($fields['tagline'])) {
+            throw new Exception('VALIDATION: tagline must be text.');
         }
         $previous = self::read();
         if (array_key_exists('shareImage', $fields)) {
@@ -434,13 +451,10 @@ final class WebMaven_SEO_Site {
                 throw new Exception('VALIDATION: shareImage must be a media id, an https address or null.');
             }
         }
-        if (array_key_exists('hidden', $fields)) {
-            update_option('blog_public', $fields['hidden'] ? '0' : '1');
-        }
         if (array_key_exists('tagline', $fields)) {
-            $tagline = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags((string) $fields['tagline'])));
+            $tagline = sanitize_text_field(trim(preg_replace('/\s+/', ' ', wp_strip_all_tags((string) $fields['tagline']))));
             if (strlen($tagline) > self::TAGLINE_MAX * 4 || (function_exists('mb_strlen') ? mb_strlen($tagline, 'UTF-8') : strlen($tagline)) > self::TAGLINE_MAX) {
-                throw new Exception('VALIDATION: The tagline can have at most ' . self::TAGLINE_MAX . ' characters.');
+                throw new Exception('VALIDATION: The tagline can have at most ' . self::TAGLINE_MAX . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             update_option('blogdescription', $tagline);
         }

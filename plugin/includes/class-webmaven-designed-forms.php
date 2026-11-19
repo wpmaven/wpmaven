@@ -15,8 +15,8 @@
  * anti-spam, confirmations) except the thank-you line while that line is
  * still the one WPMaven wrote. A field the owner added whose id a design
  * field now takes moves to a free id. Every form records which ids are
- * design fields (option wm_form_design_<id>) and what WPMaven last wrote
- * (wm_form_written_<id>).
+ * design fields (option webmaven_form_design_<id>) and what WPMaven last wrote
+ * (webmaven_form_written_<id>).
  *
  * The design hash (design fields and button) is what the edit engine's
  * drift guard compares: a label changed in the builder since the last
@@ -24,10 +24,6 @@
  */
 
 if (!defined('ABSPATH')) exit;
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 final class WebMaven_Designed_Forms {
 
@@ -49,19 +45,19 @@ final class WebMaven_Designed_Forms {
     const LEGACY_CONFIRMATIONS = ['<p>Thank you for your submission!</p>'];
 
     const CONSENT_CSS = 'wm-marketing-consent';
-    const DESIGN_OPTION = 'wm_form_design_';
-    const WRITTEN_OPTION = 'wm_form_written_';
+    const DESIGN_OPTION = 'webmaven_form_design_';
+    const WRITTEN_OPTION = 'webmaven_form_written_';
 
     /** A form holds at most this many fields from the design. */
     const MAX_FIELDS = 60;
 
     /** One WPForms field from a design field ({label, type, required, placeholder, options|choices, css}). */
     public static function wpforms_field(array $field, int $id, bool $labels_hidden): array {
-        $type = self::TYPE_MAP[$field['type'] ?? 'text'] ?? 'text';
+        $type = self::TYPE_MAP[is_string($field['type'] ?? null) ? $field['type'] : 'text'] ?? 'text';
         $out = [
             'id' => (string) $id,
             'type' => $type,
-            'label' => (string) ($field['label'] ?? ''),
+            'label' => sanitize_text_field($field['label'] ?? ''),
             'required' => !empty($field['required']) ? '1' : '0',
             'size' => 'medium',
         ];
@@ -321,7 +317,7 @@ final class WebMaven_Designed_Forms {
 
     /** The design hash of the form registered under a name, or null when the site has no such form. */
     public static function sha_by_name(string $name) {
-        $post = self::form_post((int) get_option('wm_form_' . sanitize_key($name), 0));
+        $post = self::form_post((int) get_option('webmaven_form_' . sanitize_key($name), 0));
         $data = $post ? json_decode((string) $post->post_content, true) : null;
         return is_array($data) ? self::design_sha((int) $post->ID, $data) : null;
     }
@@ -353,7 +349,7 @@ final class WebMaven_Designed_Forms {
             throw self::error('VALIDATION', 'The form has no fields to write.');
         }
         if (count($spec['fields']) > self::MAX_FIELDS) {
-            throw self::error('VALIDATION', 'A form holds at most ' . self::MAX_FIELDS . ' fields.');
+            throw self::error('VALIDATION', 'A form holds at most ' . self::MAX_FIELDS . ' fields.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if (!function_exists('wpforms')) {
             throw self::error('NOT_SUPPORTED', 'WPForms is not active on this site, so its forms cannot change. Turn WPForms on, then publish again.');
@@ -361,7 +357,7 @@ final class WebMaven_Designed_Forms {
         $intent = sanitize_key((string) ($params['intent'] ?? '')) ?: 'contact';
         $confirmation = sanitize_text_field((string) ($params['confirmation'] ?? ''));
 
-        $id = (int) get_option('wm_form_' . $name, 0);
+        $id = (int) get_option('webmaven_form_' . $name, 0);
         $post = self::form_post($id);
         if (!$post) {
             $made = (new WebMaven_Webhook_Actions())->webhook_create_form([
@@ -475,13 +471,13 @@ final class WebMaven_Designed_Forms {
             return null;
         }
         $table = WebMaven_Leads::table();
-        $n = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE source = %s AND form_id = %d", 'wpforms', $form_id)); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table name
+        $n = $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i WHERE source = %s AND form_id = %d', $table, 'wpforms', $form_id)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; a count shown with the form, read as the table is now
         return $n === null ? null : (int) $n;
     }
 
     /** One stored form, as wm_form_read answers it. */
     private static function read_one(string $name) {
-        $id = (int) get_option('wm_form_' . $name, 0);
+        $id = (int) get_option('webmaven_form_' . $name, 0);
         $post = self::form_post($id);
         if (!$post) {
             return null;
@@ -518,7 +514,7 @@ final class WebMaven_Designed_Forms {
             'id' => $id,
             'provider' => 'wpforms',
             'title' => (string) ($settings['form_title'] ?? $post->post_title),
-            'intent' => (string) get_option('wm_form_intent_' . $id, ''),
+            'intent' => (string) get_option('webmaven_form_intent_' . $id, ''),
             'field_id' => (int) ($data['field_id'] ?? 0),
             'sha256' => self::design_sha($id, $data),
             'fields' => $fields,
@@ -564,7 +560,7 @@ final class WebMaven_Designed_Forms {
         if (!function_exists('wpforms')) {
             throw self::error('NOT_SUPPORTED', 'WPForms is not active on this site, so its forms cannot change. Turn WPForms on, then try again.');
         }
-        $id = (int) get_option('wm_form_' . $name, 0);
+        $id = (int) get_option('webmaven_form_' . $name, 0);
         $post = self::form_post($id);
         if (!$post) {
             throw self::error('TARGET_NOT_FOUND', 'This form is not on your site any more.');
@@ -579,12 +575,12 @@ final class WebMaven_Designed_Forms {
         $before_fields = [];
 
         if (array_key_exists('confirmation', $params)) {
-            $text = trim(preg_replace('/\s+/u', ' ', (string) $params['confirmation']));
+            $text = trim(preg_replace('/\s+/u', ' ', sanitize_text_field($params['confirmation'])));
             if ($text === '') {
                 throw self::error('VALIDATION', 'Write the message shown after sending.');
             }
             if (function_exists('mb_strlen') ? mb_strlen($text) > self::MAX_CONFIRMATION : strlen($text) > self::MAX_CONFIRMATION) {
-                throw self::error('VALIDATION', 'The thank-you message has at most ' . self::MAX_CONFIRMATION . ' characters.');
+                throw self::error('VALIDATION', 'The thank-you message has at most ' . self::MAX_CONFIRMATION . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $current = is_array($settings['confirmations'][1] ?? null) ? $settings['confirmations'][1] : [];
             $settings['confirmations'] = is_array($settings['confirmations'] ?? null) ? $settings['confirmations'] : [];
@@ -594,16 +590,18 @@ final class WebMaven_Designed_Forms {
         if (array_key_exists('recipients', $params)) {
             $list = [];
             foreach ((array) $params['recipients'] as $r) {
-                $r = trim((string) $r);
+                $r = is_scalar($r) ? trim((string) $r) : '';
                 if ($r === '{admin_email}') {
                     $list[] = $r;
                     continue;
                 }
                 $r = strtolower($r);
-                if (!is_email($r)) {
-                    throw self::error('VALIDATION', $r . ' is not an email address.');
+                // An address sanitize_email would change (a space, a character an address cannot hold) is refused, never rewritten.
+                $email = sanitize_email($r);
+                if ($email !== $r || !is_email($email)) {
+                    throw self::error('VALIDATION', sanitize_text_field($r) . ' is not an email address.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
-                $list[] = $r;
+                $list[] = $email;
             }
             $list = array_values(array_unique($list));
             if (count($list) > self::MAX_RECIPIENTS) {
@@ -685,7 +683,7 @@ final class WebMaven_Designed_Forms {
         try {
             $id = (int) ($form_data['id'] ?? 0);
             $token = is_array($entry) && isset($entry['token']) ? (string) $entry['token'] : '';
-            if ($id <= 0 || $token === '' || !get_option('wm_form_intent_' . $id) || !function_exists('wpforms')) {
+            if ($id <= 0 || $token === '' || !get_option('webmaven_form_intent_' . $id) || !function_exists('wpforms')) {
                 return $valid;
             }
             $wpforms = wpforms();

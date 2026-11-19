@@ -20,8 +20,8 @@ class WebMaven_Payments_Gateway extends WC_Payment_Gateway {
         $this->id = WebMaven_Payments::GATEWAY_ID;
         $this->method_title = 'WPMaven Payments';
         $this->method_description = 'Card and wallet payments processed by Stripe, paid out to the business. ' . self::turned_on_text();
-        $this->title = WebMaven_Payments::TITLE;
-        $this->description = WebMaven_Payments::DESCRIPTION;
+        $this->title = WebMaven_Payments::words('pay_title');
+        $this->description = WebMaven_Payments::words('pay_description');
         $this->has_fields = false;
         $this->supports = ['products', 'refunds'];
         $this->enabled = WebMaven_Payments::enabled() ? 'yes' : 'no';
@@ -58,7 +58,7 @@ class WebMaven_Payments_Gateway extends WC_Payment_Gateway {
     public function process_payment($order_id) {
         $order = wc_get_order($order_id);
         if (!$order) {
-            wc_add_notice('We could not find your order. Please try again.', 'error');
+            wc_add_notice(WebMaven_Payments::words('pay_order_missing'), 'error');
             return ['result' => 'failure'];
         }
         return [
@@ -76,15 +76,15 @@ class WebMaven_Payments_Gateway extends WC_Payment_Gateway {
     }
 
     public function receipt_page($order_id) {
-        echo WebMaven_Payments::receipt_html(wc_get_order($order_id)); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
+        echo wp_kses(WebMaven_Payments::receipt_html(wc_get_order($order_id)), WebMaven_Payments::page_html());
     }
 
     public function thankyou_page($order_id) {
         $query = [];
-        if (isset($_GET['redirect_status'])) { // phpcs:ignore WordPress.Security.NonceVerification -- Stripe's return parameter, read only
-            $query['redirect_status'] = sanitize_key(wp_unslash($_GET['redirect_status']));
+        if (isset($_GET['redirect_status'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: Stripe's return parameter on the order's thank-you page, shown as a status only
+            $query['redirect_status'] = sanitize_key(wp_unslash($_GET['redirect_status'])); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: Stripe's return parameter on the order's thank-you page, shown as a status only
         }
-        // nosemgrep: php.lang.security.injection.echoed-request.echoed-request -- the only request value is sanitize_key()'d, and the html is escaped inside
-        echo WebMaven_Payments::thankyou_html(wc_get_order($order_id), $query); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped inside
+        // nosemgrep: php.lang.security.injection.echoed-request.echoed-request -- the only request value is sanitize_key()'d, and the html goes through wp_kses
+        echo wp_kses(WebMaven_Payments::thankyou_html(wc_get_order($order_id), $query), WebMaven_Payments::page_html());
     }
 }

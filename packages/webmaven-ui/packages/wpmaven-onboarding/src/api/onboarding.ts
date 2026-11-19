@@ -161,6 +161,8 @@ export interface Analysis {
   language?: string;
   /** Which language the site should speak is the owner's to choose first: the options, the screen's language first. */
   languageQuestion?: { options: string[] } | null;
+  /** A site in several languages: the decision and the owner's languages (GET and PUT /onboarding/site-languages/:sessionId). */
+  siteLanguages?: import('../host/types').SiteLanguagesState | null;
 }
 export interface DesignConcept {
   id: string;
@@ -405,6 +407,25 @@ export interface SiteCheckFinding {
   handledBy?: 'team' | 'with_you' | 'kept';
   /** "What happens". */
   happens?: string;
+  /**
+   * Whether the team can fix it on this site ('team': a plan is on, and
+   * WPMaven Agent where the fix needs it) or only advise the owner
+   * ('advice'). Absent from an older api: handledBy says it then.
+   */
+  fixMode?: 'team' | 'advice';
+  /** Why it is advice: what would let the team do it (nothing, for 'no_tool'). */
+  adviceReason?: AdviceReason;
+  /** The advice, in the owner's words: one or two sentences, then the steps in WordPress. Sent with 'advice'. */
+  advice?: FindingAdvice;
+}
+
+/** What would let the team fix an advice finding: a plan, WPMaven Agent, both, or no tool can (yet). */
+export type AdviceReason = 'plan' | 'agent' | 'agent_and_plan' | 'no_tool';
+
+/** An advice finding's words: what to do, then where in WordPress, step by step. */
+export interface FindingAdvice {
+  summary: string;
+  steps: string[];
 }
 
 export interface SiteCheckArea {
@@ -426,6 +447,12 @@ export interface SiteCheckResult {
   areas: SiteCheckArea[];
   findings: SiteCheckFinding[];
   unreadable: Array<{ area: string; title: string; sentence: string }>;
+  /**
+   * What the team can do on this site: WPMaven Agent is there (updates and
+   * other administrative fixes need it), a plan is on. Absent from an older
+   * api: the check's lines read as they always did.
+   */
+  team?: { hasAgent: boolean; planLive: boolean };
 }
 
 /** The checks a site has left this hour (the site check's read, its run and its refusal answer it). */
@@ -458,6 +485,8 @@ export interface KeepSiteInput {
   fixes?: boolean;
   /** Fix and improve: the check's findings the owner ticked, filed as Waiting for you items; a list, even empty, ends the choice. */
   findingIds?: string[];
+  /** Fix and improve: the check's advice findings filed too, each as a Waiting for you item with its steps. */
+  advice?: boolean;
 }
 
 export interface KeepSiteAnswer {
@@ -466,6 +495,8 @@ export interface KeepSiteAnswer {
   plan: boolean;
   /** The ticked findings filed (null when none were sent). */
   fixes: { filed: number; waiting: number } | null;
+  /** The advice findings filed with advice: true (null when it was not sent; absent from an older api). */
+  advice?: { filed: number; waiting: number } | null;
 }
 
 /** "Save my business" refused a field: the field's sentence, by name ('name', 'phone', 'address.street'). */
@@ -1152,11 +1183,11 @@ export function createOnboardingApi(hostTransport: WizardTransport, identity: Wi
     },
 
     /** Whether the owner's plan is on now and how many fixes wait (read on the way back from Plans). */
-    async siteFixesState(): Promise<{ plan: boolean; waiting: number } | null> {
+    async siteFixesState(): Promise<{ plan: boolean; waiting: number; adviceWaiting?: number } | null> {
       const sessionId = getSessionId();
       if (!sessionId) return null;
       const data = await transport.request<Body>({ method: 'GET', path: `/onboarding/site-fixes/${sessionId}` });
-      return data?.success ? (data.data as { plan: boolean; waiting: number }) : null;
+      return data?.success ? (data.data as { plan: boolean; waiting: number; adviceWaiting?: number }) : null;
     },
 
     /** GET /onboarding/site-session: the site's setup state (a WordPress site's token only). */

@@ -222,7 +222,7 @@ final class WebMaven_Cap_Store_Settings {
                 if (isset($op['email'])) {
                     $op['email']->update_option('enabled', $op['value']);
                 } else {
-                    do_action('woocommerce_update_option', ['id' => $op['option']]);
+                    do_action('woocommerce_update_option', ['id' => $op['option']]); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce's own action, fired as its settings screen fires it after a save
                     update_option($op['option'], $op['value']);
                 }
             } catch (\Throwable $e) {
@@ -237,7 +237,7 @@ final class WebMaven_Cap_Store_Settings {
             $applied[] = ['setting' => $op['setting'], 'label' => $op['label'], 'before' => $before, 'after' => $after];
         }
         if ($applied) {
-            do_action('woocommerce_update_options');
+            do_action('woocommerce_update_options'); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce's own action, fired as its settings screen fires it after a save
         }
 
         $out = [
@@ -263,7 +263,7 @@ final class WebMaven_Cap_Store_Settings {
         $allowed = array_merge(array_keys(self::OPTIONS), ['store_country', 'store_state', 'emails']);
         foreach ($changes as $key => $value) {
             if (!in_array($key, $allowed, true)) {
-                $problems[] = '"' . $key . '" cannot be changed here';
+                $problems[] = '"' . sanitize_text_field($key) . '" cannot be changed here';
                 continue;
             }
             if ($key === 'store_country' || $key === 'store_state' || $key === 'emails') {
@@ -287,10 +287,10 @@ final class WebMaven_Cap_Store_Settings {
 
         if (array_key_exists('store_country', $changes) || array_key_exists('store_state', $changes)) {
             list($cur_country, $cur_state) = self::split_country((string) get_option(self::COUNTRY_OPTION, ''));
-            $country = array_key_exists('store_country', $changes) ? strtoupper(trim((string) $changes['store_country'])) : $cur_country;
+            $country = array_key_exists('store_country', $changes) ? strtoupper(trim(sanitize_text_field($changes['store_country']))) : $cur_country;
             // A new country drops the old state unless a state is given.
             $state = array_key_exists('store_state', $changes)
-                ? strtoupper(trim((string) $changes['store_state']))
+                ? strtoupper(trim(sanitize_text_field($changes['store_state'])))
                 : ($country === $cur_country ? $cur_state : '');
             $countries = (array) WC()->countries->get_countries();
             if (!isset($countries[$country])) {
@@ -315,7 +315,7 @@ final class WebMaven_Cap_Store_Settings {
                 }
                 foreach ($changes['emails'] as $id => $on) {
                     if (!isset($known[$id])) {
-                        $problems[] = '"' . $id . '" is not one of the store\'s emails (' . implode(', ', array_keys($known)) . ')';
+                        $problems[] = '"' . sanitize_text_field($id) . '" is not one of the store\'s emails (' . implode(', ', array_keys($known)) . ')';
                         continue;
                     }
                     $flag = self::yes_no($on);
@@ -337,9 +337,12 @@ final class WebMaven_Cap_Store_Settings {
             case 'currency_position':
                 return in_array($value, self::POSITIONS, true) ? $value : ['problem' => 'the currency position must be one of ' . implode(', ', self::POSITIONS)];
             case 'thousand_separator':
+                // WooCommerce saves its separators through wp_kses_post, which keeps a space.
+                $value = is_string($value) ? wp_kses_post($value) : $value;
                 return is_string($value) && self::mb_len($value) <= 2 && !preg_match('/[\p{L}\p{N}]/u', $value)
                     ? $value : ['problem' => 'the thousand separator must be empty or one or two symbols, like "," or "."'];
             case 'decimal_separator':
+                $value = is_string($value) ? wp_kses_post($value) : $value;
                 return is_string($value) && self::mb_len($value) === 1 && !preg_match('/[\p{L}\p{N}]/u', $value)
                     ? $value : ['problem' => 'the decimal separator must be one symbol, like "." or ","'];
             case 'decimals':
@@ -611,7 +614,7 @@ final class WebMaven_Cap_Store_Settings {
             return 'each location needs a type and a code';
         }
         $type = $loc['type'];
-        $code = trim($loc['code']);
+        $code = trim(sanitize_text_field($loc['code']));
         switch ($type) {
             case 'country':
                 $code = strtoupper($code);
@@ -639,7 +642,7 @@ final class WebMaven_Cap_Store_Settings {
         }
         foreach (array_keys($m) as $k) {
             if (!in_array($k, self::METHOD_KEYS, true)) {
-                return "method $n: \"$k\" cannot be set here";
+                return "method $n: \"" . sanitize_text_field($k) . '" cannot be set here';
             }
         }
         $instance_id = isset($m['instance_id']) && $m['instance_id'] !== null ? (is_numeric($m['instance_id']) ? (int) $m['instance_id'] : -1) : 0;
@@ -655,7 +658,7 @@ final class WebMaven_Cap_Store_Settings {
                 return "method $instance_id is $type, and only flat rate and free shipping methods can be changed here";
             }
             if (isset($m['type']) && $m['type'] !== $type) {
-                return "method $instance_id is $type, so its type cannot be changed to " . (is_string($m['type']) ? $m['type'] : '?');
+                return "method $instance_id is $type, so its type cannot be changed to " . (is_string($m['type']) ? sanitize_text_field($m['type']) : '?');
             }
         } else {
             $type = isset($m['type']) && is_string($m['type']) ? $m['type'] : '';
@@ -734,7 +737,7 @@ final class WebMaven_Cap_Store_Settings {
                 $settings[$k] = $v;
             }
             $key = $method->get_instance_option_key();
-            update_option($key, apply_filters('woocommerce_shipping_' . $method->id . '_instance_settings_values', $settings, $method), 'yes');
+            update_option($key, apply_filters('woocommerce_shipping_' . $method->id . '_instance_settings_values', $settings, $method), 'yes'); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce's own filter, applied as its shipping settings screen applies it
             $stored = get_option($key, []);
             foreach ($m['settings'] as $k => $v) {
                 if (!is_array($stored) || !isset($stored[$k]) || (string) $stored[$k] !== (string) $v) {
@@ -744,12 +747,12 @@ final class WebMaven_Cap_Store_Settings {
         }
         if ($m['enabled'] !== null) {
             global $wpdb;
-            $wpdb->update(
+            $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WooCommerce's own write when its settings screen switches a shipping method on or off (it has no function for it); its action and a read back follow; a write, and nothing caches these rows
                 $wpdb->prefix . 'woocommerce_shipping_zone_methods',
                 ['is_enabled' => $m['enabled'] ? 1 : 0],
                 ['instance_id' => absint($instance_id)]
             );
-            do_action('woocommerce_shipping_zone_method_status_toggled', $instance_id, $method->id, $zone->get_id(), $m['enabled']);
+            do_action('woocommerce_shipping_zone_method_status_toggled', $instance_id, $method->id, $zone->get_id(), $m['enabled']); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce's own action, fired as its shipping settings screen fires it
             $check = WC_Shipping_Zones::get_zone((int) $zone->get_id());
             $now = null;
             foreach ($check ? (array) $check->get_shipping_methods(false) : [] as $x) {
@@ -813,7 +816,7 @@ final class WebMaven_Cap_Store_Settings {
 
     private static function tax_rate_count() {
         global $wpdb;
-        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_tax_rates");
+        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}woocommerce_tax_rates"); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WooCommerce's tax rates table, which no WooCommerce function counts; read as the database is now, so nothing is cached
     }
 
     private static function split_country($value) {

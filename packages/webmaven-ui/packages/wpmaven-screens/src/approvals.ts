@@ -21,6 +21,7 @@ export * from './approvals/heldItems';
 export * from './approvals/receipts';
 export * from './approvals/videoLabel';
 export * from './approvals/words';
+export * from './approvals/advice';
 
 // ── components ────────────────────────────────────────────────────────────
 export { ApprovalPreview, campaignApprovalView } from './approvals/ApprovalPreview';
@@ -43,4 +44,6 @@ export {
   OWNER_ONLY_TEXT, APPROVE_IN_DASHBOARD_TEXT, SITE_HELD_TEXT,
 } from './approvals/ApprovalCard';
 export type { ApprovalCardProps, ApprovalCardStatus, ApprovalDetailProps, SiteDecision } from './approvals/ApprovalCard';
+export { AdviceCard } from './approvals/AdviceCard';
+export type { AdviceCardProps } from './approvals/AdviceCard';
 export { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, InformationCircleIcon } from './approvals/icons';

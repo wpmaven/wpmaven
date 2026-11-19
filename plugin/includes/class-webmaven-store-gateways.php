@@ -16,6 +16,12 @@
  * shape of the API's payment status. Every gateway is still listed with its
  * state, a connected one included.
  *
+ * Local payment services (2026-11-16): the services of the store's currency
+ * and, when WooCommerce knows the store's country, of that country
+ * (WebMaven_Store_Payments::local_services_for) are listed after the three
+ * with their state, and named in storeCurrency.services, as the API does.
+ * A currency one of them pays a business in has no note any more.
+ *
  *   GET webmaven_wp/v1/store/gateways   Shop managers and administrators
  *   -> {success, data: {woocommerce, wpmaven: {enabled}, gateways: [{id,
  *       title, connected, enabled, active, setupUrl}], printedProducts,
@@ -60,7 +66,7 @@ final class WebMaven_Store_Gateways {
         // WooPayments has no business accounts in Brazil or Mexico.
         'BRL' => ['Brazil', 'Brazilian reals', ['stripe', 'ppcp']],
         'MXN' => ['Mexico', 'Mexican pesos', ['stripe', 'ppcp']],
-        // None of the three pays a business there in it.
+        // None of the three pays a business there in it; local services do.
         'INR' => ['India', 'Indian rupees', []],
         'ZAR' => ['South Africa', 'South African rand', []],
         'SGD' => ['Singapore', 'Singapore dollars', self::ALL_GATEWAYS],
@@ -74,6 +80,20 @@ final class WebMaven_Store_Gateways {
         'PHP' => ['the Philippines', 'Philippine pesos', ['ppcp']],
         // Nor in Israel; PayPal takes shekels.
         'ILS' => ['Israel', 'Israeli new shekels', ['ppcp']],
+        // The local services' currencies (2026-11-16): only a local service
+        // pays a business in these...
+        'TRY' => ['Türkiye', 'Turkish lira', []],
+        'COP' => ['Colombia', 'Colombian pesos', []],
+        'PEN' => ['Peru', 'Peruvian soles', []],
+        'UYU' => ['Uruguay', 'Uruguayan pesos', []],
+        'CRC' => ['Costa Rica', 'Costa Rican colones', []],
+        'IDR' => ['Indonesia', 'Indonesian rupiah', []],
+        'VND' => ['Vietnam', 'Vietnamese dong', []],
+        'LKR' => ['Sri Lanka', 'Sri Lankan rupees', []],
+        // ... Stripe and PayPal in Thailand and Malaysia, PayPal in Taiwan.
+        'THB' => ['Thailand', 'Thai baht', ['stripe', 'ppcp']],
+        'MYR' => ['Malaysia', 'Malaysian ringgit', ['stripe', 'ppcp']],
+        'TWD' => ['Taiwan', 'New Taiwan dollars', ['ppcp']],
     ];
 
     public static function register_routes() {
@@ -104,7 +124,7 @@ final class WebMaven_Store_Gateways {
             'gateways' => [],
             'printedProducts' => $woocommerce && self::sells_printed_products(),
             'manageUrl' => $woocommerce ? admin_url('admin.php?page=wc-settings&tab=checkout') : null,
-            'storeCurrency' => $woocommerce ? self::store_currency_offer(get_option('woocommerce_currency', '')) : null,
+            'storeCurrency' => $woocommerce ? self::store_currency_offer(get_option('woocommerce_currency', ''), self::store_country()) : null,
         ];
         if (!$woocommerce || !class_exists('WebMaven_Store_Payments')) {
             return $out;
@@ -128,7 +148,38 @@ final class WebMaven_Store_Gateways {
                 'setupUrl' => $setup,
             ];
         }
+        // The local services of the store's currency and country (2026-11-16),
+        // and any other local service whose plugin runs here.
+        $offered = $out['storeCurrency'] ? $out['storeCurrency']['services'] : [];
+        foreach (WebMaven_Store_Payments::local_services() as $key => $service) {
+            try {
+                $status = WebMaven_Store_Payments::gateway_status(['gateway' => $key]);
+            } catch (\Throwable $e) {
+                $status = ['connected' => 'none', 'enabled' => false, 'plugin_active' => false];
+            }
+            $active = !empty($status['plugin_active']);
+            if (!$active && !in_array($key, $offered, true)) {
+                continue;
+            }
+            $setup = $active
+                ? admin_url((string) $service['setupPath'])
+                : ($can_install ? admin_url('plugin-install.php?s=' . rawurlencode((string) $service['slug']) . '&tab=search&type=term') : null);
+            $out['gateways'][] = [
+                'id' => $key,
+                'title' => (string) $service['name'],
+                'connected' => in_array($status['connected'] ?? 'none', ['connected', 'pending', 'none'], true) ? $status['connected'] : 'none',
+                'enabled' => !empty($status['enabled']),
+                'active' => $active,
+                'setupUrl' => $setup,
+                'local' => true,
+            ] + (!empty($status['mode']) ? ['mode' => $status['mode']] : []);
+        }
         return $out;
+    }
+
+    /** The store's country as WooCommerce has it, or null. */
+    private static function store_country() {
+        return class_exists('WebMaven_Store_Payments') ? WebMaven_Store_Payments::store_country() : null;
     }
 
     /**
@@ -140,17 +191,22 @@ final class WebMaven_Store_Gateways {
      * in India in Indian rupees (INR) yet."). Null when the table does not
      * cover it.
      */
-    public static function store_currency_offer($code) {
+    public static function store_currency_offer($code, $country = null) {
         $code = is_scalar($code) ? strtoupper(trim((string) $code)) : '';
         if (!isset(self::STORE_CURRENCY_PAYMENTS[$code])) {
             return null;
         }
-        list($place, $name, $services) = self::STORE_CURRENCY_PAYMENTS[$code];
+        list($place, $name, $core) = self::STORE_CURRENCY_PAYMENTS[$code];
+        // The local services after the three, as the API offers them (2026-11-16).
+        $locals = class_exists('WebMaven_Store_Payments') ? array_keys(WebMaven_Store_Payments::local_services_for($code, $country)) : [];
+        $services = array_merge($core, $locals);
+        $names = array_merge(['WooPayments', 'Stripe', 'PayPal'], array_map(function ($s) { return (string) $s['name']; }, class_exists('WebMaven_Store_Payments') ? array_values(WebMaven_Store_Payments::local_services_for($code)) : []));
+        $last = array_pop($names);
         return [
             'code' => $code,
             'services' => $services,
-            'wpmavenPayments' => in_array('stripe', $services, true),
-            'note' => $services ? null : "WooPayments, Stripe and PayPal cannot pay a business in $place in $name ($code) yet.",
+            'wpmavenPayments' => in_array('stripe', $core, true),
+            'note' => $services ? null : implode(', ', $names) . " and $last cannot pay a business in $place in $name ($code) yet.",
         ];
     }
 
@@ -159,11 +215,11 @@ final class WebMaven_Store_Gateways {
         if (!function_exists('get_posts')) {
             return false;
         }
-        $meta = class_exists('WebMaven_Payments') ? WebMaven_Payments::POD_PRODUCT_META : '_wm_pod_product';
+        $meta = class_exists('WebMaven_Payments') ? WebMaven_Payments::POD_PRODUCT_META : '_webmaven_pod_product';
         $ids = get_posts([
             'post_type' => 'product',
             'post_status' => ['publish', 'private', 'draft', 'pending', 'future'],
-            'meta_key' => $meta,
+            'meta_key' => $meta, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- whether any product is printed, by WPMaven's own meta key, which postmeta indexes; one id
             'posts_per_page' => 1,
             'fields' => 'ids',
             'no_found_rows' => true,

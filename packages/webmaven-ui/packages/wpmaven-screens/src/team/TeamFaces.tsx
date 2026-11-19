@@ -13,10 +13,12 @@ import React, { useEffect, useState } from 'react';
 import { OperatorAvatar, OPERATOR_AVATAR_SIZES } from '@yotako/webmaven-ui';
 import type { ScreensTransport } from '../host/types';
 import { readTeamFaces, type TeamFaceMember } from './reads';
+import { TEAM_FACES_COPY } from './teamCopy';
 
 const POLL_MS = 60_000;
 
-export const TEAM_FACES_COPY = { heading: 'Your team' } as const;
+// The strip's words, in the page's language (./teamCopy, namespace screensTeamFaces).
+export { TEAM_FACES_COPY };
 
 /** The most faces shown; the rest are a "+N" chip. */
 export const TEAM_FACES_MAX = 4;
@@ -35,8 +37,8 @@ export function teamFacesShown(members: readonly TeamFaceMember[], max = TEAM_FA
 
 /** The line under a face: what they are doing, or nothing when still. */
 export function teamFaceLine(m: TeamFaceMember): string | null {
-  if (m.presence === 'working') return m.line ? `Working: ${m.line}` : 'Working';
-  if (m.presence === 'waiting') return 'Waiting for your yes';
+  if (m.presence === 'working') return m.line ? TEAM_FACES_COPY.workingOn(m.line) : TEAM_FACES_COPY.working;
+  if (m.presence === 'waiting') return TEAM_FACES_COPY.waiting;
   return null;
 }
 

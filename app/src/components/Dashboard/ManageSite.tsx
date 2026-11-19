@@ -13,8 +13,14 @@
  *                           shows you how; WPMaven Agent unlocks the rest.
  *   3. What can be better   "Your team fixes these": the free fixes, ticked
  *                           (GET/POST onboarding/manage-fixes, run at once on
- *                           the owner's press); "These need you": the site
- *                           check's findings, each with "Show me how".
+ *                           the owner's press), and with a plan the check's
+ *                           findings the team fixes on this site, filed in
+ *                           Waiting for you for the owner's yes (keep-site's
+ *                           findingIds); "These need you": the rest of the
+ *                           check's findings, each with "Show me how" and its
+ *                           steps, filed in Waiting for you as advice
+ *                           (keep-site's advice: true) whichever button ends
+ *                           the screen.
  *
  * Every call goes through the plugin's wizard proxy as the site
  * (onboarding/pluginTransport). The site itself shows on the left.
@@ -23,6 +29,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button, OperatorAvatar, Checkbox } from '@yotako/webmaven-ui';
 import BrandMark from '../BrandMark';
 import { siteBrand } from '../../utils/brand';
+import { agentName } from './SetupInDashboard';
 import { createPluginTransport } from '../../onboarding/pluginTransport';
 
 type Step = 'site' | 'team' | 'better';
@@ -40,7 +47,16 @@ interface SiteFacts {
 }
 
 interface FreeFix { id: string; title: string; happens: string; operator: string }
-interface Finding { id: string; title: string; detail?: string; happens?: string; level: string; operator?: string }
+type AdviceReason = 'plan' | 'agent' | 'agent_and_plan' | 'no_tool';
+interface Finding {
+  id: string; title: string; detail?: string; happens?: string; level: string; operator?: string;
+  handledBy?: string;
+  /** 'team' when the team fixes it on this site once the owner says yes (a plan, and Agent for an admin fix). */
+  fixMode?: 'team' | 'advice';
+  /** The check's steps for a finding the team does not fix on this site, and why. */
+  advice?: { summary?: string; steps?: string[] };
+  adviceReason?: AdviceReason;
+}
 
 export const MANAGE_COPY = {
   steps: ['Your site', 'Your team', 'What can be better'] as const,
@@ -63,18 +79,22 @@ export const MANAGE_COPY = {
   works: 'Work on your site',
   shows: 'Show you how',
   agentTitle: 'Want all of them to work on your site?',
-  agentLine: 'Install WPMaven Agent, our companion plugin, and every member makes the changes themselves, each one waiting for your yes.',
+  agentLine: 'Install WPMaven Agent, our companion plugin, and with a plan every member makes the changes themselves, each one waiting for your yes.',
   betterTitle: (name: string) => `What can be better on ${name}`,
   betterSub: 'From a check of your site just now. Your team fixes what it can; for the rest, it shows you how.',
   teamFixes: 'Your team fixes these',
   tickThem: 'Tick the ones you want',
+  teamYes: 'Fixes from the check wait for your yes in Waiting for you.',
   needYou: 'These need you',
   showsHow: 'Your team shows you how',
   showMe: 'Show me how',
   hide: 'Hide',
   checking: 'Checking your site…',
   nothing: 'Nothing to fix right now.',
-  later: 'Everything here stays in Waiting for you, in WPMaven. With WPMaven Agent, your team fixes the second list too.',
+  later: 'The ones that need you stay in Waiting for you, in WPMaven, with their steps.',
+  /** Agent by the name this site shows (agentName: WPMaven Agent, a brand's own, or the Agent plugin). */
+  quietAgent: (agent: string) => `With ${agent} and a plan, your team does this for you.`,
+  quietPlan: 'With a plan, your team does this for you.',
   back: 'Back',
   next: 'Continue',
   notNow: 'Not now',
@@ -102,10 +122,46 @@ export function hostOf(url: string): string {
 /** The site check's findings a free fix above already takes care of: shown once, in "Your team fixes these". */
 const COVERED_BY_FREE_FIX: Record<string, string> = { description_missing: 'search_descriptions' };
 
+/** The check's findings a free fix on offer covers: shown and filed once, as that fix. Pure. */
+export function coveredByFreeFix(findings: Array<{ id: string }> | null, fixes: Array<{ id: string }> | null): string[] {
+  const offered = new Set((fixes ?? []).map((x) => x.id));
+  return (findings ?? []).filter((f) => COVERED_BY_FREE_FIX[f.id] && offered.has(COVERED_BY_FREE_FIX[f.id])).map((f) => f.id);
+}
+
 /** "These need you": the check's findings, without the ones a free fix on offer covers. Pure. */
 export function needYou<F extends { id: string }>(findings: F[] | null, fixes: Array<{ id: string }> | null): F[] {
-  const offered = new Set((fixes ?? []).map((x) => x.id));
-  return (findings ?? []).filter((f) => !(COVERED_BY_FREE_FIX[f.id] && offered.has(COVERED_BY_FREE_FIX[f.id])));
+  const covered = new Set(coveredByFreeFix(findings, fixes));
+  return (findings ?? []).filter((f) => !covered.has(f.id));
+}
+
+/** A finding of the check the team fixes on this site once the owner says yes. Pure. */
+export function teamFixes(f: Pick<Finding, 'handledBy' | 'fixMode'>): boolean {
+  return f.handledBy === 'team' && f.fixMode === 'team';
+}
+
+/** The check's findings the team fixes, and those that need the owner, without what a free fix on offer covers. Pure. */
+export function betterLists<F extends Pick<Finding, 'id' | 'handledBy' | 'fixMode'>>(findings: F[] | null, fixes: Array<{ id: string }> | null): { team: F[]; withYou: F[] } {
+  const listed = needYou(findings, fixes);
+  return { team: listed.filter(teamFixes), withYou: listed.filter((f) => !teamFixes(f)) };
+}
+
+/**
+ * What would let the team do "These need you", said once under them: Agent
+ * and a plan when any needs Agent, else a plan when any needs one, else
+ * nothing (no tool does it yet). Agent is named as this site names it. Pure.
+ */
+export function quietLine(findings: Array<{ adviceReason?: AdviceReason }>, agent: string = agentName()): string | null {
+  const reasons = findings.map((f) => f.adviceReason);
+  if (reasons.some((r) => r === 'agent' || r === 'agent_and_plan')) return MANAGE_COPY.quietAgent(agent);
+  if (reasons.includes('plan')) return MANAGE_COPY.quietPlan;
+  return null;
+}
+
+/** A finding's steps from the check, or none. Pure. */
+export function stepsOf(f: Pick<Finding, 'advice'>): { summary: string; steps: string[] } | null {
+  const summary = typeof f.advice?.summary === 'string' ? f.advice.summary.trim() : '';
+  const steps = Array.isArray(f.advice?.steps) ? f.advice!.steps.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [];
+  return summary || steps.length ? { summary, steps } : null;
 }
 
 export function foundLines(profile: SiteFacts['profile']): Array<[string, string]> {
@@ -200,6 +256,7 @@ export default function ManageSite({ startAt = 'site', onDone, onBuild }: Manage
   const [error, setError] = useState<string | null>(null);
   const [fixes, setFixes] = useState<FreeFix[] | null>(null);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [teamTicked, setTeamTicked] = useState<Set<string>>(new Set());
   const [findings, setFindings] = useState<Finding[] | null>(null);
   const [checkNote, setCheckNote] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -247,7 +304,8 @@ export default function ManageSite({ startAt = 'site', onDone, onBuild }: Manage
     void transport.request({ method: 'POST', path: `onboarding/site-check/${sessionId}`, body: {}, timeoutMs: 120_000 })
       .then((b) => {
         const check = data<{ check?: { findings?: Finding[] } }>(b)?.check;
-        if (mounted.current) setFindings((check?.findings ?? []).filter((f) => f.level !== 'ok'));
+        const open = (check?.findings ?? []).filter((f) => f.level !== 'ok');
+        if (mounted.current) { setFindings(open); setTeamTicked(new Set(open.filter(teamFixes).map((f) => f.id))); }
       })
       .catch((e: unknown) => {
         const msg = (e as { data?: { error?: unknown } })?.data?.error;
@@ -281,6 +339,11 @@ export default function ManageSite({ startAt = 'site', onDone, onBuild }: Manage
     }
   };
 
+  const { team: teamListed, withYou: listed } = betterLists(findings, fixes);
+  const teamChosen = teamListed.filter((f) => teamTicked.has(f.id)).map((f) => f.id);
+  const chosen = ticked.size + teamChosen.length;
+  const quiet = quietLine(listed);
+
   const finish = async (fix: boolean) => {
     if (!sessionId) return;
     setBusy(true);
@@ -288,8 +351,12 @@ export default function ManageSite({ startAt = 'site', onDone, onBuild }: Manage
       if (fix && ticked.size) {
         await transport.request({ method: 'POST', path: `onboarding/manage-fixes/${sessionId}`, body: { ids: [...ticked] } }).catch(() => undefined);
       }
-      // The fixes are chosen: the business is set up.
-      await transport.request({ method: 'POST', path: `onboarding/keep-site/${sessionId}`, body: { findingIds: [] } }).catch(() => undefined);
+      // The fixes are chosen: the business is set up, the check's ticked
+      // fixes wait for the owner's yes, and what needs the owner waits with
+      // its steps, all in Waiting for you (what a free fix covers, once).
+      const findingIds = fix ? teamChosen : [];
+      const adviceSkip = coveredByFreeFix(findings, fixes);
+      await transport.request({ method: 'POST', path: `onboarding/keep-site/${sessionId}`, body: { findingIds, advice: true, adviceSkip } }).catch(() => undefined);
     } finally {
       setBusy(false);
       onDone();
@@ -390,7 +457,7 @@ export default function ManageSite({ startAt = 'site', onDone, onBuild }: Manage
               <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{MANAGE_COPY.tickThem}</span>
             </div>
             {fixes === null && <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-dim)' }}>{MANAGE_COPY.checking}</p>}
-            {fixes !== null && fixes.length === 0 && <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-dim)' }}>{MANAGE_COPY.nothing}</p>}
+            {fixes !== null && fixes.length === 0 && teamListed.length === 0 && <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-dim)' }}>{MANAGE_COPY.nothing}</p>}
             {(fixes ?? []).map((f) => (
               <div key={f.id} data-testid={`wm-manage-fix-${f.id}`} style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--bg-raised, #fff)', border: '1px solid var(--glass-border, #E2E4EA)' }}>
                 <Checkbox
@@ -407,37 +474,67 @@ export default function ManageSite({ startAt = 'site', onDone, onBuild }: Manage
                 />
               </div>
             ))}
+            {teamListed.map((f) => (
+              <div key={f.id} data-testid={`wm-manage-check-fix-${f.id}`} style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--bg-raised, #fff)', border: '1px solid var(--glass-border, #E2E4EA)' }}>
+                <Checkbox
+                  checked={teamTicked.has(f.id)}
+                  onChange={(on) => setTeamTicked((prev) => { const next = new Set(prev); if (on) next.add(f.id); else next.delete(f.id); return next; })}
+                  label={(
+                    <div>
+                      <b style={{ display: 'block', fontSize: 14.5, color: 'var(--text)', marginBottom: 3 }}>{f.title}</b>
+                      {f.happens && (
+                        <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text-dim)' }}>
+                          {f.operator && <OperatorAvatar id={f.operator} size={24} decorative />}{f.happens}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
+            ))}
+            {teamListed.length > 0 && <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)' }}>{MANAGE_COPY.teamYes}</p>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
               <span style={chip('#FCF3E3', '#B7791F')}>{MANAGE_COPY.needYou}</span>
               <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{MANAGE_COPY.showsHow}</span>
             </div>
             {findings === null && <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-dim)' }}>{MANAGE_COPY.checking}</p>}
             {checkNote && <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-dim)' }}>{checkNote}</p>}
-            {needYou(findings, fixes).map((f) => (
-              <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 12, alignItems: 'start', padding: '14px 16px', borderRadius: 14, background: 'var(--bg-raised, #fff)', border: '1px solid var(--glass-border, #E2E4EA)' }}>
-                <span aria-hidden style={{ width: 20, height: 20, borderRadius: 6, background: '#FCF3E3', color: '#B7791F', font: '700 12px/20px var(--font-ui, Inter, sans-serif)', textAlign: 'center' }}>!</span>
-                <div>
-                  <b style={{ display: 'block', fontSize: 14.5, color: 'var(--text)', marginBottom: 3 }}>{f.title}</b>
-                  {f.happens && (
-                    <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text-dim)' }}>
-                      {f.operator && <OperatorAvatar id={f.operator} size={24} decorative />}{f.happens}
-                    </span>
-                  )}
-                  {open === f.id && f.detail && (
-                    <p style={{ margin: '8px 0 0', padding: '12px 14px', borderRadius: 10, background: 'var(--bg, #F5F6F8)', fontSize: 13.5, lineHeight: 1.55, color: 'var(--text)' }}>{f.detail}</p>
+            {listed.map((f) => {
+              const how = stepsOf(f);
+              // A recommendation says what to do; "what happens" would promise the team does it.
+              const line = how?.summary || (f.fixMode === 'advice' ? '' : f.happens ?? '');
+              return (
+                <div key={f.id} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 12, alignItems: 'start', padding: '14px 16px', borderRadius: 14, background: 'var(--bg-raised, #fff)', border: '1px solid var(--glass-border, #E2E4EA)' }}>
+                  <span aria-hidden style={{ width: 20, height: 20, borderRadius: 6, background: '#FCF3E3', color: '#B7791F', font: '700 12px/20px var(--font-ui, Inter, sans-serif)', textAlign: 'center' }}>!</span>
+                  <div>
+                    <b style={{ display: 'block', fontSize: 14.5, color: 'var(--text)', marginBottom: 3 }}>{f.title}</b>
+                    {line && (
+                      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: 'var(--text-dim)' }}>
+                        {f.operator && <OperatorAvatar id={f.operator} size={24} decorative />}{line}
+                      </span>
+                    )}
+                    {open === f.id && how && how.steps.length > 0 && (
+                      <ol data-testid={`wm-manage-steps-${f.id}`} style={{ margin: '8px 0 0', padding: '12px 14px 12px 34px', borderRadius: 10, background: 'var(--bg, #F5F6F8)', fontSize: 13.5, lineHeight: 1.55, color: 'var(--text)' }}>
+                        {how.steps.map((step, i) => <li key={i}>{step}</li>)}
+                      </ol>
+                    )}
+                    {open === f.id && !how?.steps.length && f.detail && (
+                      <p style={{ margin: '8px 0 0', padding: '12px 14px', borderRadius: 10, background: 'var(--bg, #F5F6F8)', fontSize: 13.5, lineHeight: 1.55, color: 'var(--text)' }}>{f.detail}</p>
+                    )}
+                  </div>
+                  {(!!how?.steps.length || !!f.detail) && (
+                    <Button variant="ghost" size="sm" onClick={() => setOpen(open === f.id ? null : f.id)}>{open === f.id ? MANAGE_COPY.hide : MANAGE_COPY.showMe}</Button>
                   )}
                 </div>
-                {f.detail && (
-                  <Button variant="ghost" size="sm" onClick={() => setOpen(open === f.id ? null : f.id)}>{open === f.id ? MANAGE_COPY.hide : MANAGE_COPY.showMe}</Button>
-                )}
-              </div>
-            ))}
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-dim)' }}>{MANAGE_COPY.later}</p>
+              );
+            })}
+            {listed.length > 0 && <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-dim)' }}>{MANAGE_COPY.later}</p>}
+            {quiet && <p data-testid="wm-manage-quiet" style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)' }}>{quiet}</p>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 0 40px', borderTop: '1px solid var(--glass-border, #E2E4EA)', marginTop: 16 }}>
             <Button variant="ghost" onClick={() => setStep('team')}>{MANAGE_COPY.back}</Button>
             <Button variant="secondary" style={{ marginLeft: 'auto' }} onClick={() => void finish(false)} disabled={busy}>{MANAGE_COPY.notNow}</Button>
-            <Button variant="primary" onClick={() => void finish(true)} isLoading={busy} disabled={busy || ticked.size === 0} data-testid="wm-manage-fix">{MANAGE_COPY.fix(ticked.size)}</Button>
+            <Button variant="primary" onClick={() => void finish(true)} isLoading={busy} disabled={busy || chosen === 0} data-testid="wm-manage-fix">{MANAGE_COPY.fix(chosen)}</Button>
           </div>
         </>
       )}

@@ -19,14 +19,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Badge, Button, Dropdown, GlassCard, GoalWidget, Input, OperatorAvatar, OPERATOR_AVATAR_SIZES, RollingTabs,
-  Skeleton, type RollingTabItem,
+  Skeleton, textDirection, type RollingTabItem,
 } from '@yotako/webmaven-ui';
 import { FiChevronRight, FiClock, FiDownload, FiFileText, FiTarget, FiZap } from 'react-icons/fi';
 import type { ScreensHost } from '../host/types';
 import { ScreensHostProvider, useScreensHost } from '../host/HostContext';
 import { openPage } from '../approvals/ReceiptNote';
 import { teamBusiness, readTeamRuns, readTeamTasks } from '../team/reads';
-import { inOneLine, runIsLive, runLines, type BackgroundRun, type TaskRow } from '../team/tasks';
+import { TASKS_COPY, inOneLine, runIsLive, runLines, type BackgroundRun, type TaskRow } from '../team/tasks';
+import { INSIGHTS_COPY } from './insightsCopy';
+import { formatTag } from '../copyLanguage';
 import { weekPlanHref } from './WeekPlan';
 import {
   createGoal, readGoals, readLatestReport, readUpcomingTasks,
@@ -35,45 +37,7 @@ import {
 import { isRefusal, sectionErrorText } from './SectionState';
 import { SECTION_LABEL } from './styles';
 
-export const INSIGHTS_COPY = {
-  report: 'Report',
-  plan: "Your team's plan",
-  goals: 'Goals',
-  latestReport: 'Latest report',
-  downloadPdf: 'Download PDF',
-  viewReport: 'View full report',
-  pdfFailed: 'The PDF could not be downloaded. Try again in a minute.',
-  reportFailed: 'Your latest report could not be loaded. Try again in a minute.',
-  upNext: 'Up next',
-  workingNow: 'Working on it now',
-  nothingScheduled: 'Nothing is scheduled yet.',
-  byTeam: 'by your team',
-  seePlan: "See your team's plan",
-  planLoading: "Loading your team's plan",
-  planFailed: "Your team's plan could not be loaded. Try again in a minute.",
-  goalsLoading: 'Loading your goals',
-  goalsFailed: 'Your goals could not be loaded. Try again in a minute.',
-  noGoals: 'No goals yet.',
-  noGoalsSite: 'No goals yet. An administrator of this site can add one.',
-  addGoal: 'Add a goal',
-  goalName: 'Goal name',
-  goalNamePlaceholder: '100 sales this month',
-  goalCounts: 'What counts',
-  goalUrl: 'A visit to a page',
-  goalEvent: 'An event on the site',
-  goalPage: 'The page address',
-  goalEventName: 'The event name',
-  goalTarget: 'Target (optional)',
-  goalEvery: 'Every',
-  goalDay: 'Day',
-  goalWeek: 'Week',
-  goalMonth: 'Month',
-  saveGoal: 'Save goal',
-  saving: 'Saving',
-  cancel: 'Cancel',
-  goalFailed: 'The goal could not be saved. Try again in a minute.',
-  retry: 'Retry',
-};
+export { INSIGHTS_COPY } from './insightsCopy';
 
 /** The card's height while no report is there: about two goals, the plan's footprint. */
 export const INSIGHTS_NO_REPORT_HEIGHT = 260;
@@ -95,18 +59,19 @@ export function reportHref(instanceId: string, reportId: string): string {
 
 /** When a task runs next, in short words: "in 5m", "Tomorrow at 9:00 AM", "Monday at 9:00 AM". */
 export function nextRunWords(nextRunAt: string | null | undefined, now = Date.now()): string {
-  if (!nextRunAt) return 'Not scheduled';
+  if (!nextRunAt) return TASKS_COPY.notScheduled;
   const d = new Date(nextRunAt);
-  if (Number.isNaN(d.getTime())) return 'Not scheduled';
+  if (Number.isNaN(d.getTime())) return TASKS_COPY.notScheduled;
   const diffMin = (d.getTime() - now) / 60000;
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  if (diffMin < -1) return `overdue ${Math.abs(Math.round(diffMin))}m`;
-  if (Math.abs(diffMin) < 1) return 'now';
-  if (diffMin < 60) return `in ${Math.round(diffMin)}m`;
-  if (diffMin < 60 * 24) return `in ${Math.round(diffMin / 60)}h`;
-  if (diffMin < 60 * 24 * 2) return `Tomorrow at ${time}`;
-  if (diffMin < 60 * 24 * 7) return `${d.toLocaleDateString('en-US', { weekday: 'long' })} at ${time}`;
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const tag = formatTag('en-US');
+  const time = d.toLocaleTimeString(tag, { hour: 'numeric', minute: '2-digit' });
+  if (diffMin < -1) return INSIGHTS_COPY.overdueMinutes(Math.abs(Math.round(diffMin)));
+  if (Math.abs(diffMin) < 1) return INSIGHTS_COPY.now;
+  if (diffMin < 60) return INSIGHTS_COPY.inMinutes(Math.round(diffMin));
+  if (diffMin < 60 * 24) return INSIGHTS_COPY.inHours(Math.round(diffMin / 60));
+  if (diffMin < 60 * 24 * 2) return INSIGHTS_COPY.tomorrowAt(time);
+  if (diffMin < 60 * 24 * 7) return INSIGHTS_COPY.dayAt(d.toLocaleDateString(tag, { weekday: 'long' }), time);
+  return d.toLocaleString(tag, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 const FACE_LABEL: React.CSSProperties = { ...SECTION_LABEL, fontWeight: 600, fontSize: 11, letterSpacing: '0.05em' };
@@ -164,7 +129,7 @@ export const ReportFace: React.FC<{
   const typeLabel = reportTypeLabel(report.type);
   const dateStr = (() => {
     const d = new Date(report.createdAt);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(formatTag('en-US'), { weekday: 'long', hour: '2-digit', minute: '2-digit' });
   })();
   return (
     <GlassCard padding="24px" style={FACE} data-testid="insights-report">
@@ -208,7 +173,7 @@ export const ReportFace: React.FC<{
           style={{ ...LINK_BUTTON, color: 'var(--purple)' }}
         >
           {INSIGHTS_COPY.viewReport}
-          <FiChevronRight size={14} aria-hidden="true" />
+          <FiChevronRight size={14} aria-hidden="true" style={textDirection() === 'rtl' ? { transform: 'scaleX(-1)' } : undefined} />
         </button>
       </div>
     </GlassCard>
@@ -271,7 +236,7 @@ export const TeamPlanFace: React.FC<{ work: TeamPlanWork; instanceId: string; no
   const active = work.running.length > 0 || work.runs.length > 0;
   return (
     <GlassCard padding={20} style={FACE} data-testid="insights-plan">
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingInlineEnd: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: work.upcoming.length ? 12 : 0 }}>
           <FiClock size={16} color="var(--purple)" aria-hidden="true" />
           <span style={FACE_LABEL}>{INSIGHTS_COPY.upNext}</span>
@@ -303,7 +268,7 @@ export const TeamPlanFace: React.FC<{ work: TeamPlanWork; instanceId: string; no
               {work.runs.map((r) => (
                 <div key={r.id} style={ROW} data-testid="insights-plan-now">
                   <span style={{ ...CHIP, background: 'color-mix(in srgb, var(--mauve) 15%, transparent)', color: 'var(--mauve)' }}>
-                    {r.status === 'queued' ? 'Queued' : 'Running'}
+                    {r.status === 'queued' ? INSIGHTS_COPY.queued : INSIGHTS_COPY.running}
                   </span>
                   <span style={ROW_TEXT}>{runLines(r)[0]}</span>
                   {r.operator ? <OperatorAvatar id={r.operator.id} title={r.operator.title || undefined} size={OPERATOR_AVATAR_SIZES.row} /> : <span />}
@@ -311,7 +276,7 @@ export const TeamPlanFace: React.FC<{ work: TeamPlanWork; instanceId: string; no
               ))}
               {work.running.map((t) => (
                 <div key={t.id} style={ROW} data-testid="insights-plan-now">
-                  <span style={{ ...CHIP, background: 'color-mix(in srgb, var(--mauve) 15%, transparent)', color: 'var(--mauve)' }}>Running</span>
+                  <span style={{ ...CHIP, background: 'color-mix(in srgb, var(--mauve) 15%, transparent)', color: 'var(--mauve)' }}>{INSIGHTS_COPY.running}</span>
                   <span style={ROW_TEXT} title={t.prompt}>{inOneLine(t.prompt) ?? t.prompt}</span>
                   {t.operator ? <OperatorAvatar id={t.operator.id} title={t.operator.title || undefined} size={OPERATOR_AVATAR_SIZES.row} /> : <span />}
                 </div>
@@ -466,7 +431,7 @@ export const GoalsFace: React.FC<{
           <Button variant="bare" size="sm" onClick={() => setAdding(true)}>{INSIGHTS_COPY.addGoal}</Button>
         )}
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: 4 }}>{body}</div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingInlineEnd: 4 }}>{body}</div>
     </GlassCard>
   );
 };

@@ -16,10 +16,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 final class WebMaven_Store_Periods {
 
     const NAMES = ['today', 'yesterday', 'this_week', 'last_7_days', 'this_month', 'last_30_days', 'last_90_days', 'this_year'];
@@ -59,7 +55,7 @@ final class WebMaven_Store_Periods {
         $today = (new DateTimeImmutable('@' . ($now ?? time())))->setTimezone($zone)->setTime(0, 0, 0);
         if ($name !== '') {
             if (!in_array($name, self::NAMES, true)) {
-                throw new Exception('VALIDATION: period is one of: ' . implode(', ', self::NAMES) . '.');
+                throw new Exception('VALIDATION: period is one of: ' . implode(', ', self::NAMES) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             switch ($name) {
                 case 'today':
@@ -134,11 +130,11 @@ final class WebMaven_Store_Periods {
 
     private static function day(string $value, DateTimeZone $zone, string $what): DateTimeImmutable {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-            throw new Exception('VALIDATION: ' . $what . ' is a day like 2026-10-01.');
+            throw new Exception('VALIDATION: ' . $what . ' is a day like 2026-10-01.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $day = DateTimeImmutable::createFromFormat('!Y-m-d', $value, $zone);
         if (!$day || $day->format('Y-m-d') !== $value) {
-            throw new Exception('VALIDATION: ' . $what . ' is not a real day.');
+            throw new Exception('VALIDATION: ' . $what . ' is not a real day.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $day;
     }

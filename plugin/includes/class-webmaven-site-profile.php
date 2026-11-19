@@ -180,7 +180,7 @@ final class WebMaven_Site_Profile {
         // The counts below name WordPress's and WooCommerce's tables and fixed
         // meta keys and values only; nothing comes from a request.
         $count = function (string $sql) use ($wpdb) {
-            return isset($wpdb) && is_object($wpdb) && method_exists($wpdb, 'get_var') ? (int) $wpdb->get_var($sql) : 0; // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            return isset($wpdb) && is_object($wpdb) && method_exists($wpdb, 'get_var') ? (int) $wpdb->get_var($sql) : 0; // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $sql is one of store_setup's fixed counts, nothing from a request; counts over WordPress's and WooCommerce's tables for the site check the owner runs, on demand, which no WordPress function counts without loading every row; read as the site is now, so nothing is cached
         };
         $gateways = 0;
         try {
@@ -369,7 +369,7 @@ final class WebMaven_Site_Profile {
         }
         $text = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($content)));
         // WordPress's own widget headings, in the site's language.
-        $headings = function_exists('translate') ? [translate('Recent Posts', 'default'), translate('Recent Comments', 'default'), translate('Archives', 'default'), translate('Categories', 'default')] : ['Recent Posts', 'Recent Comments', 'Archives', 'Categories'];
+        $headings = function_exists('translate') ? [translate('Recent Posts', 'default'), translate('Recent Comments', 'default'), translate('Archives', 'default'), translate('Categories', 'default')] : ['Recent Posts', 'Recent Comments', 'Archives', 'Categories']; // phpcs:ignore WordPress.WP.I18n.LowLevelTranslationFunction, WordPress.WP.I18n.TextDomainMismatch -- WordPress's own widget headings are recognised by WordPress's own translation of them, which a translation of ours would not match
         return $text === '' || in_array($text, $headings, true) || in_array($text, ['Recent Posts', 'Recent Comments', 'Archives', 'Categories'], true);
     }
 
@@ -404,9 +404,9 @@ final class WebMaven_Site_Profile {
         global $wpdb;
         if (isset($wpdb) && is_object($wpdb) && method_exists($wpdb, 'get_var')) {
             $table = $wpdb->prefix . 'wc_customer_lookup';
-            $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+            $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts over WordPress's and WooCommerce's tables for the site check the owner runs, on demand, which no WordPress function counts without loading every row; read as the site is now, so nothing is cached
             if ($exists === $table) {
-                return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+                return (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM %i', $table)); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts over WordPress's and WooCommerce's tables for the site check the owner runs, on demand, which no WordPress function counts without loading every row; read as the site is now, so nothing is cached
             }
         }
         if (function_exists('count_users')) {

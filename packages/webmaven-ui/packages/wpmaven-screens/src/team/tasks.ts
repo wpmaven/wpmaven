@@ -22,8 +22,11 @@
  */
 import cronstrue from 'cronstrue';
 import type { BadgeColor, OperatorPresence } from '@yotako/webmaven-ui';
+import { getLanguage, localeTag, localized } from '@yotako/webmaven-ui';
 import { productName, toPlainLine } from '@yotako/wpmaven-onboarding/shared';
 import type { ScreensScope } from '../host/types';
+import { formatTag } from '../copyLanguage';
+import { PUBLISH_WORDS } from '../approvals/targets';
 
 export type TaskStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
 
@@ -118,75 +121,136 @@ export interface TeamPlan {
   tasks: PlanTask[];
 }
 
-export const TASKS_COPY = {
+/**
+ * The Plan tab of Your team: the team's tasks (scheduled work the AI team
+ * does, such as a weekly blog post), what it is working on now, what the
+ * owner asked for, and the dialogs around them. In the page's language
+ * (namespace screensTasks; French in src/i18n/fr.json).
+ */
+export const TASKS_COPY_EN = {
+  /** The tasks could not load. */
   loadFailed: 'We could not read the tasks. Try again in a moment.',
+  /** The background work (runs) could not load. */
   runsFailed: 'We could not read the background work. Try again in a moment.',
+  /** A task's button did not work. */
   actionFailed: 'That did not work. Try again in a moment.',
+  /** A task's source line: it was made from the WordPress plugin. */
   fromWordPress: 'Created from WordPress',
+  /** Under it. */
   fromWordPressNote: 'It runs with the limits of a WordPress site: this business only, and posts or messages to customers wait for your yes.',
+  /** A task's badge and schedule line when nothing is scheduled. */
   notScheduled: 'Not scheduled',
+  /** For a team member who may not change tasks. */
   readOnly: 'Only the account owner, an admin or an editor can change tasks.',
+  /** A section's title: the team's plan of tasks. */
   planTitle: "Your team's plan",
+  /** A section's title: the work running now. */
   nowTitle: 'Working on it now',
+  /** A section's title: the tasks the owner asked for. */
   askedTitle: 'What you asked for',
+  /** Button: make a new task. */
   newTask: 'New task',
+  /** The empty state's title. */
   noPlanTitle: 'No active plan yet',
+  /** The empty state's line. */
   noPlan: "Publish a business, and your AI team's plan starts by itself: the launch post, first-week marketing, and standing weekly moves.",
   /** A site's plan, while there is none. */
   planEmpty: 'Nothing is planned here yet.',
-  /** The Co-CEO, in the plan's empty state. */
+  /** The Co-CEO, in the plan's empty state (in the first person; "the chat on Home" is the dashboard's chat box). */
   coCeoHint: 'Ask me in the chat on Home, for example "publish a blog post every Monday at 9am".',
   /** The same hint where the chat does not run. */
   coCeoHintNoChat: 'Set one up with New task, for example "publish a blog post every Monday at 9am".',
+  /** The delete confirm's title. */
   deleteTitle: 'Delete this task?',
+  /** Its line. */
   deleteNote: "This can't be undone. Past run history will also be removed.",
+  /** Its confirm button. */
   deleteConfirm: 'Delete it',
+  /** Its button that keeps the task. */
   deleteKeep: 'Not now',
+  /** The task could not be deleted. */
   deleteFailed: 'The task could not be deleted. Try again in a minute.',
+  /** A task's schedule, every day; {0} is the time ("9:00 AM"). */
+  everyDayAt: (time: string) => `Every day at ${time}`,
+  /** A task's schedule, on days of the week; {0} is the days ("Monday and Thursday"), {1} the time. */
+  everyWeekdayAt: (days: string, time: string) => `Every ${days} at ${time}`,
+  /** A task's schedule, monthly; {0} is the day of the month (a number), {1} the time. */
+  monthlyOnDayAt: (day: string, time: string) => `On day ${day} of each month at ${time}`,
+  /** In a site's scope (the WordPress plugin): only what was made there changes there; {0} is the product's name. */
+  siteReadOnly: (product: string) => `You can change the tasks made in WordPress here. The rest of your team's plan is changed in your ${product} dashboard.`,
 };
+
+export const TASKS_COPY = localized(TASKS_COPY_EN, 'screensTasks');
 
 /** In a site's scope: the plan is the business's whole one, and only what was made in WordPress changes there. */
 export function siteReadOnlyNote(): string {
-  return `You can change the tasks made in WordPress here. The rest of your team's plan is changed in your ${productName()} dashboard.`;
+  return TASKS_COPY.siteReadOnly(productName());
 }
 
 /**
  * What a team member says on a task's card, in the first person. Each line
  * is built from the task's own data, never written by a model.
  */
-export const TASK_SPEECH = {
+export const TASK_SPEECH_EN = {
+  /** A member, on a task it is running now (first person). */
   onIt: "I'm on it now.",
+  /** On a paused task. */
   paused: 'I paused this. Resume it when you want me back on it.',
+  /** On a task stopped after failing; {0} is how many times in a row (a count). */
   stopped: (times: number) => (times >= 2 ? `I stopped after it failed ${times} times in a row.` : 'I stopped after it failed.'),
-  lastError: (words: string) => `The last error: ${sentence(words)}`,
+  /** The last error's words; {0} is the error as the system wrote it, already a sentence. */
+  lastError: (words: string) => `The last error: ${words}`,
+  /** On a task waiting for the owner's approval. */
   waitingForYes: "I'm waiting for your yes on this.",
+  /** On a one-time task that is done. */
   done: 'I did this one. Nothing more is planned.',
+  /** On a stopped task. */
   cancelled: 'This one is stopped.',
+  /** On a task with nothing scheduled. */
   notScheduled: 'Nothing is scheduled for this yet.',
+  /** The next run; {0} is when ("Monday at 9:00 AM"). */
   next: (when: string) => `Next one: ${when}.`,
+  /** The last run with what it said; {0} is the day, {1} its words. */
   lastTime: (day: string, said: string) => `Last time (${day}): ${said}`,
+  /** The last run, done; {0} is the day. */
   lastTimeDone: (day: string) => `Last time: ${day}.`,
+  /** The last run, failed; {0} is the day. */
   lastTimeFailed: (day: string) => `Last time (${day}) it did not work.`,
+  /** What the owner asked for; {0} is their words, as typed. */
   asked: (prompt: string) => `You asked: "${prompt}"`,
+  /** A background run about to start; {0} is what it does. */
   runQueued: (what: string) => `I'm about to start on: ${what}.`,
+  /** A background run working; {0} is what it does. */
   runWorking: (what: string) => `I'm working on: ${what}.`,
+  /** A background run finished; {0} is what it did. */
   runDone: (what: string) => `I finished: ${what}.`,
+  /** A background run that failed; {0} is what it was doing. */
   runFailed: (what: string) => `I could not finish: ${what}.`,
+  /** A background run that was stopped; {0} is what it was doing. */
   runStopped: (what: string) => `I stopped: ${what}.`,
 };
+
+export const TASK_SPEECH = localized(TASK_SPEECH_EN, 'screensTaskSpeech');
 
 /**
  * A background run a site may not read the words of (the API answers a
  * site with fixed sentences, the run's words are the owner's): what the
  * member says instead, and where the result is.
  */
-export const RUN_SPEECH_FOR_SITE = {
+export const RUN_SPEECH_FOR_SITE_EN = {
+  /** A background run about to start (a member, first person). */
   queued: "I'm about to start on something in the background.",
+  /** A background run working. */
   running: "I'm working on this in the background.",
-  completed: () => `I finished this in the background. The result is in your ${productName()} dashboard.`,
-  failed: () => `I could not finish this in the background. The details are in your ${productName()} dashboard.`,
+  /** A background run finished; {0} is the product's name. */
+  completed: (product: string) => `I finished this in the background. The result is in your ${product} dashboard.`,
+  /** A background run failed; {0} is the product's name. */
+  failed: (product: string) => `I could not finish this in the background. The details are in your ${product} dashboard.`,
+  /** A background run stopped. */
   cancelled: 'I stopped this background work.',
 };
+
+export const RUN_SPEECH_FOR_SITE = localized(RUN_SPEECH_FOR_SITE_EN, 'screensRunSpeech');
 
 /** The sentences the API answers a site with in place of a run's own words. */
 const SITE_RUN_WORDS = new Set([
@@ -294,12 +358,42 @@ export function taskChangeable(scope: ScreensScope, t: Pick<TaskRow, 'siteTouche
  * "Every Monday at 9:00 AM", "Oct 9, 2026, 9:00 AM", or "Not scheduled": never
  * a cron line, never a dash. A schedule kept in UTC says so.
  */
+/**
+ * A cron schedule of one of the plan's three shapes (every day, on days of
+ * the week, a day of the month, at one time) in the page's language: the
+ * days and the time as the browser writes them in it. Null for any other
+ * shape, which keeps cronstrue's English words.
+ */
+export function localSchedule(cron: string): string | null {
+  const f = cron.trim().split(/\s+/);
+  if (f.length !== 5) return null;
+  const [min, hour, dom, mon, dow] = f;
+  if (!/^\d{1,2}$/.test(min) || !/^\d{1,2}$/.test(hour) || mon !== '*' || Number(hour) > 23 || Number(min) > 59) return null;
+  const tag = localeTag();
+  const time = new Intl.DateTimeFormat(tag, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1, Number(hour), Number(min))));
+  if (dom === '*' && dow === '*') return TASKS_COPY.everyDayAt(time);
+  if (dom === '*' && /^[0-7](,[0-7])*$/.test(dow)) {
+    // 2024-01-07 was a Sunday: day n of the week is 7 + n.
+    const days = [...new Set(dow.split(',').map((d) => Number(d) % 7))].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+    const names = days.map((d) => new Intl.DateTimeFormat(tag, { weekday: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 7 + d))));
+    const list = names.length <= 1 ? names.join('') : PUBLISH_WORDS.and(names.slice(0, -1).join(', '), names[names.length - 1]);
+    return TASKS_COPY.everyWeekdayAt(list, time);
+  }
+  if (/^\d{1,2}$/.test(dom) && Number(dom) >= 1 && Number(dom) <= 31 && dow === '*') {
+    return TASKS_COPY.monthlyOnDayAt(new Intl.NumberFormat(tag).format(Number(dom)), time);
+  }
+  return null;
+}
+
 export function scheduleText(t: Pick<TaskRow, 'schedule' | 'type'> & { timezone?: string | null }): string {
   if (!t.schedule) return TASKS_COPY.notScheduled;
   if (t.type === 'one_shot') {
     const d = new Date(t.schedule);
-    return Number.isNaN(d.getTime()) ? TASKS_COPY.notScheduled : d.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }).replace(/ /g, ' ');
+    return Number.isNaN(d.getTime()) ? TASKS_COPY.notScheduled : d.toLocaleString(formatTag('en-US'), { dateStyle: 'medium', timeStyle: 'short' }).replace(/ /g, ' ');
   }
+  // Another language: the plan's three shapes said in it (English keeps cronstrue's words below).
+  const local = getLanguage() === 'en' ? null : localSchedule(t.schedule);
+  if (local) return t.timezone === 'UTC' ? `${local} UTC` : local;
   try {
     const words = cronstrue.toString(t.schedule, { use24HourTimeFormat: false })
       .replace(/^At (\d{1,2}):(\d{2})( ?[AP]M), only on (.+)$/i, (_m, h, m, ap, day) => `Every ${day} at ${parseInt(h, 10)}:${m}${ap}`)
@@ -426,16 +520,38 @@ export interface WorkBadge {
  * peach waits for the owner, blue is on its way, cyan is working or done,
  * rose did not work, mauve is stopped or not planned.
  */
+export const TASK_BADGE_LABELS_EN = {
+  /** A task's badge: running now. */
+  working: 'Working on it',
+  /** Waiting for the owner. */
+  waiting: 'Waiting for you',
+  /** Stopped after failing several times. */
+  stopped: 'Stopped after failing',
+  /** Failed. */
+  failed: 'Failed',
+  /** Done. */
+  done: 'Done',
+  /** Stopped. */
+  cancelled: 'Stopped',
+  /** Paused. */
+  paused: 'Paused',
+  /** Scheduled. */
+  scheduled: 'Scheduled',
+};
+
+export const TASK_BADGE_LABELS = localized(TASK_BADGE_LABELS_EN, 'screensTaskBadges');
+
+/** The badges, their words read in the page's language where they are drawn. */
 export const TASK_BADGES = {
-  working: { color: 'cyan', label: 'Working on it' },
-  waiting: { color: 'peach', label: 'Waiting for you' },
-  stopped: { color: 'rose', label: 'Stopped after failing' },
-  failed: { color: 'rose', label: 'Failed' },
-  done: { color: 'cyan', label: 'Done' },
-  cancelled: { color: 'mauve', label: 'Stopped' },
-  paused: { color: 'mauve', label: 'Paused' },
-  scheduled: { color: 'blue', label: 'Scheduled' },
-  notScheduled: { color: 'mauve', label: TASKS_COPY.notScheduled },
+  working: { color: 'cyan', get label() { return TASK_BADGE_LABELS.working; } },
+  waiting: { color: 'peach', get label() { return TASK_BADGE_LABELS.waiting; } },
+  stopped: { color: 'rose', get label() { return TASK_BADGE_LABELS.stopped; } },
+  failed: { color: 'rose', get label() { return TASK_BADGE_LABELS.failed; } },
+  done: { color: 'cyan', get label() { return TASK_BADGE_LABELS.done; } },
+  cancelled: { color: 'mauve', get label() { return TASK_BADGE_LABELS.cancelled; } },
+  paused: { color: 'mauve', get label() { return TASK_BADGE_LABELS.paused; } },
+  scheduled: { color: 'blue', get label() { return TASK_BADGE_LABELS.scheduled; } },
+  notScheduled: { color: 'mauve', get label() { return TASKS_COPY.notScheduled; } },
 } as const satisfies Record<string, WorkBadge>;
 
 /** The badge for what the card says, in the same order as subjectPresence and taskLines. */
@@ -470,7 +586,7 @@ export function taskLines(s: TaskSubject, o: SpeechOptions = {}): string[] {
     lines.push(TASK_SPEECH.stopped(s.consecutiveFailures));
     // The last error, unless the last run's own words already say it.
     const words = plainError(s.lastError);
-    if (words && !(said && words.startsWith(said))) lines.push(TASK_SPEECH.lastError(words));
+    if (words && !(said && words.startsWith(said))) lines.push(TASK_SPEECH.lastError(sentence(words)));
   } else if (s.status === 'PAUSED') lines.push(TASK_SPEECH.paused);
   else if (s.status === 'COMPLETED') lines.push(TASK_SPEECH.done);
   else if (s.status === 'CANCELLED') lines.push(TASK_SPEECH.cancelled);
@@ -515,8 +631,8 @@ export function runLines(r: Pick<BackgroundRun, 'status' | 'description' | 'resu
     switch (r.status) {
       case 'queued': return [RUN_SPEECH_FOR_SITE.queued];
       case 'running': return [RUN_SPEECH_FOR_SITE.running];
-      case 'completed': return [RUN_SPEECH_FOR_SITE.completed()];
-      case 'failed': return [RUN_SPEECH_FOR_SITE.failed()];
+      case 'completed': return [RUN_SPEECH_FOR_SITE.completed(productName())];
+      case 'failed': return [RUN_SPEECH_FOR_SITE.failed(productName())];
       default: return [RUN_SPEECH_FOR_SITE.cancelled];
     }
   }
@@ -656,26 +772,60 @@ export function readParsedTask(body: unknown): ParsedTask | null {
   };
 }
 
-export const NEW_TASK_COPY = {
+export const NEW_TASK_COPY_EN = {
+  /** The New task dialog's title. */
   title: 'New task',
+  /** Its button that closes it. */
   close: 'Cancel',
+  /** The label of the choice of task type. */
   typeLabel: 'Task type',
-  types: { auto: 'Auto-detect', recurring: 'Recurring', one_shot: 'One-time' } as Record<NewTaskType, string>,
+  /** The task types. */
+  types: {
+    /** Let the system tell from the words whether it repeats. */
+    auto: 'Auto-detect',
+    /** Repeats on a schedule. */
+    recurring: 'Recurring',
+    /** Runs once. */
+    one_shot: 'One-time',
+  } as Record<NewTaskType, string>,
+  /** The box's placeholder for each type (the example in quotes is what the owner may type, in their language). */
   placeholders: {
+    /** Auto-detect. */
     auto: 'Describe your task and when it should run, e.g. "publish a blog post every Monday at 9am"',
+    /** Recurring. */
     recurring: 'What should run on a schedule? e.g. "publish a blog post every Monday at 9am"',
+    /** One-time. */
     one_shot: 'What should run once? e.g. "tomorrow at 3pm publish my draft"',
   } as Record<NewTaskType, string>,
+  /** While the words are read. */
   reading: 'Reading your task…',
+  /** No schedule found in the words (the Co-CEO, first person). */
   noSchedule: 'I didn\'t catch a scheduling intent. Try something like "publish a blog post every Monday at 9am".',
+  /** The words could not be read. */
   parseFailed: 'Your task could not be read. Try again in a minute.',
+  /** Before the summary of what was understood. */
   confirmLead: 'Here is what I understood:',
+  /** A label in the summary: the task. */
   what: 'The task',
+  /** A label in the summary: when it runs. */
   when: 'When',
-  kind: { recurring: 'Again and again', one_shot: 'Once' } as Record<'recurring' | 'one_shot', string>,
+  /** How often it runs. */
+  kind: {
+    /** Repeats. */
+    recurring: 'Again and again',
+    /** Once. */
+    one_shot: 'Once',
+  } as Record<'recurring' | 'one_shot', string>,
+  /** Button: create it. */
   create: 'Create task',
+  /** Button: go back and change the words. */
   change: 'Change it',
+  /** While it is created. */
   creating: 'Creating task…',
+  /** It could not be created. */
   createFailed: 'The task could not be created. Try again in a minute.',
+  /** Done; "What you asked for" is the section's title. */
   created: 'Task created. It is under "What you asked for".',
 };
+
+export const NEW_TASK_COPY = localized(NEW_TASK_COPY_EN, 'screensNewTask');

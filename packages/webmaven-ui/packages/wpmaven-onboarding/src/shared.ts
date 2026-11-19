@@ -6,6 +6,7 @@ export type { WizardTransport, WizardRequest, WizardIdentity, DraftStore, Wizard
 export * from './shared/errorMessage';
 export * from './shared/productName';
 export * from './shared/guidance';
+export type { StartNowConsentLine } from './host/hostWordsCopy';
 
 // ── components other screens draw ────────────────────────────────────────
 export { WhyDisabled } from './shared/WhyDisabled';

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { EditOperation, EditResult } from '../../types/edits';
 import { editsApi, EditsRequestError, failureOf, isWorking, notPreparedText, requestFailedText, settleEdit } from '../../services/edits';
+import { stampLanguage } from './editLanguage';
 
 /**
  * One change in the editor, from the owner's instruction to the live site:
@@ -133,8 +134,10 @@ export function createEditFlow(apiOf: () => EditsApi = () => editsApi): EditFlow
     return settleEdit(first, { signal, get: apiOf().get, onUpdate: (r) => update({ progress: r }) });
   };
 
-  const preview = async (operation: EditOperation, opts: { refine?: boolean } = {}) => {
+  const preview = async (asked: EditOperation, opts: { refine?: boolean } = {}) => {
     const api = apiOf();
+    // A site in several languages: the language of the page the owner looks at, kept with the change (design 19.5).
+    const operation = stampLanguage(asked);
     const signal = freshSignal();
     const base = opts.refine ? state.preview?.previewId : undefined;
     // A new change or a refinement leaves the other versions behind: discarded (the one shown stays, as before).
@@ -223,8 +226,10 @@ export function createEditFlow(apiOf: () => EditsApi = () => editsApi): EditFlow
     }
   };
 
-  const publishNow = async (operation: EditOperation) => {
+  const publishNow = async (asked: EditOperation) => {
     const api = apiOf();
+    // Words typed in place on a page in another language are that language's (a design change published at once).
+    const operation = stampLanguage(asked);
     const signal = freshSignal();
     update({ phase: 'publishing', operation, preview: null, result: null, error: null, progress: null });
     try {

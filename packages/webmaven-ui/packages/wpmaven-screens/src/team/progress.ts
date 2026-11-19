@@ -4,7 +4,7 @@
  * forecast, and the Co-CEO writes what it means. One copy for both apps
  * (2026-10-16).
  */
-import type { BadgeColor } from '@yotako/webmaven-ui';
+import { localized, type BadgeColor } from '@yotako/webmaven-ui';
 
 export interface ProgressSnapshot {
   id: string;
@@ -32,22 +32,42 @@ export interface ProgressSnapshot {
 /** The weekly check-in is the Data Analyst's (its empty state says so). */
 export const CHECK_IN_BY = 'data_analyst';
 
-export const PROGRESS_COPY = {
+/**
+ * The Progress tab of Your team: the weekly check-ins, where the Data
+ * Analyst (an AI team member) measures the week against the forecast and
+ * the Co-CEO reflects on it. In the page's language (namespace
+ * screensProgress; French in src/i18n/fr.json).
+ */
+export const PROGRESS_COPY_EN = {
+  /** The empty state's title. */
   noneTitle: 'No weekly check-ins yet',
+  /** The empty state's line. */
   none: 'Every Monday your Data Analyst measures the week against your forecast, and the Co-CEO adjusts the plan. The first check-in appears after your first full week live.',
+  /** After a percentage ("82% of this week's forecast target"). */
   ofTarget: "of this week's forecast target",
+  /** A figure's label. */
   revenue: 'Revenue',
+  /** A figure's label. */
   orders: 'Orders',
+  /** A figure's label: people who visited the site. */
   visitors: 'Visitors',
+  /** A figure's label: pages viewed. */
   pageviews: 'Pageviews',
   /** Under Visitors: how the site counts them (the dashboard's VISITORS_NOTE). */
   visitorsNote: 'Each person counted once a day',
+  /** The Co-CEO's comment on the week: its heading. */
   reflection: "Co-CEO's reflection",
+  /** The older check-ins: their heading. */
   earlier: 'Earlier weeks',
+  /** The button that shows or hides the comment. */
   reflectionToggle: 'Reflection',
+  /** A check-in's heading; {0} is the week's last day. */
   weekEnding: (day: string) => `Week ending ${day}`,
+  /** After a figure: its target; {0} is an amount ("$1,200"). */
   target: (money: string) => `target ${money}`,
 };
+
+export const PROGRESS_COPY = localized(PROGRESS_COPY_EN, 'screensProgress');
 
 /** A week's share of its forecast target, as a status badge: cyan once met (as shown, rounded), blue on the way. */
 export function weekBadge(pct: number | null): { color: BadgeColor; label: string } | null {

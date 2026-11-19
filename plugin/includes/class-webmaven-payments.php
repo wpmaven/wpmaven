@@ -25,7 +25,7 @@
  * only by the payments_configure command; the self-protection already
  * refuses generic writes to them (OPTION_NAMESPACE covers webmaven_*).
  *
- * Print-on-demand products (meta _wm_pod_product, written by
+ * Print-on-demand products (meta _webmaven_pod_product, written by
  * woocommerce_create_product) can only be paid this way: they are not
  * purchasable while payments are off, and a checkout holding one offers
  * this gateway only.
@@ -36,6 +36,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/class-webmaven-log.php';
+require_once __DIR__ . '/class-webmaven-visitor-words.php';
 
 final class WebMaven_Payments {
 
@@ -46,13 +47,13 @@ final class WebMaven_Payments {
     const OPTION_ACCOUNT_ID = 'webmaven_payments_account_id';
 
     /** Same meta as WebMaven_Webhook_Actions::POD_PRODUCT_META. */
-    const POD_PRODUCT_META = '_wm_pod_product';
+    const POD_PRODUCT_META = '_webmaven_pod_product';
 
     /** Order meta: every Stripe refund id already recorded on the order. */
-    const REFUND_IDS_META = '_wm_refund_ids';
+    const REFUND_IDS_META = '_webmaven_refund_ids';
 
     /** Order meta: a WP-admin refund on its way to the API ({amount, at}). */
-    const REFUND_PENDING_META = '_wm_refund_pending';
+    const REFUND_PENDING_META = '_webmaven_refund_pending';
 
     /** How long a WP-admin refund waits for its id before the marker is stale. */
     const REFUND_PENDING_TTL = 600;
@@ -71,6 +72,23 @@ final class WebMaven_Payments {
     const TITLE = 'Card or wallet';
     const DESCRIPTION = 'Pay securely by card, Apple Pay or Google Pay. Payments are processed by Stripe.';
     const START_FAILED = 'We could not start the payment. Please try again in a moment.';
+
+    /** The buyer's words in the site's language (the constants above are the English ones). */
+    public static function words(string $key, string $language = ''): string {
+        return WebMaven_Visitor_Words::get($key, $language);
+    }
+
+    /** The words the browser shows on the pay page and the order-received page, when they are not English. */
+    private static function browser_words(array $keys): string {
+        if (WebMaven_Visitor_Words::current() === 'en') {
+            return '';
+        }
+        $out = [];
+        foreach ($keys as $name => $key) {
+            $out[$name] = self::words($key);
+        }
+        return ' data-wm-words="' . esc_attr((string) wp_json_encode($out)) . '"';
+    }
 
     /** Tests replace the API client (a callable returning an object with make_request). */
     public static $api_factory = null;
@@ -193,6 +211,30 @@ final class WebMaven_Payments {
         return new WebMaven_WP_API_Client();
     }
 
+    /**
+     * The visitor word for a payment that could not start, by the API's code:
+     * an order the store cannot take (its contents, its address), an item
+     * that cannot be ordered, a store that takes no payments now; anything
+     * else (an answer missing, a connection error) is "try again in a moment".
+     */
+    public static function start_failure_word($response): string {
+        $code = is_array($response) && is_string($response['code'] ?? null) ? $response['code'] : '';
+        if ($code === '' && is_array($response) && is_array($response['data'] ?? null) && is_string($response['data']['code'] ?? null)) {
+            $code = $response['data']['code'];
+        }
+        switch ($code) {
+            case 'ORDER_NOT_PAYABLE':
+                return 'pay_not_payable';
+            case 'POD_UNMAPPED':
+                return 'pay_item_unavailable';
+            case 'PAYMENTS_INACTIVE':
+            case 'MARGIN_TOO_LOW':
+                return 'pay_unavailable';
+            default:
+                return 'pay_start_failed';
+        }
+    }
+
     /** The API's sentence when it gave one, else $fallback. */
     private static function api_error($response, string $fallback): string {
         $error = is_array($response) ? ($response['error'] ?? '') : '';
@@ -222,7 +264,12 @@ final class WebMaven_Payments {
             'orderKey' => (string) $order->get_order_key(),
         ], null, 30, 0, false);
         if (!is_array($response) || empty($response['success'])) {
-            return ['ok' => false, 'error' => self::api_error($response, self::START_FAILED)];
+            // The buyer reads the plugin's own words in the page's language: never the API's sentence (English,
+            // written for the store) nor a connection error's text (phase 6, multilingual sites 18.8).
+            if (class_exists('WebMaven_Log')) {
+                WebMaven_Log::write('WebMaven Payments: the payment of order ' . (int) $order->get_id() . ' did not start: ' . mb_substr(self::api_error($response, 'no answer'), 0, 200));
+            }
+            return ['ok' => false, 'error' => self::words(self::start_failure_word($response))];
         }
         $data = is_array($response['data'] ?? null) ? $response['data'] : [];
         $secret = (string) ($data['clientSecret'] ?? '');
@@ -231,13 +278,13 @@ final class WebMaven_Payments {
         $account = is_string($account) ? trim($account) : '';
         if (!preg_match(self::CLIENT_SECRET_PATTERN, $secret) || !preg_match(self::PUBLISHABLE_KEY_PATTERN, $key)
             || ($account !== '' && !preg_match(self::ACCOUNT_PATTERN, $account))) {
-            return ['ok' => false, 'error' => self::START_FAILED];
+            return ['ok' => false, 'error' => self::words('pay_start_failed')];
         }
         return ['ok' => true, 'client_secret' => $secret, 'publishable_key' => $key, 'stripe_account' => $account];
     }
 
     private static function enqueue_checkout_script(): void {
-        wp_enqueue_script('webmaven-stripe-js', self::STRIPE_JS, [], null, true);
+        wp_enqueue_script('webmaven-stripe-js', self::STRIPE_JS, [], null, true); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- Stripe.js must load from Stripe's own address, which Stripe versions itself, so no ?ver= is added
         wp_enqueue_script(
             'webmaven-payments-checkout',
             WEBMAVEN_WP_URL . 'includes/webmaven-payments-checkout.js',
@@ -247,13 +294,25 @@ final class WebMaven_Payments {
         );
     }
 
+    /** The markup the pay page and the thank-you page print (wp_kses at the echo). */
+    public static function page_html(): array {
+        $common = ['class' => true, 'role' => true, 'hidden' => true, 'data-*' => true];
+        return [
+            'div' => $common,
+            'p' => $common,
+            'strong' => [],
+            'a' => ['href' => true] + $common,
+            'button' => ['type' => true, 'disabled' => true] + $common,
+        ];
+    }
+
     /** The pay page: Stripe's Payment Element for this order, or the reason it cannot open. */
     public static function receipt_html($order): string {
         if (!$order || $order->get_payment_method() !== self::GATEWAY_ID) {
             return '';
         }
         if ($order->is_paid()) {
-            return '<p class="wm-pay__done">' . esc_html('This order is already paid. Thank you!') . '</p>';
+            return '<p class="wm-pay__done">' . esc_html(self::words('pay_paid')) . '</p>';
         }
         $start = self::start_payment($order);
         if (!$start['ok']) {
@@ -264,11 +323,12 @@ final class WebMaven_Payments {
             . ' data-publishable-key="' . esc_attr($start['publishable_key']) . '"'
             . ' data-client-secret="' . esc_attr($start['client_secret']) . '"'
             . ($start['stripe_account'] !== '' ? ' data-stripe-account="' . esc_attr($start['stripe_account']) . '"' : '')
-            . ' data-return-url="' . esc_attr($order->get_checkout_order_received_url()) . '">'
+            . ' data-return-url="' . esc_attr($order->get_checkout_order_received_url()) . '"'
+            . self::browser_words(['failed' => 'pay_js_failed', 'load_failed' => 'pay_js_load_failed']) . '>'
             . '<div class="wm-pay__element"></div>'
             . '<p class="wm-pay__error" role="alert" hidden></p>'
-            . '<button type="button" class="button alt wm-pay__submit" disabled>' . esc_html('Pay now') . '</button>'
-            . '<p class="wm-pay__note">' . esc_html('Payments are processed by Stripe.') . '</p>'
+            . '<button type="button" class="button alt wm-pay__submit" disabled>' . esc_html(self::words('pay_now')) . '</button>'
+            . '<p class="wm-pay__note">' . esc_html(self::words('pay_note')) . '</p>'
             . '</div>';
     }
 
@@ -279,8 +339,8 @@ final class WebMaven_Payments {
         }
         if (($query['redirect_status'] ?? '') === 'failed' || $order->get_status() === 'failed') {
             return '<div class="wm-pay-confirming wm-pay-confirming--failed" role="status"><p>'
-                . esc_html('Your payment did not go through. No money was taken.')
-                . ' <a href="' . esc_url($order->get_checkout_payment_url(true)) . '">' . esc_html('Try again') . '</a></p></div>';
+                . esc_html(self::words('pay_failed'))
+                . ' <a href="' . esc_url($order->get_checkout_payment_url(true)) . '">' . esc_html(self::words('pay_retry')) . '</a></p></div>';
         }
         if (!in_array($order->get_status(), ['pending', 'on-hold'], true)) {
             return '';
@@ -291,9 +351,10 @@ final class WebMaven_Payments {
             rest_url(self::ROUTE_NAMESPACE . self::STATUS_ROUTE)
         );
         return '<div class="wm-pay-confirming" role="status" data-wm-pay-status="' . esc_attr($url) . '"'
-            . ' data-retry-url="' . esc_attr($order->get_checkout_payment_url(true)) . '">'
-            . '<p><strong>' . esc_html('Confirming your payment') . '</strong></p>'
-            . '<p class="wm-pay-confirming__detail">' . esc_html('This usually takes a few seconds. You can keep this page open.') . '</p>'
+            . ' data-retry-url="' . esc_attr($order->get_checkout_payment_url(true)) . '"'
+            . self::browser_words(['slow' => 'pay_js_slow']) . '>'
+            . '<p><strong>' . esc_html(self::words('pay_confirming')) . '</strong></p>'
+            . '<p class="wm-pay-confirming__detail">' . esc_html(self::words('pay_confirming_detail')) . '</p>'
             . '</div>';
     }
 
@@ -309,7 +370,7 @@ final class WebMaven_Payments {
             || !is_object($order) || $order->get_payment_method() !== self::GATEWAY_ID) {
             return;
         }
-        $shipments = $order->get_meta('_wm_tracking', true);
+        $shipments = $order->get_meta('_webmaven_tracking', true);
         if (!is_array($shipments) || !$shipments) {
             return;
         }
@@ -320,19 +381,21 @@ final class WebMaven_Payments {
             $line = self::tracking_line($shipment);
             $url = (string) ($shipment['tracking_url'] ?? '');
             if ($plain_text) {
-                echo $line . ($url !== '' ? ' ' . esc_url_raw($url) : '') . "\n\n"; // phpcs:ignore WordPress.Security.EscapeOutput -- plain text email
+                echo esc_html($line) . ($url !== '' ? ' ' . esc_url_raw($url) : '') . "\n\n";
             } else {
-                echo '<p>' . esc_html($line) . ($url !== '' ? ' <a href="' . esc_url($url) . '">' . esc_html('Track your parcel') . '</a>' : '') . '</p>';
+                echo '<p>' . esc_html($line) . ($url !== '' ? ' <a href="' . esc_url($url) . '">' . esc_html(self::words('track_link')) . '</a>' : '') . '</p>';
             }
         }
     }
 
-    /** "Your order is on its way with DHL. Tracking number: JD0001." */
-    public static function tracking_line(array $shipment): string {
+    /** "Your order is on its way with DHL. Tracking number: JD0001.", in the site's language or the one given. */
+    public static function tracking_line(array $shipment, string $language = ''): string {
         $carrier = trim((string) ($shipment['carrier'] ?? ''));
         $number = trim((string) ($shipment['tracking_number'] ?? ''));
-        return 'Your order is on its way' . ($carrier !== '' ? ' with ' . $carrier : '') . '.'
-            . ($number !== '' ? ' Tracking number: ' . $number . '.' : '');
+        $line = $carrier !== ''
+            ? WebMaven_Visitor_Words::with('track_on_way_with', $carrier, $language)
+            : WebMaven_Visitor_Words::get('track_on_way', $language);
+        return $line . ($number !== '' ? WebMaven_Visitor_Words::with('track_number', $number, $language) : '');
     }
 
     // ── Order status for the order-received page ────────────────────────────
@@ -351,7 +414,9 @@ final class WebMaven_Payments {
      */
     public static function order_status($request) {
         $order_id = absint($request->get_param('order_id'));
-        $key = (string) $request->get_param('key');
+        $raw_key = $request->get_param('key');
+        // An order key is WooCommerce's wc_order_ and letters or digits.
+        $key = is_scalar($raw_key) ? sanitize_text_field((string) $raw_key) : '';
         $order = $order_id ? wc_get_order($order_id) : null;
         if (!$order || $key === '' || !hash_equals((string) $order->get_order_key(), $key)
             || $order->get_payment_method() !== self::GATEWAY_ID) {

@@ -19,28 +19,28 @@
 
 /* ── Variants ────────────────────────────────────────── */
 .info {
-  border-left: 3px solid var(--n-500);
+  border-inline-start: 3px solid var(--n-500);
 }
 .info .icon {
   color: var(--n-600);
 }
 
 .success {
-  border-left: 3px solid var(--success);
+  border-inline-start: 3px solid var(--success);
 }
 .success .icon {
   color: var(--success);
 }
 
 .warning {
-  border-left: 3px solid var(--warning);
+  border-inline-start: 3px solid var(--warning);
 }
 .warning .icon {
   color: var(--warning);
 }
 
 .error {
-  border-left: 3px solid var(--danger);
+  border-inline-start: 3px solid var(--danger);
 }
 .error .icon {
   color: var(--danger);

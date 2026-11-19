@@ -55,7 +55,7 @@ export interface ProductFields {
   featuredMediaId?: number | null;
   /** Ordered, replaces the gallery. */
   galleryMediaIds?: number[];
-  /** The designed card's own text (_wm_card_slot_<key>); only keys the product already has. */
+  /** The designed card's own text (_webmaven_card_slot_<key>); only keys the product already has. */
   cardSlots?: Record<string, string>;
   purchaseNote?: string;
   /** External products. */
@@ -197,13 +197,13 @@ export type ProductKind = 'own' | 'sample' | 'printed';
 /** The `wpmaven` field the plugin adds to WooCommerce REST product answers (and the lists' rows). */
 export interface WpmavenProductInfo {
   kind: ProductKind;
-  /** The design key (_wm_product_slug): the product's slug in the site plan; null for a product WPMaven did not design. */
+  /** The design key (_webmaven_product_slug): the product's slug in the site plan; null for a product WPMaven did not design. */
   designKey: string | null;
   /** False when the product shows WooCommerce's placeholder (no image, or the placeholder's own id). */
   hasPhoto: boolean;
   /** Printed products: the lowest price allowed (the lowest floor of its options), in the store currency. */
   floor: Decimal | null;
-  /** The designed card's text (_wm_card_slot_<key>), since the meta itself is stripped from REST answers. */
+  /** The designed card's text (_webmaven_card_slot_<key>), since the meta itself is stripped from REST answers. */
   cardSlots: Record<string, string>;
   /** Variable products: the lowest and highest option price. */
   priceRange: { min: Decimal; max: Decimal } | null;
@@ -335,7 +335,7 @@ export interface WpmavenOrderInfo {
   paymentsWpmaven: boolean;
   /** At least one line is a printed product. */
   printed: boolean;
-  /** The printed order's shipping (_wm_tracking), when it has shipped. */
+  /** The printed order's shipping (_webmaven_tracking), when it has shipped. */
   tracking: { url: string | null; number: string | null; carrier: string | null } | null;
   /** The statuses the Store offers for this order (payment and printing allowing), WooCommerce's names without "wc-". */
   allowedStatuses: string[];

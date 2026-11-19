@@ -252,6 +252,13 @@ export interface SiteDecideResult {
 export interface OperatorApproval {
   id: string;
   /**
+   * 'advice': what the site check found that the team cannot fix on this
+   * site (toolName site_advice), with the steps the owner follows; "Done" and
+   * "Not for me" settle it and nothing runs (./advice). Absent on every other
+   * row, and from an older API.
+   */
+  kind?: 'advice';
+  /**
    * A change to the site through the edit operations: the preview this
    * approval publishes (summary, checks, links, pictures), drawn by the
    * app's edit preview (renderers.editPreview). Absent for any other

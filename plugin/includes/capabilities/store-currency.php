@@ -27,20 +27,15 @@
  *         decimals_after, converted: {prices, coupons, shipping},
  *         plugin_currency?}
  *
- * Plugins with a currency of their own (1.2.15, class-webmaven-plugin-
- * currency.php): a booking calendar, a room booking, an online ordering, a
- * donation, a course or an event plugin keeps its own currency and its
- * prices as plain numbers. After every set that went through, each one
- * running on the site follows the store currency, and the answer says how
- * (plugin_currency, only when one runs here, so every other answer keeps its
- * shape). The reads say what they hold (plugins, only when one runs here):
- * the plain read each one's currency and whether it holds prices; the read
- * with include_prices also up to 10 of its prices, how many balances
- * customers still owe in it, and its payment methods that are on with the
- * store currencies each takes. A plugin that holds prices
- * follows only with Keep and plugin_currency: 'follow' (the owner saw them
- * in the dialog); with Convert it keeps its currency, since its prices
- * cannot be converted here. A refusal writes nothing, plugins included.
+ * Plugins with a currency of their own (1.2.15): a booking calendar, a room
+ * booking, an online ordering, a donation, a course or an event plugin keeps
+ * its own currency and its prices as plain numbers. This edition changes the
+ * store's currency and prices and never another plugin's settings: the
+ * answers carry otherPlugins: 'requires_agent'. Another plugin may read and
+ * follow them (webmaven_plugin_currency_read, webmaven_plugin_currency_follow);
+ * its answers then come as plugins and plugin_currency, only when one runs
+ * here, so every other answer keeps its shape. A refusal writes nothing,
+ * plugins included.
  *
  * The money values of a store: the regular and sale prices of simple and
  * external products and of the variations of variable products (any status
@@ -68,9 +63,9 @@
  * whether a change is running (change) and how the last one ended (last).
  *
  * A refusal RETURNS {success: false, error, code, ...} and writes nothing.
- * Every other way to write woocommerce_currency (the option tools, WP-CLI,
- * store_settings_change, the plugin bridge, a product's price string) is
- * refused with WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL.
+ * Every other way to write woocommerce_currency (the option tools,
+ * store_settings_change, a product's price string) is refused with
+ * WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL.
  */
 
 if (!defined('ABSPATH')) {
@@ -78,10 +73,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once dirname(__DIR__) . '/class-webmaven-log.php';
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
+require_once dirname(__DIR__) . '/class-webmaven-visitor-words.php';
 
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
     $handlers['store_currency_read'] = ['WebMaven_Cap_Store_Currency', 'read'];
@@ -150,7 +142,7 @@ final class WebMaven_Cap_Store_Currency {
     /** The scheduled check that puts back a Convert that died partway. */
     const RECOVER_HOOK = 'webmaven_store_currency_recover';
 
-    /** What a shopper reads at checkout while a Convert is being written. */
+    /** What a shopper reads at checkout while a Convert is being written (English; checkout_hold() reads the site's language). */
     const CHECKOUT_HOLD = 'This store is updating its prices right now. Please try again in a minute.';
 
     /** Held by this request: 'db' (a named lock), 'option' (the heartbeat option), or null. */
@@ -182,7 +174,7 @@ final class WebMaven_Cap_Store_Currency {
             return ['woocommerce_active' => false];
         }
         $recovered = self::recover_dead_run();
-        $with_values = !empty($params['include_prices']);
+        $with_values = rest_sanitize_boolean($params['include_prices'] ?? false);
         $inv = $with_values ? self::inventory(self::MAX_VALUES) : self::quick_counts();
         $currency = self::stored_currency();
         $out = [
@@ -208,12 +200,16 @@ final class WebMaven_Cap_Store_Currency {
         if ($recovered !== null) {
             $out['recovered'] = $recovered;
         }
-        // The plugins with a currency of their own, only when one runs here.
-        if (class_exists('WebMaven_Plugin_Currency')) {
-            $plugins = $with_values ? WebMaven_Plugin_Currency::details() : WebMaven_Plugin_Currency::summary();
+        // The plugins with a currency of their own, when another plugin reads
+        // them (webmaven_plugin_currency_read). Otherwise the answer says so
+        // (otherPlugins), and their settings stay as they are.
+        $plugins = apply_filters('webmaven_plugin_currency_read', null, (bool) $with_values);
+        if (is_array($plugins)) {
             if ($plugins) {
                 $out['plugins'] = $plugins;
             }
+        } else {
+            $out['otherPlugins'] = 'requires_agent';
         }
         if ($with_values) {
             $out['prices'] = $inv['prices'];
@@ -235,10 +231,10 @@ final class WebMaven_Cap_Store_Currency {
         if (!in_array($mode, self::MODES, true)) {
             return self::fail('Nothing was changed: the mode must be initial, keep or convert.', 'invalid_input');
         }
-        $to = isset($params['to']) && is_string($params['to']) ? strtoupper(trim($params['to'])) : '';
+        $to = isset($params['to']) && is_string($params['to']) ? strtoupper(trim(sanitize_text_field($params['to']))) : '';
         $known = function_exists('get_woocommerce_currencies') ? (array) get_woocommerce_currencies() : [];
         if ($to === '' || !isset($known[$to])) {
-            $named = isset($params['to']) && is_scalar($params['to']) ? (string) $params['to'] : '';
+            $named = isset($params['to']) && is_scalar($params['to']) ? sanitize_text_field((string) $params['to']) : '';
             return self::fail('Nothing was changed: "' . $named . '" is not a currency WooCommerce knows.', 'unknown_currency');
         }
         $decimals = self::whole_decimals($params['decimals'] ?? null);
@@ -272,7 +268,7 @@ final class WebMaven_Cap_Store_Currency {
         if ($from_decimals === null) {
             return self::fail('Nothing was changed: the decimals of the currency the store sells in now (from_decimals) must be a whole number from 0 to 4.', 'invalid_input');
         }
-        $from = strtoupper(trim($params['from']));
+        $from = strtoupper(trim(sanitize_text_field($params['from'])));
         if ($from !== $current) {
             return self::fail(
                 'Nothing was changed: the store sells in ' . ($current !== '' ? $current : 'no currency') . ' now, not ' . ($from !== '' ? $from : 'no currency') . '.',
@@ -560,7 +556,7 @@ final class WebMaven_Cap_Store_Currency {
         $problems = [];
         foreach ($rows as $name => $list) {
             if (!isset($kinds[$name])) {
-                $problems[] = '"' . $name . '" is not a kind of value (prices, coupons or shipping)';
+                $problems[] = '"' . sanitize_text_field($name) . '" is not a kind of value (prices, coupons or shipping)';
                 continue;
             }
             if (!is_array($list)) {
@@ -583,9 +579,11 @@ final class WebMaven_Cap_Store_Currency {
                 $field = isset($row['field']) && is_string($row['field']) ? $row['field'] : '';
                 $field_ok = $fields !== null ? in_array($field, $fields, true) : self::is_shipping_field($field);
                 if (!$field_ok) {
-                    $problems[] = "$n: \"$field\" is not a field that holds money";
+                    $problems[] = "$n: \"" . sanitize_text_field($field) . '" is not a field that holds money';
                     continue;
                 }
+                // before must equal the value the store holds, byte for byte
+                // (compare_rows), so it is kept as sent; only its echo is cleaned.
                 $before = self::text($row['before'] ?? null);
                 $after = self::text($row['after'] ?? null);
                 if ($before === null) {
@@ -618,7 +616,7 @@ final class WebMaven_Cap_Store_Currency {
             if (!isset($plan[$key])) {
                 $problems[] = self::describe($v) . ' (' . $v['value'] . ') has no converted value';
             } elseif ($plan[$key]['before'] !== $v['value']) {
-                $problems[] = self::describe($v) . ' is ' . $v['value'] . ' now, not ' . $plan[$key]['before'];
+                $problems[] = self::describe($v) . ' is ' . $v['value'] . ' now, not ' . sanitize_text_field($plan[$key]['before']);
             }
         }
         foreach ($plan as $key => $row) {
@@ -726,7 +724,7 @@ final class WebMaven_Cap_Store_Currency {
                     foreach ($want as $field => $value) {
                         $settings[$field] = $value;
                     }
-                    update_option($key, apply_filters('woocommerce_shipping_' . $method->id . '_instance_settings_values', $settings, $method), 'yes');
+                    update_option($key, apply_filters('woocommerce_shipping_' . $method->id . '_instance_settings_values', $settings, $method), 'yes'); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WooCommerce's own filter, applied as its shipping settings screen applies it
                     break;
             }
         } catch (\Throwable $e) {
@@ -1139,53 +1137,69 @@ final class WebMaven_Cap_Store_Currency {
      */
     private static function quick_counts() {
         global $wpdb;
-        // These reads name only WordPress's tables ($wpdb's own properties)
-        // and this class's fixed word lists, each cleaned to letters, digits,
-        // _ and - (sql_list); ids are integers. Nothing in them comes from a
-        // request.
-        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
-        $skip = self::sql_list(self::SKIPPED_STATUSES);
-        $price_keys = self::sql_list(array_values(self::PRICE_META));
-        $type_of = "SELECT 1 FROM {$wpdb->term_relationships} tr"
+        // WordPress's own tables, and this class's fixed word lists as
+        // placeholders, one per word.
+        $skip = self::SKIPPED_STATUSES;
+        $price_keys = array_values(self::PRICE_META);
+        $products = self::count_products();
+        $own_prices = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
+            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id"
+            . " WHERE p.post_type = 'product' AND p.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . ' AND pm.meta_key IN (' . implode(', ', array_fill(0, count($price_keys), '%s')) . ") AND TRIM(pm.meta_value) <> ''"
+            . " AND NOT EXISTS (SELECT 1 FROM {$wpdb->term_relationships} tr"
             . " INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id"
             . " INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id"
-            . " WHERE tr.object_id = p.ID AND tt.taxonomy = 'product_type'";
-        $products = self::count_products();
-        $own_prices = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id"
-            . " WHERE p.post_type = 'product' AND p.post_status NOT IN ($skip)"
-            . " AND pm.meta_key IN ($price_keys) AND TRIM(pm.meta_value) <> ''"
-            . " AND NOT EXISTS ($type_of AND t.slug NOT IN (" . self::sql_list(self::PRICED_TYPES) . '))'
-        );
-        $variation_prices = (int) $wpdb->get_var(
+            . " WHERE tr.object_id = p.ID AND tt.taxonomy = 'product_type' AND t.slug NOT IN (" . implode(', ', array_fill(0, count(self::PRICED_TYPES), '%s')) . '))',
+            array_merge($skip, $price_keys, self::PRICED_TYPES)
+        ));
+        $variation_prices = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
             "SELECT COUNT(*) FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} v ON v.ID = pm.post_id"
             . " INNER JOIN {$wpdb->posts} p ON p.ID = v.post_parent"
-            . " WHERE v.post_type = 'product_variation' AND v.post_status NOT IN ($skip)"
-            . " AND p.post_type = 'product' AND p.post_status NOT IN ($skip)"
-            . " AND pm.meta_key IN ($price_keys) AND TRIM(pm.meta_value) <> ''"
-            . " AND EXISTS ($type_of AND t.slug = 'variable')"
-        );
-        $other = (array) $wpdb->get_col(
+            . " WHERE v.post_type = 'product_variation' AND v.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . " AND p.post_type = 'product' AND p.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . ' AND pm.meta_key IN (' . implode(', ', array_fill(0, count($price_keys), '%s')) . ") AND TRIM(pm.meta_value) <> ''"
+            . " AND EXISTS (SELECT 1 FROM {$wpdb->term_relationships} tr"
+            . " INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id"
+            . " INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id"
+            . " WHERE tr.object_id = p.ID AND tt.taxonomy = 'product_type' AND t.slug = 'variable')",
+            array_merge($skip, $skip, $price_keys)
+        ));
+        $other = (array) $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
             "SELECT DISTINCT t.slug FROM {$wpdb->term_relationships} tr"
             . " INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id"
             . " INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id"
             . " INNER JOIN {$wpdb->posts} p ON p.ID = tr.object_id"
-            . " WHERE tt.taxonomy = 'product_type' AND p.post_type = 'product' AND p.post_status NOT IN ($skip)"
-            . ' AND t.slug NOT IN (' . self::sql_list(self::KNOWN_TYPES) . ')'
-            . ' ORDER BY t.slug ASC'
-        );
-        $fixed = "(dt.meta_value IS NULL OR dt.meta_value IN ('', " . self::sql_list(self::FIXED_COUPON_TYPES) . '))';
-        $coupon_join = "FROM {$wpdb->posts} c LEFT JOIN {$wpdb->postmeta} dt ON dt.post_id = c.ID AND dt.meta_key = 'discount_type'";
-        $coupon_where = "c.post_type = 'shop_coupon' AND c.post_status NOT IN ($skip)";
-        $money_meta = "((pm.meta_key IN ('minimum_amount', 'maximum_amount')) OR (pm.meta_key = 'coupon_amount' AND $fixed)) AND TRIM(pm.meta_value) <> ''";
-        $fixed_coupons = (int) $wpdb->get_var("SELECT COUNT(*) $coupon_join WHERE $coupon_where AND $fixed");
-        $coupon_values = (int) $wpdb->get_var(
-            "SELECT COUNT(*) $coupon_join INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = c.ID WHERE $coupon_where AND $money_meta"
-        );
-        $coupons_with_values = (int) $wpdb->get_var(
-            "SELECT COUNT(DISTINCT c.ID) $coupon_join INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = c.ID WHERE $coupon_where AND $money_meta"
-        );
-        // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+            . " WHERE tt.taxonomy = 'product_type' AND p.post_type = 'product' AND p.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . ' AND t.slug NOT IN (' . implode(', ', array_fill(0, count(self::KNOWN_TYPES), '%s')) . ')'
+            . ' ORDER BY t.slug ASC',
+            array_merge($skip, self::KNOWN_TYPES)
+        ));
+        // A coupon of a fixed amount: no discount type yet (WooCommerce's
+        // default is fixed_cart), or one of FIXED_COUPON_TYPES.
+        $fixed_coupons = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
+            "SELECT COUNT(*) FROM {$wpdb->posts} c LEFT JOIN {$wpdb->postmeta} dt ON dt.post_id = c.ID AND dt.meta_key = 'discount_type'"
+            . " WHERE c.post_type = 'shop_coupon' AND c.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . " AND (dt.meta_value IS NULL OR dt.meta_value = '' OR dt.meta_value IN (" . implode(', ', array_fill(0, count(self::FIXED_COUPON_TYPES), '%s')) . '))',
+            array_merge($skip, self::FIXED_COUPON_TYPES)
+        ));
+        $coupon_values = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
+            "SELECT COUNT(*) FROM {$wpdb->posts} c LEFT JOIN {$wpdb->postmeta} dt ON dt.post_id = c.ID AND dt.meta_key = 'discount_type'"
+            . " INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = c.ID"
+            . " WHERE c.post_type = 'shop_coupon' AND c.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . " AND ((pm.meta_key IN ('minimum_amount', 'maximum_amount')) OR (pm.meta_key = 'coupon_amount'"
+            . " AND (dt.meta_value IS NULL OR dt.meta_value = '' OR dt.meta_value IN (" . implode(', ', array_fill(0, count(self::FIXED_COUPON_TYPES), '%s')) . '))))'
+            . " AND TRIM(pm.meta_value) <> ''",
+            array_merge($skip, self::FIXED_COUPON_TYPES)
+        ));
+        $coupons_with_values = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
+            "SELECT COUNT(DISTINCT c.ID) FROM {$wpdb->posts} c LEFT JOIN {$wpdb->postmeta} dt ON dt.post_id = c.ID AND dt.meta_key = 'discount_type'"
+            . " INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = c.ID"
+            . " WHERE c.post_type = 'shop_coupon' AND c.post_status NOT IN (" . implode(', ', array_fill(0, count($skip), '%s')) . ')'
+            . " AND ((pm.meta_key IN ('minimum_amount', 'maximum_amount')) OR (pm.meta_key = 'coupon_amount'"
+            . " AND (dt.meta_value IS NULL OR dt.meta_value = '' OR dt.meta_value IN (" . implode(', ', array_fill(0, count(self::FIXED_COUPON_TYPES), '%s')) . '))))'
+            . " AND TRIM(pm.meta_value) <> ''",
+            array_merge($skip, self::FIXED_COUPON_TYPES)
+        ));
         $shipping = self::shipping_inventory();
         $shipping_values = count($shipping['rows']) - $shipping['formulas'];
         $other_types = array_values(array_unique(array_map(function ($t) { return strtolower((string) $t); }, $other)));
@@ -1240,7 +1254,7 @@ final class WebMaven_Cap_Store_Currency {
             return 'unsupported';
         }
         $prev = method_exists($wpdb, 'suppress_errors') ? $wpdb->suppress_errors(true) : null;
-        $holder = $wpdb->get_var($wpdb->prepare('SELECT IS_USED_LOCK(%s)', self::lock_name()));
+        $holder = $wpdb->get_var($wpdb->prepare('SELECT IS_USED_LOCK(%s)', self::lock_name())); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL's named lock, so only one currency change runs at a time; a lock's state is never cached
         $error = property_exists($wpdb, 'last_error') ? (string) $wpdb->last_error : '';
         if ($prev !== null) {
             $wpdb->suppress_errors($prev);
@@ -1288,7 +1302,7 @@ final class WebMaven_Cap_Store_Currency {
         $got = null;
         if (is_object($wpdb) && method_exists($wpdb, 'get_var')) {
             $prev = method_exists($wpdb, 'suppress_errors') ? $wpdb->suppress_errors(true) : null;
-            $got = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', self::lock_name()));
+            $got = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', self::lock_name())); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL's named lock, so only one currency change runs at a time; a lock's state is never cached
             $error = property_exists($wpdb, 'last_error') ? (string) $wpdb->last_error : '';
             if ($prev !== null) {
                 $wpdb->suppress_errors($prev);
@@ -1349,7 +1363,7 @@ final class WebMaven_Cap_Store_Currency {
         }
         if (self::$lock_held === 'db' && is_object($wpdb) && method_exists($wpdb, 'get_var')) {
             $prev = method_exists($wpdb, 'suppress_errors') ? $wpdb->suppress_errors(true) : null;
-            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', self::lock_name()));
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', self::lock_name())); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- MySQL's named lock, so only one currency change runs at a time; a lock's state is never cached
             if ($prev !== null) {
                 $wpdb->suppress_errors($prev);
             }
@@ -1536,15 +1550,20 @@ final class WebMaven_Cap_Store_Currency {
         return $journal !== null && $journal !== false;
     }
 
+    /** The hold's words in the shopper's language. */
+    public static function checkout_hold() {
+        return WebMaven_Visitor_Words::get('checkout_hold');
+    }
+
     /** Classic checkout: the order is refused with a notice while prices change. */
     public static function hold_classic_checkout($data = null, $errors = null) {
         if (!self::holding()) {
             return;
         }
         if (is_object($errors) && method_exists($errors, 'add')) {
-            $errors->add('webmaven_store_currency', self::CHECKOUT_HOLD);
+            $errors->add('webmaven_store_currency', self::checkout_hold());
         } elseif (function_exists('wc_add_notice')) {
-            wc_add_notice(self::CHECKOUT_HOLD, 'error');
+            wc_add_notice(self::checkout_hold(), 'error');
         }
     }
 
@@ -1555,9 +1574,9 @@ final class WebMaven_Cap_Store_Currency {
         }
         $route_exception = '\Automattic\WooCommerce\StoreApi\Exceptions\RouteException';
         if (class_exists($route_exception)) {
-            throw new $route_exception('webmaven_store_currency', self::CHECKOUT_HOLD, 409);
+            throw new $route_exception('webmaven_store_currency', self::checkout_hold(), 409); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
-        throw new \Exception(self::CHECKOUT_HOLD);
+        throw new \Exception(self::checkout_hold()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
     }
 
     /** An ISO 8601 time in UTC, or '' for none. */
@@ -1567,35 +1586,36 @@ final class WebMaven_Cap_Store_Currency {
 
     // ── Database reads (read-only; every write goes through WooCommerce) ────
     //
-    // These reads name only WordPress's tables ($wpdb's own properties) and
-    // this class's fixed word lists, each cleaned to letters, digits, _ and -
-    // (sql_list); ids are integers. Nothing in them comes from a request.
-    // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+    // WordPress's own tables, and this class's fixed word lists and the ids
+    // as placeholders, one per value.
 
     /** Posts of these types, any status but trash and auto-draft, by id. */
     private static function posts(array $types) {
         global $wpdb;
-        return (array) $wpdb->get_results(
+        $types = array_values($types);
+        return (array) $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
             "SELECT ID, post_parent, post_type, post_status, post_title FROM {$wpdb->posts}"
-            . ' WHERE post_type IN (' . self::sql_list($types) . ') AND post_status NOT IN (' . self::sql_list(self::SKIPPED_STATUSES) . ')'
+            . ' WHERE post_type IN (' . implode(', ', array_fill(0, count($types), '%s')) . ')'
+            . ' AND post_status NOT IN (' . implode(', ', array_fill(0, count(self::SKIPPED_STATUSES), '%s')) . ')'
             . ' ORDER BY ID ASC',
-            ARRAY_A
-        );
+            array_merge($types, self::SKIPPED_STATUSES)
+        ), ARRAY_A);
     }
 
     /** Products, any status but trash and auto-draft. */
     private static function count_products() {
         global $wpdb;
-        return (int) $wpdb->get_var(
+        return (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
             "SELECT COUNT(*) FROM {$wpdb->posts}"
-            . " WHERE post_type IN ('product') AND post_status NOT IN (" . self::sql_list(self::SKIPPED_STATUSES) . ')'
-        );
+            . " WHERE post_type IN ('product') AND post_status NOT IN (" . implode(', ', array_fill(0, count(self::SKIPPED_STATUSES), '%s')) . ')',
+            self::SKIPPED_STATUSES
+        ));
     }
 
     /** Product id => its product_type slug. A product without one is simple, as WooCommerce reads it. */
     private static function product_types() {
         global $wpdb;
-        $rows = (array) $wpdb->get_results(
+        $rows = (array) $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
             "SELECT tr.object_id, t.slug FROM {$wpdb->term_relationships} tr"
             . " INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id"
             . " INNER JOIN {$wpdb->terms} t ON t.term_id = tt.term_id"
@@ -1618,13 +1638,15 @@ final class WebMaven_Cap_Store_Currency {
         global $wpdb;
         $out = [];
         $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        $keys = array_values($keys);
         foreach (array_chunk($ids, self::CHUNK) as $chunk) {
-            $rows = (array) $wpdb->get_results(
+            $rows = (array) $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- counts and lists over the store's products, variations and coupons in single queries, which WooCommerce's API would load one by one; read for a currency change as the store is now, so nothing is cached
                 "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta}"
-                . ' WHERE post_id IN (' . implode(',', $chunk) . ') AND meta_key IN (' . self::sql_list($keys) . ')'
+                . ' WHERE post_id IN (' . implode(',', array_fill(0, count($chunk), '%d')) . ')'
+                . ' AND meta_key IN (' . implode(', ', array_fill(0, count($keys), '%s')) . ')'
                 . ' ORDER BY meta_id ASC',
-                ARRAY_A
-            );
+                array_merge($chunk, $keys)
+            ), ARRAY_A);
             foreach ($rows as $r) {
                 $id = (int) $r['post_id'];
                 $key = (string) $r['meta_key'];
@@ -1635,15 +1657,6 @@ final class WebMaven_Cap_Store_Currency {
         }
         return $out;
     }
-
-    /** A quoted list of this class's own constant names (never input). */
-    private static function sql_list(array $words) {
-        return implode(', ', array_map(function ($w) {
-            return "'" . preg_replace('/[^a-z0-9_\-]/i', '', (string) $w) . "'";
-        }, $words));
-    }
-
-    // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -1762,12 +1775,13 @@ final class WebMaven_Cap_Store_Currency {
      * owner saw the prices a plugin holds and chose Keep.
      */
     private static function with_plugins(array $result, $currency, $decimals, $mode, $consent) {
-        if (class_exists('WebMaven_Plugin_Currency')) {
-            WebMaven_Plugin_Currency::remember($currency);
-            $plugins = WebMaven_Plugin_Currency::follow_store($currency, $decimals, $mode, $consent);
-            if ($plugins !== null) {
-                $result['plugin_currency'] = $plugins;
-            }
+        // This edition changes no other plugin's currency settings: false
+        // unless another plugin takes them (webmaven_plugin_currency_follow).
+        $plugins = apply_filters('webmaven_plugin_currency_follow', false, $currency, $decimals, $mode, $consent);
+        if ($plugins === false) {
+            $result['otherPlugins'] = 'requires_agent';
+        } elseif (is_array($plugins)) {
+            $result['plugin_currency'] = $plugins;
         }
         return $result;
     }

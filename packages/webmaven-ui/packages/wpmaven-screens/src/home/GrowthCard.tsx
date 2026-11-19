@@ -21,6 +21,7 @@ import { SampleFiguresChip } from './SampleFiguresChip';
 import { useHomeSectionStyles } from './styles';
 import type { FrozenForecast } from './reads';
 import type { BusinessHome } from './useBusinessHome';
+import { GROWTH_CARD_COPY } from './homeCopy';
 
 /** The tools that publish to the business's channels: a first post is one of these. */
 export const PUBLISH_TOOLS: readonly string[] = ['social_post', 'social_publish'];
@@ -56,12 +57,13 @@ export function homeMilestoneInputs(home: Pick<BusinessHome, 'plan' | 'approvals
 
 /**
  * The flags on the chart's baseline: real dates only, and only for things
- * that can be proved. A milestone that cannot be dated gets no flag.
+ * that can be proved. A milestone that cannot be dated gets no flag. The
+ * labels are in the page's language (GROWTH_CARD_COPY).
  */
 export function homeGrowthEvents(home: Pick<BusinessHome, 'plan' | 'approvals' | 'progress'>): GrowthEvent[] {
   const { plan, approvals, progress } = home;
   const events: GrowthEvent[] = [];
-  if (plan?.activatedAt) events.push({ label: 'Launched', at: plan.activatedAt });
+  if (plan?.activatedAt) events.push({ label: GROWTH_CARD_COPY.launched, at: plan.activatedAt });
   const firstPublish = approvals
     .filter((a) => a.status === 'EXECUTED' && PUBLISH_TOOLS.includes(a.toolName) && a.executedAt)
     .map((a) => a.executedAt as string)
@@ -70,11 +72,11 @@ export function homeGrowthEvents(home: Pick<BusinessHome, 'plan' | 'approvals' |
       .filter((t) => t.sourceKind === 'launch_post' && t.lastRunAt)
       .map((t) => t.lastRunAt as string)
       .sort()[0];
-  if (firstPublish) events.push({ label: 'First post', at: firstPublish });
+  if (firstPublish) events.push({ label: GROWTH_CARD_COPY.firstPost, at: firstPublish });
   const firstSale = [...progress]
     .filter((sn) => (sn.actuals?.revenueCents ?? 0) > 0)
     .sort((a, b) => a.periodStart.localeCompare(b.periodStart))[0]?.periodStart;
-  if (firstSale) events.push({ label: 'First sale', at: firstSale });
+  if (firstSale) events.push({ label: GROWTH_CARD_COPY.firstSale, at: firstSale });
   return events;
 }
 

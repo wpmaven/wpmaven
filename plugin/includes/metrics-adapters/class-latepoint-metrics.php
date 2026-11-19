@@ -16,16 +16,16 @@ class WebMaven_LatePoint_Metrics implements WebMaven_Metrics_Adapter {
         global $wpdb;
 
         $table = $wpdb->prefix . 'latepoint_bookings';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether LatePoint's table exists, which no WordPress function tells; asked once per report
             return ['period' => $date, 'plugin' => 'latepoint', 'error' => 'Table not found'];
         }
 
-        $stats = $wpdb->get_results($wpdb->prepare(
+        $stats = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- read-only counts from LatePoint's own tables, which no WordPress function reads; read for the reports, which need today's figures, so nothing is cached
             "SELECT status, COUNT(*) AS count
-             FROM {$table}
+             FROM %i
              WHERE start_date = %s
              GROUP BY status",
-            $date
+            $table, $date
         ));
 
         $by_status = [];
@@ -36,25 +36,25 @@ class WebMaven_LatePoint_Metrics implements WebMaven_Metrics_Adapter {
         }
 
         // Revenue
-        $revenue = (float) ($wpdb->get_var($wpdb->prepare(
-            "SELECT COALESCE(SUM(price), 0) FROM {$table}
+        $revenue = (float) ($wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- read-only counts from LatePoint's own tables, which no WordPress function reads; read for the reports, which need today's figures, so nothing is cached
+            "SELECT COALESCE(SUM(price), 0) FROM %i
              WHERE start_date = %s AND status IN ('approved', 'completed')",
-            $date
+            $table, $date
         )) ?: 0);
 
         // Popular services
         $services_table = $wpdb->prefix . 'latepoint_services';
         $popular = [];
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$services_table}'") === $services_table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($services_table))) === $services_table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether LatePoint's table exists, which no WordPress function tells; asked once per report
             $popular = $wpdb->get_results($wpdb->prepare(
                 "SELECT s.name, COUNT(*) AS count
-                 FROM {$table} b
-                 INNER JOIN {$services_table} s ON b.service_id = s.id
+                 FROM %i b
+                 INNER JOIN %i s ON b.service_id = s.id
                  WHERE b.start_date = %s
                  GROUP BY b.service_id
                  ORDER BY count DESC
                  LIMIT 5",
-                $date
+                $table, $services_table, $date
             )) ?: [];
         }
 

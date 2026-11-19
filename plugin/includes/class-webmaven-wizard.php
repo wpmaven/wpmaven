@@ -217,7 +217,7 @@ final class WebMaven_Wizard {
         if ((int) ini_get('max_execution_time') === 0 || !function_exists('set_time_limit')) {
             return;
         }
-        @set_time_limit(self::TIME_LIMIT);
+        @set_time_limit(self::TIME_LIMIT); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- one wizard call to the API may take up to TIMEOUT (120 s), longer than PHP's default limit; raised only where the host allows it
     }
 
     /** The API's status and JSON body, as they came. */

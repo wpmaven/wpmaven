@@ -20,7 +20,11 @@
  *
  * Every number shown is one the API sent: a read that failed answers null
  * and its block simply does not draw. Nothing here estimates or projects.
+ * The few sentences the owner reads (the site's health) are in the page's
+ * language (SITE_HEALTH_COPY, French in src/i18n/fr.json, namespace
+ * 'screensSiteHealth').
  */
+import { localized } from '@yotako/webmaven-ui';
 import { errorMessage } from '@yotako/wpmaven-onboarding/shared';
 import type { BusinessPlanAssumptions } from '@yotako/wpmaven-onboarding/shared';
 import type { ScreensTransport } from '../host/types';
@@ -353,17 +357,31 @@ export function parseSiteHealth(body: unknown): SiteHealthView | null {
   };
 }
 
-export const SITE_HEALTH_COPY = {
+/** The site's health card (SiteHealthCard.tsx): its failures, the hour's limit on Check now, and its loading state. */
+export const SITE_HEALTH_COPY_EN = {
+  /** The site's health card when its state could not be read (its uptime, certificate, updates and backups). */
   loadFailed: "We could not read this site's health. Try again in a moment.",
+  /** Under Check now when the check did not run. */
   checkFailed: 'The check did not run. Try again in a moment.',
   /** The API's own sentence when Check now has run 6 times this hour (HEALTH_CHECK_LIMIT). */
   limited: 'You checked this site several times in the last hour. Try again a little later.',
-  /** Under the disabled Check now, while the hour's checks are used up. */
+  /** Under the disabled Check now, while the hour's checks are used up; {0} the minutes left. */
   limitedFor: (minutes: number) => (minutes <= 1
     ? 'You checked this site several times in the last hour. Try again in a minute.'
     : `You checked this site several times in the last hour. Try again in ${minutes} minutes.`),
+  /** The card's state while the health is being read, for screen readers. */
   loading: "Checking your site's health",
 };
+
+export const SITE_HEALTH_COPY = localized(SITE_HEALTH_COPY_EN, 'screensSiteHealth');
+
+/** The site's health card's title, when the app gives none of its own (namespace 'screensSiteHealthCard'). */
+export const SITE_HEALTH_CARD_COPY_EN = {
+  /** The card's title: the website's uptime, speed, certificate, updates and backups. */
+  title: 'Site health',
+};
+
+export const SITE_HEALTH_CARD_COPY = localized(SITE_HEALTH_CARD_COPY_EN, 'screensSiteHealthCard');
 
 /** The checks a business may run in an hour (the API's HEALTH_CHECKS_PER_HOUR). */
 export const HEALTH_CHECKS_PER_HOUR = 6;

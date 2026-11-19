@@ -1,8 +1,8 @@
 <?php
 /**
  * WebMaven Webhook Actions
- * All webhook action implementations extracted from the main plugin file.
- * Called by handle_webhook_action() in the main plugin class.
+ * The webhook actions' implementations, called by the webhook handler's
+ * dispatch (WebMaven_Webhook_Handler) and by execute_command.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -10,11 +10,8 @@ if (!defined('ABSPATH')) exit;
 require_once __DIR__ . '/class-webmaven-log.php';
 require_once __DIR__ . '/class-webmaven-option-allowlist.php';
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 require_once __DIR__ . '/class-webmaven-files.php';
+require_once __DIR__ . '/class-webmaven-svg.php';
 
 // The WPForms definition behind a designed form follows the page (1.4.0).
 require_once __DIR__ . '/class-webmaven-designed-forms.php';
@@ -42,14 +39,10 @@ class WebMaven_Webhook_Actions {
         if ($this->plugin && $this->plugin->wp_commands && method_exists($this->plugin->wp_commands, $name)) {
             return call_user_func_array([$this->plugin->wp_commands, $name], $arguments);
         }
-        throw new \BadMethodCallException("Method {$name} not found");
+        throw new \BadMethodCallException("Method {$name} not found"); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
     }
 
-    
-    
-    // ===== WP-CLI =====
-
-    // ===== FILE SEARCH & CONTENT RETRIEVAL =====
+    // ===== CONTENT RETRIEVAL =====
 
     /**
      * Get full post/page data with meta, taxonomy, and featured image: the
@@ -64,7 +57,7 @@ class WebMaven_Webhook_Actions {
         $post = get_post($post_id);
 
         if (!$post) {
-            throw new \Exception('Post not found: ' . $post_id);
+            throw new \Exception('Post not found: ' . $post_id); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         $content = $post->post_content;
@@ -98,7 +91,7 @@ class WebMaven_Webhook_Actions {
         $template = get_page_template_slug($post_id) ?: 'default';
 
         // Rendered content (the saved content)
-        $rendered = apply_filters('the_content', $content);
+        $rendered = apply_filters('the_content', $content); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress's own filter, to read the post as the site shows it
 
         // Related posts (same category, exclude self)
         $related = [];
@@ -107,7 +100,7 @@ class WebMaven_Webhook_Actions {
             if (!empty($cat_ids)) {
                 $related_posts = get_posts([
                     'category__in' => $cat_ids,
-                    'post__not_in' => [$post_id],
+                    'post__not_in' => [$post_id], // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- one id left out, the post itself, from its five related posts
                     'numberposts' => 5,
                     'post_status' => 'publish',
                 ]);
@@ -152,8 +145,11 @@ class WebMaven_Webhook_Actions {
      * Get lightweight summary of all content for site-wide awareness.
      */
     public function webhook_get_content_summary($params) {
+        // A post type is a key and a status one of WordPress's own, one or a
+        // list of each (get_posts takes both).
         $post_type = $params['post_type'] ?? 'any';
-        $status = $params['status'] ?? 'any';
+        $post_type = is_array($post_type) ? array_map('sanitize_key', $post_type) : sanitize_key((string) $post_type);
+        $status = WebMaven_WordPress_Commands::remote_post_status($params['status'] ?? 'any', WebMaven_WordPress_Commands::READ_STATUSES);
         $limit = min((int) ($params['limit'] ?? 100), 500);
 
         $query_args = [
@@ -214,7 +210,7 @@ class WebMaven_Webhook_Actions {
             'post_type'      => 'wp_global_styles',
             'posts_per_page' => 1,
             'post_status'    => ['publish', 'draft'],
-            'tax_query'      => [[
+            'tax_query'      => [[ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- the theme's global styles, found through the wp_theme term as WordPress itself finds them; one post
                 'taxonomy' => 'wp_theme',
                 'field'    => 'name',
                 'terms'    => get_stylesheet(),
@@ -260,6 +256,11 @@ class WebMaven_Webhook_Actions {
             $args = $params['args'] ?? [];
         }
 
+        // A command is a name, cleaned as text. Its arguments are an object
+        // that each command reads and cleans.
+        $command = is_string($command) ? sanitize_text_field($command) : '';
+        $args = is_array($args) ? $args : [];
+
         if (empty($command)) {
             throw new Exception('command parameter is required');
         }
@@ -282,23 +283,23 @@ class WebMaven_Webhook_Actions {
         // single-option path rewrite_rules too.
         if (WebMaven_Self_Protect::is_core_protected_option($option_name)
             || (is_scalar($option_name) && strtolower(trim((string) $option_name)) === 'rewrite_rules')) {
-            throw new Exception('Cannot modify protected option: ' . $option_name);
+            throw new Exception('Cannot modify protected option: ' . $option_name); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         // WPMaven's own options and the whole plugin-state set (active_plugins,
-        // active_sitewide_plugins, recently_activated, and with WPMaven Agent
-        // the options that decide updates), plus the edge key and primary host. This is
+        // active_sitewide_plugins, recently_activated, and any another plugin
+        // adds), plus the edge key and primary host. This is
         // the one list every command path asks; these two action handlers each
         // carried their own shorter copy of it before 2026-09-22, so writing
         // active_sitewide_plugins could network-deactivate WPMaven.
         if (WebMaven_Self_Protect::is_protected_option($option_name)) {
-            throw new Exception('Cannot modify protected option: ' . $option_name);
+            throw new Exception('Cannot modify protected option: ' . $option_name); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         // The store currency relabels every price in the store: only the
         // Store currency setting changes it (2026-09-30).
         if (WebMaven_Self_Protect::is_store_currency_option($option_name)) {
-            throw new Exception(WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL);
+            throw new Exception(WebMaven_Self_Protect::STORE_CURRENCY_REFUSAL); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
-        // Only the options on WPMaven's list; another plugin's are WPMaven Agent's.
+        // Only the options on WPMaven's list; another plugin's answer REQUIRES_AGENT.
         WebMaven_Option_Allowlist::check($option_name);
     }
 
@@ -310,13 +311,13 @@ class WebMaven_Webhook_Actions {
             throw new Exception('option_value parameter is required');
         }
 
-        $option_name = $params['option_name'];
-        $option_value = $params['option_value'];
+        $option_name = is_scalar($params['option_name']) ? sanitize_text_field((string) $params['option_name']) : '';
 
         // The same guard as update_option: siteurl, users_can_register,
         // default_role, active_plugins and the other options a site-hijack or
         // privilege-escalation targets are refused.
         $this->assert_option_writable($option_name);
+        $option_value = WebMaven_WordPress_Commands::clean_option_value($option_name, $params['option_value']);
         $result = update_option($option_name, $option_value);
 
         return [
@@ -339,18 +340,17 @@ class WebMaven_Webhook_Actions {
         }
 
         $option_name = $params['option'] ?? $params['option_name'];
-        $option_value = $params['value'] ?? $params['option_value'];
+        $option_name = is_scalar($option_name) ? sanitize_text_field((string) $option_name) : '';
 
         // Security: the security-critical options, WPMaven's own options and
         // the plugin-state set (see assert_option_writable — one guard, one
         // list, shared with update_theme_option).
         $this->assert_option_writable($option_name);
 
-        // RAW keys (wm_posts_tpl / wm_posts_imgs) are stored without content
-        // sanitization — see WebMaven_WordPress_Commands::RAW_OPTION_KEYS.
-        if (in_array($option_name, WebMaven_WordPress_Commands::RAW_OPTION_KEYS, true)) {
-            $option_value = WebMaven_WordPress_Commands::prepare_raw_option_value($option_name, $option_value);
-        }
+        // Each value is cleaned for its option, as every option command
+        // cleans it (WebMaven_WordPress_Commands::clean_option_value; the
+        // RAW_OPTION_KEYS keep their own preparation).
+        $option_value = WebMaven_WordPress_Commands::clean_option_value($option_name, $params['value'] ?? $params['option_value']);
 
         $result = update_option($option_name, $option_value);
 
@@ -369,7 +369,7 @@ class WebMaven_Webhook_Actions {
             throw new Exception('test_type parameter is required');
         }
         
-        $test_type = $params['test_type'];
+        $test_type = sanitize_key($params['test_type']);
         
         switch ($test_type) {
             case 'theme_loading':
@@ -392,7 +392,7 @@ class WebMaven_Webhook_Actions {
                 
             case 'database_connection':
                 global $wpdb;
-                $result = $wpdb->get_var("SELECT 1");
+                $result = $wpdb->get_var("SELECT 1"); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- a health check: whether the database answers
                 // The database name is half of a direct connection, and the
                 // one value site_database_read redacts from every row; this
                 // free read handed it back until 2026-09-22. The server
@@ -410,7 +410,7 @@ class WebMaven_Webhook_Actions {
                 return $out;
                 
             default:
-                throw new Exception("Unknown test type: {$test_type}");
+                throw new Exception("Unknown test type: {$test_type}"); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
     }
 
@@ -418,22 +418,40 @@ class WebMaven_Webhook_Actions {
      * Create a page via webhook
      * Wrapper around create_post with post_type=page
      */
+    /**
+     * A page by its address: WordPress's get_page_by_path, except where an
+     * add-on answers (a site in several languages, where several pages share
+     * an address word: then the page of $lang, the main language by default,
+     * never another language's).
+     */
+    private static function page_by_path($path, $output = OBJECT, $post_type = 'page', $lang = '') {
+        $found = apply_filters('webmaven_page_by_path', false, (string) $path, (string) $output, $post_type, (string) $lang);
+        if ($found !== false) {
+            return $found;
+        }
+        return get_page_by_path($path, $output, $post_type);
+    }
+
     public function webhook_create_page($params) {
-        // Map page parameters to post parameters
+        // A language tag keeps its case (pt-BR), so it is cleaned as text.
+        $lang = isset($params['lang']) && is_string($params['lang']) ? sanitize_text_field($params['lang']) : '';
+
+        // Map page parameters to post parameters. The content is cleaned by
+        // create_post (sanitize_llm_content), which keeps the designed markup.
         $post_params = [
-            'title' => $params['title'] ?? 'New Page',
-            'content' => $params['content'] ?? '',
-            'status' => $params['status'] ?? 'draft',
+            'title' => isset($params['title']) && is_scalar($params['title']) ? sanitize_text_field((string) $params['title']) : 'New Page',
+            'content' => isset($params['content']) && is_scalar($params['content']) ? (string) $params['content'] : '',
+            'status' => WebMaven_WordPress_Commands::remote_post_status($params['status'] ?? 'draft', WebMaven_WordPress_Commands::WRITE_STATUSES),
             'post_type' => 'page'
         ];
 
         // Optional parameters
-        if (isset($params['slug'])) {
+        if (isset($params['slug']) && is_scalar($params['slug'])) {
             $post_params['post_name'] = sanitize_title($params['slug']);
 
             // Remove default WordPress draft/auto-draft pages that would cause slug collision
             $requested_slug = sanitize_title($params['slug']);
-            $existing_page = get_page_by_path($requested_slug);
+            $existing_page = self::page_by_path($requested_slug, OBJECT, 'page', $lang);
             // Never delete one of WooCommerce's own pages, even as a draft, and
             // never delete anything on a site whose existing content is
             // protected (protect_existing: the owner's drafts stay).
@@ -447,13 +465,13 @@ class WebMaven_Webhook_Actions {
             }
         }
         if (isset($params['excerpt'])) {
-            $post_params['excerpt'] = $params['excerpt'];
+            $post_params['excerpt'] = sanitize_textarea_field(is_scalar($params['excerpt']) ? (string) $params['excerpt'] : '');
         }
         if (isset($params['parent'])) {
             $post_params['post_parent'] = intval($params['parent']);
         }
         if (isset($params['template'])) {
-            $post_params['page_template'] = $params['template'];
+            $post_params['page_template'] = sanitize_text_field(is_scalar($params['template']) ? (string) $params['template'] : '');
         }
         if (isset($params['menu_order'])) {
             $post_params['menu_order'] = intval($params['menu_order']);
@@ -473,13 +491,17 @@ class WebMaven_Webhook_Actions {
         if (!empty($params['candidate'])) {
             $post_params['candidate'] = true;
         }
+        // A site in several languages: the language of this page (see create_post).
+        if ($lang !== '') {
+            $post_params['lang'] = $lang;
+        }
         // The planned page this is, and when WPMaven last wrote it (a publish
         // run again parks a page edited since): see create_post.
         if (isset($params['wm_page']) && is_string($params['wm_page']) && $params['wm_page'] !== '') {
-            $post_params['wm_page'] = $params['wm_page'];
+            $post_params['wm_page'] = sanitize_title($params['wm_page']);
         }
         if (isset($params['if_unmodified_since']) && is_string($params['if_unmodified_since'])) {
-            $post_params['if_unmodified_since'] = $params['if_unmodified_since'];
+            $post_params['if_unmodified_since'] = sanitize_text_field($params['if_unmodified_since']);
         }
         // Optional fullhtml flag (default true, see create_post): explicit
         // false keeps wpautop formatting for regular prose pages.
@@ -497,7 +519,7 @@ class WebMaven_Webhook_Actions {
         }
 
         // Create the page using the existing create_post method
-        $requested_slug = $params['slug'] ?? null;
+        $requested_slug = isset($params['slug']) && is_scalar($params['slug']) ? sanitize_text_field((string) $params['slug']) : null;
         WebMaven_Log::write("[WebMaven Page] Creating page: title='{$post_params['title']}', requested_slug='{$requested_slug}', content_length=" . strlen($post_params['content'] ?? ''));
 
         $result = $this->create_post($post_params);
@@ -518,9 +540,10 @@ class WebMaven_Webhook_Actions {
 
         // Handle meta description if provided
         if (isset($params['meta_description']) && !empty($result['post_id'])) {
-            update_post_meta($result['post_id'], '_yoast_wpseo_metadesc', $params['meta_description']);
+            $meta_description = sanitize_text_field(is_scalar($params['meta_description']) ? (string) $params['meta_description'] : '');
+            update_post_meta($result['post_id'], '_yoast_wpseo_metadesc', $meta_description);
             // Also set generic meta description for non-Yoast sites
-            update_post_meta($result['post_id'], '_meta_description', $params['meta_description']);
+            update_post_meta($result['post_id'], '_meta_description', $meta_description);
         }
 
         return $result;
@@ -534,7 +557,11 @@ class WebMaven_Webhook_Actions {
         if (empty($params['content']) && empty($params['file_content'])) {
             throw new Exception('Media content is required (content or file_content parameter)');
         }
-        if (empty($params['filename'])) {
+        // The name the API gave the file, as text (kept as the asset's name
+        // below), and the same name made safe for a file on disk.
+        $given_name = isset($params['filename']) && is_scalar($params['filename']) ? sanitize_text_field((string) $params['filename']) : '';
+        $filename = sanitize_file_name($given_name);
+        if (empty($given_name) || $filename === '') {
             throw new Exception('Filename is required');
         }
 
@@ -546,7 +573,7 @@ class WebMaven_Webhook_Actions {
         $base64_content = $params['content'] ?? $params['file_content'];
 
         // Decode first, validate before writing to disk
-        $decoded = base64_decode($base64_content);
+        $decoded = is_string($base64_content) ? base64_decode($base64_content) : false;
         if ($decoded === false) {
             throw new Exception('Invalid base64 content');
         }
@@ -561,33 +588,28 @@ class WebMaven_Webhook_Actions {
         $detected_mime = $finfo->buffer($decoded);
         $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
         if (!in_array($detected_mime, $allowed_mimes, true)) {
-            throw new Exception("File type not allowed: {$detected_mime}");
+            throw new Exception("File type not allowed: {$detected_mime}"); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
-        // An SVG is an XML document that can carry
-        // <script>, event handlers, javascript: URLs, <foreignObject>/<iframe>
-        // or an external entity, so a stored SVG is stored XSS when opened as a
-        // top-level document. Keep static-logo SVGs working but reject any active
-        // or external content (denylist; behind the signed webhook).
+        // An SVG is an XML document that can carry scripts, event handlers,
+        // javascript: links or embedded HTML, so it is rebuilt as drawing
+        // only before it is saved (WebMaven_SVG: wp_kses with an SVG
+        // allowlist). A file with nothing drawable left is refused.
         if ($detected_mime === 'image/svg+xml') {
-            $bad = preg_match('/<\s*(script|foreignObject|iframe|embed|object)\b/i', $decoded)
-                || preg_match('/\son\w+\s*=/i', $decoded)
-                || preg_match('/javascript\s*:/i', $decoded)
-                || preg_match('/data\s*:\s*(text\/html|image\/svg)/i', $decoded)
-                || preg_match('/<!\s*(ENTITY|DOCTYPE)/i', $decoded);
-            if ($bad) {
-                throw new Exception('SVG contains active or external content and was rejected');
+            $decoded = WebMaven_SVG::clean($decoded);
+            if ($decoded === null) {
+                throw new Exception('The SVG has nothing WPMaven can keep as a picture (only shapes, paths, gradients and text are kept)');
             }
         }
 
         // Create temporary file AFTER validation
-        $temp_file = wp_tempnam($params['filename']);
+        $temp_file = wp_tempnam($filename);
         file_put_contents($temp_file, $decoded);
 
         // Determine mime type from filename or parameters
-        $mime_type = $params['mime_type'] ?? '';
+        $mime_type = isset($params['mime_type']) && is_string($params['mime_type']) ? sanitize_mime_type($params['mime_type']) : '';
         if (empty($mime_type)) {
-            $extension = strtolower(pathinfo($params['filename'], PATHINFO_EXTENSION));
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
             $mime_types = [
                 'jpg' => 'image/jpeg',
                 'jpeg' => 'image/jpeg',
@@ -601,7 +623,7 @@ class WebMaven_Webhook_Actions {
 
         // Prepare file array for wp_handle_sideload
         $file_array = [
-            'name' => $params['filename'],
+            'name' => $filename,
             'tmp_name' => $temp_file,
             'type' => $mime_type,
             'error' => 0,
@@ -614,7 +636,7 @@ class WebMaven_Webhook_Actions {
         require_once ABSPATH . 'wp-admin/includes/image.php';
 
         // WordPress rejects .svg uploads by default (get_allowed_mime_types()
-        // excludes SVG), so wp_handle_sideload would refuse our sanitized brand
+        // excludes SVG), so wp_handle_sideload would refuse our cleaned brand
         // logo with "file type not permitted" — silently losing custom_logo.
         // Pass an explicit mimes allowlist for THIS sideload and, for SVG, force
         // the ext/type so wp_check_filetype_and_ext doesn't second-guess the
@@ -643,22 +665,22 @@ class WebMaven_Webhook_Actions {
 
         if (isset($upload['error'])) {
             wp_delete_file($temp_file);
-            throw new Exception('Upload failed: ' . $upload['error']);
+            throw new Exception('Upload failed: ' . $upload['error']); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // Create attachment
         $attachment = [
             'post_mime_type' => $upload['type'],
-            'post_title' => $params['title'] ?? sanitize_file_name(pathinfo($params['filename'], PATHINFO_FILENAME)),
-            'post_content' => $params['description'] ?? '',
-            'post_excerpt' => $params['caption'] ?? '',
+            'post_title' => isset($params['title']) && is_scalar($params['title']) ? sanitize_text_field((string) $params['title']) : sanitize_file_name(pathinfo($given_name, PATHINFO_FILENAME)),
+            'post_content' => isset($params['description']) && is_scalar($params['description']) ? sanitize_textarea_field((string) $params['description']) : '',
+            'post_excerpt' => isset($params['caption']) && is_scalar($params['caption']) ? sanitize_textarea_field((string) $params['caption']) : '',
             'post_status' => 'inherit'
         ];
 
         $attachment_id = wp_insert_attachment($attachment, $upload['file']);
 
         if (is_wp_error($attachment_id)) {
-            throw new Exception('Failed to create attachment: ' . $attachment_id->get_error_message());
+            throw new Exception('Failed to create attachment: ' . $attachment_id->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // Generate attachment metadata (thumbnails, etc.)
@@ -666,14 +688,14 @@ class WebMaven_Webhook_Actions {
         wp_update_attachment_metadata($attachment_id, $attachment_data);
 
         // Set alt text if provided
-        if (!empty($params['alt'])) {
-            update_post_meta($attachment_id, '_wp_attachment_image_alt', $params['alt']);
+        if (!empty($params['alt']) && is_scalar($params['alt'])) {
+            update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field((string) $params['alt']));
         }
 
         // The name the API uploaded the file under ("story-farm.png", a
         // genstudio asset), so wm_ledger_probe finds it again by that name
         // whatever WordPress renamed the file to.
-        update_post_meta($attachment_id, '_wm_asset_name', sanitize_text_field((string) $params['filename']));
+        update_post_meta($attachment_id, '_webmaven_asset_name', sanitize_text_field((string) $params['filename']));
 
         // Get all image sizes
         $sizes = [];
@@ -708,7 +730,9 @@ class WebMaven_Webhook_Actions {
      * Returns information about installed plugins and their features
      */
     public function webhook_discover_plugin_details($params) {
+        // A folder name or a plugin file (woocommerce/woocommerce.php), as text.
         $plugin_slug = $params['plugin_slug'] ?? $params['slug'] ?? '';
+        $plugin_slug = is_scalar($plugin_slug) ? sanitize_text_field((string) $plugin_slug) : '';
 
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -963,7 +987,7 @@ class WebMaven_Webhook_Actions {
      * Check if WooCommerce is active
      */
     public function webhook_woocommerce_is_active() {
-        $is_active = class_exists('WooCommerce') || in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')));
+        $is_active = class_exists('WooCommerce') || in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress's list of active plugins, read as WooCommerce documents it
 
         return [
             'success' => true,
@@ -1002,8 +1026,14 @@ class WebMaven_Webhook_Actions {
      *   set do, capabilities/store-currency.php). The result says which
      *   currency the store sells in (store_currency), which one the string
      *   named (price_currency), and currency_mismatch when they differ.
-     * - category (singular): a name whose product_cat term is get-or-created
-     *   by slug and assigned.
+     * - category (singular): the product's category, a slug (the build's)
+     *   or a name, its product_cat term found or made by slug and assigned.
+     *   A term made from a slug is named in the language's own
+     *   capitalization ("camisas-a-medida": "Camisas a medida"); a name is
+     *   used as given (product_category_id).
+     * - language (2026-11-05): the language the build writes the site in (a
+     *   tag or a WordPress locale), for that name; absent, the site's main
+     *   language (its languages, else its WordPress language).
      * - category_description (2026-10-19): the words the design gives that
      *   category, written on its term only while it has no description of
      *   its own (the owner's words are never replaced); ignored when empty.
@@ -1023,23 +1053,23 @@ class WebMaven_Webhook_Actions {
      * same case): it is marked and updated in place. Two or more such
      * products are ambiguous, so a new product is created, as before. A
      * variable product's variations follow the declared options: each one is
-     * keyed by its attribute values (_wm_variant_key), a re-apply updates the
+     * keyed by its attribute values (_webmaven_variant_key), a re-apply updates the
      * variations that still exist IN PLACE (same id, so anything mapped to a
      * variation keeps pointing at it), creates the new ones and deletes only
      * the ones no longer declared.
      * - menu_order: the catalog position (the designed card order).
      * - card_slots: {key: text} per-product card copy, stored as
-     *   _wm_card_slot_<key> meta that the generated theme prints.
+     *   _webmaven_card_slot_<key> meta that the generated theme prints.
      * - pod: print-on-demand data, never shown on the site:
      *   {printful_product_id, technique, variants: [{options: {Color: 'Black',
      *   Size: 'M'}, printful_variant_id, files: [{placement, url, position}],
-     *   artwork_hash}]}. Each variant lands as _wm_pod meta on the variation
+     *   artwork_hash}]}. Each variant lands as _webmaven_pod meta on the variation
      *   whose attribute values match its options (on the product itself for a
      *   simple product).
      * The result carries created: true|false, adopted: true|false and
      * variations: [{id, key, printful_variant_id}].
      * - slug: the product's design key (its slug in the site plan), kept as
-     *   _wm_product_slug by every call that names it; a product is found by
+     *   _webmaven_product_slug by every call that names it; a product is found by
      *   it after its SKU and before its name.
      * - media_only: true (a new design): see product_media_only().
      *
@@ -1076,6 +1106,106 @@ class WebMaven_Webhook_Actions {
         }
     }
 
+    /**
+     * The product_cat term a product's `category` names, made when the store
+     * has none: a slug, as the build sends it
+     * ("camisas-a-medida"), names it in the language's own capitalization
+     * (category_name_from_slug, in $language, else the site's main
+     * language); a name ("Robes de soirée", "Zapatillas Nike",
+     * "Maßgeschneiderte Hemden") is used as given. Found and made by its slug
+     * either way: a category the store has keeps its name. 0 when there is
+     * none to have.
+     */
+    private function product_category_id(string $category, string $language = ''): int {
+        $given = trim($category);
+        $slug = sanitize_title($given);
+        if ($slug === '') {
+            return 0;
+        }
+        $term = term_exists($slug, 'product_cat');
+        if (!$term) {
+            $name = $given === $slug
+                ? self::category_name_from_slug($slug, trim($language) !== '' ? $language : self::site_language())
+                : sanitize_text_field($given);
+            $term = wp_insert_term($name !== '' ? $name : $slug, 'product_cat', ['slug' => $slug]);
+        }
+        if (!$term || is_wp_error($term)) {
+            return 0;
+        }
+        return (int) (is_array($term) ? $term['term_id'] : $term);
+    }
+
+    /** The site's main language: its WordPress language, else English (an add-on answers with the main one of a site in several languages). */
+    private static function site_language(): string {
+        $site = function_exists('get_option') ? (string) get_option('WPLANG', '') : '';
+        return (string) apply_filters('webmaven_site_main_language', $site !== '' ? $site : 'en');
+    }
+
+    /**
+     * The words German and Luxembourgish write in lowercase inside a name
+     * (articles, prepositions, conjunctions), as a slug spells them (its
+     * marks dropped: "fur" and "fuer" for "für") and with their marks. They
+     * capitalize every noun, so any other word of a name made from a slug
+     * keeps its capital (category_name_from_slug).
+     */
+    const CATEGORY_LOWER_WORDS = [
+        'de' => ['ab', 'aber', 'als', 'am', 'an', 'auf', 'aus', 'bei', 'beim', 'bis', 'das', 'dem', 'den', 'der', 'des', 'die', 'durch', 'ein', 'eine', 'einem', 'einen', 'einer', 'eines', 'fuer', 'fur', 'für', 'gegen', 'hinter', 'im', 'in', 'ins', 'mit', 'nach', 'neben', 'ohne', 'oder', 'seit', 'sowie', 'ueber', 'uber', 'über', 'um', 'und', 'unter', 'vom', 'von', 'vor', 'waehrend', 'wahrend', 'während', 'wie', 'zu', 'zum', 'zur', 'zwischen'],
+        'lb' => ['a', 'an', 'aus', 'bei', 'bis', 'd', 'dat', 'de', 'dei', 'déi', 'dem', 'den', 'der', 'duerch', 'e', 'em', 'ëm', 'en', 'eng', 'engem', 'enger', 'enner', 'ënner', 'fir', 'geint', 'géint', 'iwwer', 'mat', 'mee', 'no', 'oder', 'op', 'ouni', 'vir', 'virun', 'vun', 'wei', 'wéi', 'zu', 'zum', 'zur'],
+    ];
+
+    /**
+     * A category's name made from its slug, in the language's own
+     * capitalization. Most languages write a
+     * category name in sentence case, its first word capitalized
+     * ("camisas-a-medida": "Camisas a medida", "robes-de-soiree": "Robes de
+     * soiree", "handmade-gifts": "Handmade gifts"), Dutch with its "IJ"
+     * ("IJzeren potten"), Turkish and Azerbaijani with their dotted "İ".
+     * German and Luxembourgish capitalize every noun: every word but their
+     * lowercase ones (CATEGORY_LOWER_WORDS) keeps a capital ("Geschenke fuer
+     * Kinder"). A letter is only ever made a capital, never a small one. A
+     * WordPress slug of a name in another alphabet (percent-encoded) reads in
+     * its own letters; a script without capitals (Hebrew, Arabic) stays as
+     * written. The site generator names a category the same way.
+     */
+    public static function category_name_from_slug(string $slug, string $language = ''): string {
+        $words = [];
+        foreach (explode('-', $slug) as $word) {
+            if ($word === '') {
+                continue;
+            }
+            if (strpos($word, '%') !== false) {
+                $own = rawurldecode($word);
+                if (preg_match('//u', $own)) {
+                    $word = $own;
+                }
+            }
+            $words[] = $word;
+        }
+        $parts = preg_split('/[_\-]/', strtolower(trim($language)));
+        $base = $parts[0] ?? '';
+        $lower = self::CATEGORY_LOWER_WORDS[$base] ?? null;
+        foreach ($words as $i => $word) {
+            if ($i === 0 || ($lower !== null && !in_array($word, $lower, true))) {
+                $words[$i] = self::capital_first($word, $base);
+            }
+        }
+        return implode(' ', $words);
+    }
+
+    /** A word with its first letter a capital: Turkish and Azerbaijani "i" is "İ", a Dutch "ij" is "IJ". */
+    private static function capital_first(string $word, string $base): string {
+        if (($base === 'tr' || $base === 'az') && strncmp($word, 'i', 1) === 0) {
+            return 'İ' . substr($word, 1);
+        }
+        if ($base === 'nl' && strncmp($word, 'ij', 2) === 0) {
+            return 'IJ' . substr($word, 2);
+        }
+        if (function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+            return mb_strtoupper(mb_substr($word, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($word, 1, null, 'UTF-8');
+        }
+        return ucfirst($word);
+    }
+
     /** woocommerce_create_product's upsert (see above). */
     private function upsert_product($params) {
         if (!function_exists('wc_get_product')) {
@@ -1083,6 +1213,21 @@ class WebMaven_Webhook_Actions {
                 'success' => false,
                 'error' => 'WooCommerce is not active'
             ];
+        }
+
+        // The product's name, SKU and status, cleaned once: every use below
+        // (the lookups, the upsert key, the product itself) reads these. A
+        // SKU or a status that is not text is not sent.
+        $params['name'] = isset($params['name']) && is_scalar($params['name']) ? sanitize_text_field((string) $params['name']) : '';
+        if (isset($params['sku']) && is_scalar($params['sku'])) {
+            $params['sku'] = sanitize_text_field((string) $params['sku']);
+        } else {
+            unset($params['sku']);
+        }
+        if (isset($params['status']) && is_scalar($params['status'])) {
+            $params['status'] = WebMaven_WordPress_Commands::remote_post_status($params['status'], WebMaven_WordPress_Commands::WRITE_STATUSES);
+        } else {
+            unset($params['status']);
         }
 
         if (empty($params['name'])) {
@@ -1133,7 +1278,7 @@ class WebMaven_Webhook_Actions {
             // only reported back, never written).
             $base_price = null;
             $price_currency = null;
-            if (isset($params['price'])) {
+            if (isset($params['price']) && is_scalar($params['price'])) {
                 if (is_numeric($params['price'])) {
                     $base_price = (float) $params['price'];
                 } else {
@@ -1175,11 +1320,13 @@ class WebMaven_Webhook_Actions {
                 $product->set_virtual(true);
             }
 
-            // Prices live on the variations for variable products
+            // Prices live on the variations for variable products. They are
+            // decimals as WooCommerce writes them (wc_format_decimal, which its
+            // setters apply too): '' still clears one.
             if (isset($params['regular_price']) && !$is_variable) {
-                $product->set_regular_price($params['regular_price']);
+                $product->set_regular_price(is_scalar($params['regular_price']) ? wc_format_decimal($params['regular_price']) : '');
             }
-            if (isset($params['price']) && !$is_variable) {
+            if (isset($params['price']) && is_scalar($params['price']) && !$is_variable) {
                 if (is_numeric($params['price'])) {
                     $product->set_regular_price($params['price']);
                 } elseif ($base_price !== null) {
@@ -1187,19 +1334,19 @@ class WebMaven_Webhook_Actions {
                 }
             }
             if (isset($params['sale_price']) && !$is_variable) {
-                $product->set_sale_price($params['sale_price']);
+                $product->set_sale_price(is_scalar($params['sale_price']) ? wc_format_decimal($params['sale_price']) : '');
             }
             if (isset($params['description'])) {
-                $product->set_description($params['description']);
+                $product->set_description(wp_kses_post(is_scalar($params['description']) ? (string) $params['description'] : ''));
             }
             if (isset($params['short_description'])) {
-                $product->set_short_description($params['short_description']);
+                $product->set_short_description(wp_kses_post(is_scalar($params['short_description']) ? (string) $params['short_description'] : ''));
             }
             if (isset($params['sku'])) {
                 $product->set_sku($params['sku']);
             }
-            if (isset($params['stock_quantity'])) {
-                $product->set_stock_quantity($params['stock_quantity']);
+            if (isset($params['stock_quantity']) && is_numeric($params['stock_quantity'])) {
+                $product->set_stock_quantity(wc_stock_amount($params['stock_quantity']));
                 $product->set_manage_stock(true);
             }
 
@@ -1207,6 +1354,10 @@ class WebMaven_Webhook_Actions {
             $category_ids = [];
             if (!empty($params['categories'])) {
                 foreach ((array) $params['categories'] as $cat_name) {
+                    $cat_name = is_scalar($cat_name) ? sanitize_text_field((string) $cat_name) : '';
+                    if ($cat_name === '') {
+                        continue;
+                    }
                     $term = get_term_by('name', $cat_name, 'product_cat');
                     if ($term) {
                         $category_ids[] = $term->term_id;
@@ -1219,16 +1370,11 @@ class WebMaven_Webhook_Actions {
                     }
                 }
             }
-            // Singular category NAME (additive): get-or-create the product_cat
-            // term by slug — the archive filter contract needs a real term.
-            if (!empty($params['category'])) {
-                $cat_slug = sanitize_title($params['category']);
-                $term = term_exists($cat_slug, 'product_cat');
-                if (!$term) {
-                    $term = wp_insert_term(ucwords(str_replace('-', ' ', $cat_slug)), 'product_cat', ['slug' => $cat_slug]);
-                }
-                if (!is_wp_error($term)) {
-                    $cat_id = (int) (is_array($term) ? $term['term_id'] : $term);
+            // Singular category (additive): get-or-create the product_cat
+            // term by slug: the archive filter contract needs a real term.
+            if (!empty($params['category']) && is_scalar($params['category'])) {
+                $cat_id = $this->product_category_id((string) $params['category'], is_string($params['language'] ?? null) ? sanitize_text_field($params['language']) : '');
+                if ($cat_id > 0) {
                     $category_ids[] = $cat_id;
                     $this->describe_product_category($cat_id, $params['category_description'] ?? '');
                 }
@@ -1272,10 +1418,11 @@ class WebMaven_Webhook_Actions {
                     $image_error = "Attachment {$named_id} is not an image in this site's media library";
                 }
             }
-            if (!empty($params['images'])) {
+            if (!empty($params['images']) && is_array($params['images'])) {
                 $image_ids = [];
                 foreach ($params['images'] as $index => $image) {
                     $image_url = is_array($image) ? ($image['src'] ?? $image['url'] ?? '') : $image;
+                    $image_url = is_string($image_url) ? esc_url_raw($image_url) : '';
                     if ($index === 0 && $image_set) {
                         continue; // the photo is set by id already
                     }
@@ -1309,7 +1456,7 @@ class WebMaven_Webhook_Actions {
             }
 
             // The designed catalog position and card spec slots:
-            // the theme's product card reads `_wm_card_slot_<key>` and Woo sorts
+            // the theme's product card reads `_webmaven_card_slot_<key>` and Woo sorts
             // by menu_order; without these every product shows the same sample
             // card. The API forwards them (short_description already applied above).
             if (isset($params['menu_order']) && is_numeric($params['menu_order'])) {
@@ -1318,7 +1465,7 @@ class WebMaven_Webhook_Actions {
             foreach ((array) ($params['card_slots'] ?? array()) as $wm_slot_key => $wm_slot_value) {
                 $wm_slot_key = sanitize_key((string) $wm_slot_key);
                 if ($wm_slot_key !== '') {
-                    $product->update_meta_data('_wm_card_slot_' . $wm_slot_key, sanitize_text_field((string) $wm_slot_value));
+                    $product->update_meta_data('_webmaven_card_slot_' . $wm_slot_key, sanitize_text_field((string) $wm_slot_value));
                 }
             }
 
@@ -1536,19 +1683,19 @@ class WebMaven_Webhook_Actions {
     const SOURCE_URL_META = '_webmaven_source_url';
 
     /** Post meta on a variation: its stable key (attribute slug = value slug, sorted). */
-    const VARIANT_KEY_META = '_wm_variant_key';
+    const VARIANT_KEY_META = '_webmaven_variant_key';
 
     /** Post meta: a variation's (or a simple product's) print-on-demand data, JSON. */
-    const POD_META = '_wm_pod';
+    const POD_META = '_webmaven_pod';
 
     /** Post meta on a product: its print-on-demand catalog product and technique, JSON. */
-    const POD_PRODUCT_META = '_wm_pod_product';
+    const POD_PRODUCT_META = '_webmaven_pod_product';
 
     /** Post meta on a product: '1' while it is a sample listing of an own product. */
-    const SAMPLE_META = '_wm_sample_product';
+    const SAMPLE_META = '_webmaven_sample_product';
 
     /** Post meta on a product: its design key, the product's slug in the site plan. */
-    const DESIGN_KEY_META = '_wm_product_slug';
+    const DESIGN_KEY_META = '_webmaven_product_slug';
 
     /**
      * A new design (media_only): the product's photo, its variations' photos
@@ -1589,7 +1736,8 @@ class WebMaven_Webhook_Actions {
                 }
             }
             $first = $params['image_url'] ?? (is_array($params['images'] ?? null) ? reset($params['images']) : null);
-            $url = is_array($first) ? (string) ($first['src'] ?? $first['url'] ?? '') : (string) $first;
+            $url = is_array($first) ? ($first['src'] ?? $first['url'] ?? '') : $first;
+            $url = is_string($url) ? esc_url_raw($url) : '';
             if (!$image_set && $url !== '') {
                 $image_named = true;
                 $image_id = $this->product_image_id_from_url($url, $product->get_name());
@@ -1700,8 +1848,8 @@ class WebMaven_Webhook_Actions {
             'fields' => 'ids',
             'orderby' => 'ID',
             'order' => 'ASC',
-            'meta_key' => self::DESIGN_KEY_META,
-            'meta_value' => $design_key,
+            'meta_key' => self::DESIGN_KEY_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the one post WPMaven made for this design key, through the meta_key index of postmeta; one id
+            'meta_value' => $design_key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the one post WPMaven made for this design key, through the meta_key index of postmeta; one id
         ]);
         return empty($ids) ? 0 : (int) $ids[0];
     }
@@ -1888,8 +2036,8 @@ class WebMaven_Webhook_Actions {
             'fields' => 'ids',
             'orderby' => 'ID',
             'order' => 'ASC',
-            'meta_key' => self::PRODUCT_KEY_META,
-            'meta_value' => $key,
+            'meta_key' => self::PRODUCT_KEY_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the one product WPMaven made for this key, through the meta_key index of postmeta; one id
+            'meta_value' => $key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the one product WPMaven made for this key, through the meta_key index of postmeta; one id
         ]);
         return empty($ids) ? 0 : (int) $ids[0];
     }
@@ -1957,8 +2105,8 @@ class WebMaven_Webhook_Actions {
             'post_status' => 'inherit',
             'numberposts' => 1,
             'fields' => 'ids',
-            'meta_key' => self::SOURCE_URL_META,
-            'meta_value' => $image_url,
+            'meta_key' => self::SOURCE_URL_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the picture WPMaven already copied from this address, through the meta_key index of postmeta; one id
+            'meta_value' => $image_url, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the picture WPMaven already copied from this address, through the meta_key index of postmeta; one id
         ]);
         if (!empty($existing)) {
             return (int) $existing[0];
@@ -2208,6 +2356,43 @@ class WebMaven_Webhook_Actions {
     }
 
     /**
+     * A form field as create_form passes it on: its label, placeholder, line
+     * under it and css classes are one line of text each, its type a key,
+     * its choices text, and its id only the number the designed markup posts
+     * it under. A key the field does not name stays absent, for the form
+     * builders' own defaults. null for anything that is not a field.
+     */
+    private static function form_field_from($field) {
+        if (!is_array($field)) {
+            return null;
+        }
+        $out = [];
+        if (array_key_exists('id', $field)) {
+            $id = $field['id'];
+            $out['id'] = (is_int($id) || (is_string($id) && preg_match('/^\d{1,4}$/', $id))) ? (int) $id : null;
+        }
+        foreach (['label', 'placeholder', 'description', 'css'] as $key) {
+            if (isset($field[$key]) && is_scalar($field[$key])) {
+                $out[$key] = sanitize_text_field((string) $field[$key]);
+            }
+        }
+        if (isset($field['type']) && is_scalar($field['type'])) {
+            $out['type'] = sanitize_key((string) $field['type']);
+        }
+        if (array_key_exists('required', $field)) {
+            $out['required'] = !empty($field['required']);
+        }
+        foreach (['options', 'choices'] as $key) {
+            if (!empty($field[$key])) {
+                $out[$key] = array_values(array_map(function ($choice) {
+                    return sanitize_text_field((string) $choice);
+                }, array_filter((array) $field[$key], 'is_scalar')));
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Create a form using WPForms or Contact Form 7 (whichever is active).
      *
      * Field source, best first: explicit `fields` (legacy callers), the
@@ -2223,14 +2408,14 @@ class WebMaven_Webhook_Actions {
      *   spec: {fields: [{label?, placeholder?, type?, required?, options?, css?}],
      *          labels_hidden?, submit_text?, submit_class?, form_class?} (optional)
      *   services: [string|{name, duration}] for booking synthesis (optional)
-     *   name: string (optional) — registers the form id under option wm_form_<name>
+     *   name: string (optional) — registers the form id under option webmaven_form_<name>
      *   confirmation: string (optional): the designed thank-you line, plain text
      *   language: string (optional): the site's language as the build names it
      *           (es, pt-BR, zh-TW); the booking request form's words follow it,
      *           else the site's locale
      * }
      *
-     * Upsert by name: when wm_form_<name> already points at a live form of
+     * Upsert by name: when webmaven_form_<name> already points at a live form of
      * the active form plugin, that form is rewritten in place (same id, same
      * shortcode) instead of a second one being created, so re-applying a
      * site is idempotent. Without a name every call creates a form, as
@@ -2244,10 +2429,15 @@ class WebMaven_Webhook_Actions {
     public function webhook_create_form($params) {
         // `intent` is the reference name; the legacy `type` alias keeps working
         $form_type = sanitize_key($params['intent'] ?? $params['type'] ?? 'contact');
-        $title = !empty($params['title']) ? $params['title'] : ucfirst($form_type) . ' Form';
+        $title = !empty($params['title']) && is_scalar($params['title']) ? sanitize_text_field((string) $params['title']) : '';
+        if ($title === '') {
+            $title = ucfirst($form_type) . ' Form';
+        }
         $spec = (isset($params['spec']) && is_array($params['spec'])) ? $params['spec'] : null;
         $services = (isset($params['services']) && is_array($params['services'])) ? $params['services'] : [];
         $form_name = sanitize_key($params['name'] ?? '');
+        // A language tag keeps its case (pt-BR), so it is cleaned as text.
+        $language = isset($params['language']) && is_scalar($params['language']) ? sanitize_text_field((string) $params['language']) : '';
 
         // Default fields per form type
         $default_fields = [
@@ -2287,23 +2477,26 @@ class WebMaven_Webhook_Actions {
         $labels_hidden = false;
         if (!empty($params['fields']) && is_array($params['fields'])) {
             // Explicit fields from legacy callers always win
-            $fields = $params['fields'];
+            $fields = array_values(array_filter(array_map([self::class, 'form_field_from'], $params['fields']), 'is_array'));
         } elseif ($spec && !empty($spec['fields']) && is_array($spec['fields'])) {
             // The designed form's harvested spec: labels (falling back to the
             // placeholder text), placeholders, options and css classes carry
             // over so the live form renders like the designed one.
             $fields = [];
             foreach ($spec['fields'] as $f) {
-                $fields[] = [
+                if (!is_array($f)) {
+                    continue;
+                }
+                $fields[] = self::form_field_from([
                     // The id the designed markup posts this field under.
                     'id' => (isset($f['id']) && (is_int($f['id']) || (is_string($f['id']) && preg_match('/^\d{1,4}$/', $f['id'])))) ? (int) $f['id'] : null,
-                    'label' => !empty($f['label']) ? $f['label'] : (!empty($f['placeholder']) ? preg_replace('/\.\.\.$/', '', $f['placeholder']) : ucfirst($f['type'] ?? 'text')),
+                    'label' => !empty($f['label']) ? $f['label'] : (!empty($f['placeholder']) && is_string($f['placeholder']) ? preg_replace('/\.\.\.$/', '', $f['placeholder']) : ucfirst(is_string($f['type'] ?? null) ? $f['type'] : 'text')),
                     'type' => $f['type'] ?? 'text',
                     'required' => !empty($f['required']),
                     'placeholder' => $f['placeholder'] ?? '',
                     'options' => array_values(array_filter((array) ($f['options'] ?? []))),
                     'css' => $f['css'] ?? '',
-                ];
+                ]);
             }
             $labels_hidden = !empty($spec['labels_hidden']);
         } elseif ($form_type === 'booking') {
@@ -2311,7 +2504,7 @@ class WebMaven_Webhook_Actions {
             // (WebMaven_Booking_Request): the service, a preferred date and
             // time, the visitor's details, in the site's language; never time
             // slots the owner did not give (2026-11-03).
-            $booking_request = WebMaven_Booking_Request::form($services, (string) ($params['language'] ?? ''));
+            $booking_request = WebMaven_Booking_Request::form($services, $language);
             $fields = $booking_request['fields'];
         } else {
             $fields = $default_fields[$form_type] ?? $default_fields['contact'];
@@ -2322,7 +2515,7 @@ class WebMaven_Webhook_Actions {
         // form (its whole purpose), optional on the others.
         if (class_exists('WebMaven_Marketing_Consent') && WebMaven_Marketing_Consent::enabled()
             && !WebMaven_Marketing_Consent::fields_have_consent($fields)) {
-            $fields[] = WebMaven_Marketing_Consent::form_field($form_type);
+            $fields[] = WebMaven_Marketing_Consent::form_field($form_type, $language);
         }
 
         // Designed-form settings the builder honors (labels, submit button)
@@ -2341,7 +2534,7 @@ class WebMaven_Webhook_Actions {
         }
 
         // Upsert: the form this name registered on an earlier apply.
-        $existing_form_id = $form_name ? (int) get_option('wm_form_' . $form_name, 0) : 0;
+        $existing_form_id = $form_name ? (int) get_option('webmaven_form_' . $form_name, 0) : 0;
         // A booking request says the business will confirm, whatever line the
         // design wrote for its own form (an owner's own line still stays).
         $builder_options['confirmation'] = isset($booking_request)
@@ -2361,15 +2554,15 @@ class WebMaven_Webhook_Actions {
             ];
         }
 
-        // Register the form id under wm_form_<name> so the generated theme's
+        // Register the form id under webmaven_form_<name> so the generated theme's
         // shortcodes can resolve designed forms by name.
         if ($form_name && !empty($result['success']) && !empty($result['id'])) {
-            update_option('wm_form_' . $form_name, (int) $result['id']);
+            update_option('webmaven_form_' . $form_name, (int) $result['id']);
         }
         // What the form is for, so a submission knows whether it is a
         // newsletter signup (WebMaven_Marketing_Consent).
         if (!empty($result['success']) && !empty($result['id'])) {
-            update_option('wm_form_intent_' . (int) $result['id'], $form_type, false);
+            update_option('webmaven_form_intent_' . (int) $result['id'], $form_type, false);
         }
 
         return $result;
@@ -2673,20 +2866,24 @@ class WebMaven_Webhook_Actions {
             ];
         }
 
+        // The status is one of WordPress's own, one or a list (wc_get_products
+        // takes both); the order keeps its case (ID, DESC), so it is cleaned
+        // as text.
+        $status = $params['status'] ?? 'publish';
         $args = [
-            'limit' => $params['limit'] ?? 10,
-            'page' => $params['page'] ?? 1,
-            'status' => $params['status'] ?? 'publish',
-            'orderby' => $params['orderby'] ?? 'date',
-            'order' => $params['order'] ?? 'DESC'
+            'limit' => (int) ($params['limit'] ?? 10),
+            'page' => (int) ($params['page'] ?? 1),
+            'status' => WebMaven_WordPress_Commands::remote_post_status($status, WebMaven_WordPress_Commands::READ_STATUSES),
+            'orderby' => sanitize_text_field(is_scalar($params['orderby'] ?? null) ? (string) $params['orderby'] : 'date'),
+            'order' => sanitize_text_field(is_scalar($params['order'] ?? null) ? (string) $params['order'] : 'DESC'),
         ];
 
-        if (!empty($params['category'])) {
-            $args['category'] = [$params['category']];
+        if (!empty($params['category']) && is_scalar($params['category'])) {
+            $args['category'] = [sanitize_title((string) $params['category'])];
         }
 
-        if (!empty($params['search'])) {
-            $args['s'] = $params['search'];
+        if (!empty($params['search']) && is_scalar($params['search'])) {
+            $args['s'] = sanitize_text_field((string) $params['search']);
         }
 
         $products = wc_get_products($args);
@@ -2744,7 +2941,7 @@ class WebMaven_Webhook_Actions {
             'post_status' => 'any',
             'numberposts' => 1,
             'fields' => 'ids',
-            'tax_query' => [[
+            'tax_query' => [[ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- whether a gift card product exists, through the product_type term; one id
                 'taxonomy' => 'product_type',
                 'field' => 'slug',
                 'terms' => 'pw-gift-card',
@@ -2806,7 +3003,7 @@ class WebMaven_Webhook_Actions {
                 'post_status' => 'any',
                 'numberposts' => 1,
                 'fields' => 'ids',
-                'tax_query' => [[
+                'tax_query' => [[ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- whether a gift card product exists, through the product_type term; one id
                     'taxonomy' => 'product_type',
                     'field' => 'slug',
                     'terms' => 'pw-gift-card',
@@ -2991,23 +3188,30 @@ class WebMaven_Webhook_Actions {
         $title = isset($params['title']) ? sanitize_text_field((string) $params['title']) : '';
 
         if (!$page_id && $slug) {
-            $page = get_page_by_path($slug);
+            $page = self::page_by_path($slug);
             if ($page) $page_id = (int) $page->ID;
         }
         if (!$page_id && $title) {
-            // get_page_by_title() is deprecated in WP 6.2+; use a direct query.
-            global $wpdb;
-            $found = $wpdb->get_var($wpdb->prepare(
-                "SELECT ID FROM {$wpdb->posts} WHERE post_title = %s AND post_type = 'page' AND post_status IN ('publish','draft','private') ORDER BY ID ASC LIMIT 1",
-                $title,
-            ));
-            if ($found) $page_id = (int) $found;
+            // get_page_by_title() is deprecated in WP 6.2+: WP_Query's title
+            // argument finds the oldest page with exactly this title.
+            $found = get_posts([
+                'post_type' => 'page',
+                'title' => $title,
+                'post_status' => ['publish', 'draft', 'private'],
+                'numberposts' => 1,
+                'orderby' => 'ID',
+                'order' => 'ASC',
+                'fields' => 'ids',
+                // Every language's pages: Polylang otherwise lists one.
+                'lang' => '',
+            ]);
+            if ($found) $page_id = (int) $found[0];
         }
         if (!$page_id) {
             throw new \Exception('page_id, slug, or title required to set homepage');
         }
         if (!get_post($page_id)) {
-            throw new \Exception("Page {$page_id} not found");
+            throw new \Exception("Page {$page_id} not found"); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $this->refuse_owners_page_if_protected($params, $page_id, 'make the homepage of');
         // The setting before this call: the owner's one-click switch keeps
@@ -3042,7 +3246,7 @@ class WebMaven_Webhook_Actions {
         $page_id = isset($params['page_id']) ? (int) $params['page_id'] : 0;
         $slug = isset($params['slug']) ? sanitize_title((string) $params['slug']) : '';
         if (!$page_id && $slug) {
-            $page = get_page_by_path($slug);
+            $page = self::page_by_path($slug);
             if ($page) $page_id = (int) $page->ID;
         }
         if (!$page_id) {
@@ -3076,264 +3280,6 @@ class WebMaven_Webhook_Actions {
         return ['page_for_posts' => (int) $page_id, 'show_on_front' => get_option('show_on_front')];
     }
 
-    /**
-     * Set the site's permalink structure and flush rewrite rules.
-     *
-     * A pretty-permalink switch can't go through webhook_update_option — the
-     * `rewrite_rules` option is on the blocked list, so updating only
-     * `permalink_structure` would leave stale rules and the new slugs would
-     * 404. This handler updates the structure AND flushes (hard flush, so
-     * .htaccess is rewritten where applicable).
-     *
-     * Accepts { structure }. Only a small set of known-safe structures is
-     * allowed; anything else falls back to '/%postname%/'.
-     */
-    public function webhook_set_permalink_structure($params) {
-        $structure = isset($params['structure']) ? (string) $params['structure'] : '/%postname%/';
-
-        $allowed = [
-            '/%postname%/',
-            '/%year%/%monthnum%/%postname%/',
-            '/%year%/%monthnum%/%day%/%postname%/',
-            '/%category%/%postname%/',
-            '/archives/%post_id%',
-        ];
-        if (!in_array($structure, $allowed, true)) {
-            $structure = '/%postname%/';
-        }
-
-        $this->switch_permalink_structure($structure);
-
-        return [
-            'permalink_structure' => get_option('permalink_structure'),
-            'flushed' => true,
-        ];
-    }
-
-    /**
-     * Switch the permalink structure and hard flush in the same request.
-     *
-     * WP_Rewrite::set_permalink_structure() re-inits the rewrite object,
-     * which empties the endpoints and rules plugins registered on init
-     * (WooCommerce's order-received and My Account endpoints). A flush right
-     * after would store rules without them: the order confirmation would
-     * fall through to the front page and account pages would 404. They are
-     * carried across the switch so the flush keeps them.
-     */
-    private function switch_permalink_structure(string $structure): void {
-        global $wp_rewrite;
-        if (!($wp_rewrite instanceof \WP_Rewrite)) {
-            require_once ABSPATH . WPINC . '/class-wp-rewrite.php';
-            $wp_rewrite = new \WP_Rewrite();
-        }
-        $kept = [];
-        foreach (['endpoints', 'extra_rules', 'non_wp_rules'] as $prop) {
-            if (isset($wp_rewrite->$prop)) {
-                $kept[$prop] = $wp_rewrite->$prop;
-            }
-        }
-        $wp_rewrite->set_permalink_structure($structure);
-        foreach ($kept as $prop => $value) {
-            $wp_rewrite->$prop = $value;
-        }
-        // Hard flush: regenerate rewrite rules and update server config files.
-        require_once ABSPATH . 'wp-admin/includes/misc.php';
-        $wp_rewrite->flush_rules(true);
-    }
-
-    /**
-     * Atomically finalize a generated site (mirrors the genstudio driver's
-     * finalize step): the front page, the posts page, WooCommerce's shop page
-     * renamed to shop_slug so plan links resolve, WordPress's privacy page,
-     * then the permalink structure and a rewrite flush, in one action.
-     *
-     * Params: { front_slug: string, front_page_id?: int,
-     *           front?: 'set'|'if_default'|'keep' (default 'set'; the legacy
-     *             keep_front: true reads as 'keep'), posts_slug?, shop_slug?,
-     *           privacy_slug?, permalink?: string = '/%postname%/',
-     *           keep_permalink?: bool }
-     *
-     * front: 'set' (a fresh hosted site) opens the site on the designed page;
-     * 'if_default' (a site the owner already runs) does so only while the
-     * front page is WordPress's default and nothing on the site is the
-     * owner's (WebMaven_Front_Page::verdict), otherwise the switch is only
-     * offered; 'keep' never touches it. The designed page is front_page_id
-     * when it is WPMaven's, else the page at front_slug (on a site the owner
-     * runs, only a published page WPMaven made is ever set).
-     *
-     * Answer adds front_decision ('set'|'offered'|'kept'), front_reason
-     * ('asked_to_set'|'wordpress_default'|'owner_static_front'|'owner_content'
-     * |'asked_to_keep'|'no_designed_page'), previous (the setting before this
-     * call), front_page_id (the designed page, even when only offered) and
-     * privacy_page_id.
-     */
-    public function webhook_finalize_site($params) {
-        $mode = (string) ($params['front'] ?? '');
-        if (!in_array($mode, ['set', 'if_default', 'keep'], true)) {
-            $mode = !empty($params['keep_front']) ? 'keep' : 'set';
-        }
-        // A site the owner already runs: only pages WPMaven made are wired.
-        $connected = $mode !== 'set' || !empty($params['protect_existing']);
-        $previous = WebMaven_Front_Page::setting();
-
-        $designed = $this->designed_front_page($params, $connected);
-        $designed_live = $designed && (string) ($designed->post_status ?? '') === 'publish';
-        $front_set = false;
-        if ($mode === 'keep') {
-            $decision = 'kept';
-            $reason = 'asked_to_keep';
-        } elseif ($mode === 'set') {
-            $reason = $designed ? 'asked_to_set' : 'no_designed_page';
-            $decision = $designed ? 'set' : 'kept';
-            if ($designed) {
-                WebMaven_Front_Page::use_page((int) $designed->ID);
-                $front_set = true;
-            }
-        } else {
-            $verdict = WebMaven_Front_Page::verdict();
-            if (!$designed) {
-                $decision = 'kept';
-                $reason = 'no_designed_page';
-            } elseif ($verdict['would_set'] && $designed_live) {
-                WebMaven_Front_Page::use_page((int) $designed->ID);
-                $front_set = true;
-                $decision = 'set';
-                $reason = 'wordpress_default';
-            } else {
-                $decision = 'offered';
-                $reason = $verdict['reason'];
-            }
-        }
-
-        // On a site the owner already runs, only a page WPMaven made becomes
-        // the posts page: the planned posts page may have been parked as a
-        // draft because the owner has a page at that address, and making
-        // theirs the posts index would stop its content rendering
-        // (2026-09-22). Nor does it replace the owner's own posts page while
-        // their front page stays theirs.
-        $posts_page_id = null;
-        $posts_page_left_alone = null;
-        if (!empty($params['posts_slug'])) {
-            $posts = get_page_by_path(sanitize_title($params['posts_slug']), OBJECT, 'page');
-            if ($posts && $connected && !$this->is_ours((int) $posts->ID)) {
-                $posts_page_left_alone = ['id' => (int) $posts->ID, 'slug' => sanitize_title($params['posts_slug'])];
-            } elseif ($posts && (int) $posts->ID !== (int) get_option('page_on_front', 0)) {
-                $current_posts = WebMaven_Front_Page::live_page_id(get_option('page_for_posts', 0));
-                if (!$connected || $front_set || $current_posts === 0 || $this->is_ours($current_posts)) {
-                    update_option('page_for_posts', $posts->ID);
-                    $posts_page_id = (int) $posts->ID;
-                }
-            }
-        }
-
-        // The Woo shop page joins the plan namespace: its slug must equal the
-        // planned archive slug so shop-like links resolve. On a connected
-        // site the owner's shop page keeps its address unless WPMaven made it.
-        $shop_renamed = false;
-        $shop_left_alone = null;
-        if (!empty($params['shop_slug']) && function_exists('wc_get_page_id')) {
-            $shop_slug = sanitize_title($params['shop_slug']);
-            $shop_id = wc_get_page_id('shop');
-            if ($shop_id > 0 && get_post_field('post_name', $shop_id) !== $shop_slug) {
-                if ($connected && !$this->is_ours((int) $shop_id)) {
-                    $shop_left_alone = ['id' => (int) $shop_id, 'slug' => (string) get_post_field('post_name', $shop_id)];
-                } else {
-                    wp_update_post(['ID' => $shop_id, 'post_name' => $shop_slug]);
-                    $shop_renamed = true;
-                }
-            }
-        }
-
-        // WordPress's privacy page: the build's own, published privacy page
-        // takes over when the setting names no page, a page that is gone, or
-        // WordPress's untouched draft. A privacy page of the owner's stays.
-        $privacy_page_id = null;
-        if (!empty($params['privacy_slug'])) {
-            $planned = get_page_by_path(sanitize_title($params['privacy_slug']), OBJECT, 'page');
-            if ($planned && (string) ($planned->post_status ?? '') === 'publish' && $this->is_ours((int) $planned->ID)) {
-                $current = (int) get_option('wp_page_for_privacy_policy', 0);
-                $current_post = $current > 0 ? get_post($current) : null;
-                $replaceable = $current <= 0 || !$current_post || (string) ($current_post->post_status ?? '') === 'trash'
-                    || (class_exists('WebMaven_Default_Content') && WebMaven_Default_Content::untouched_kind($current_post) === WebMaven_Default_Content::PRIVACY_DRAFT);
-                if ($replaceable && $current !== (int) $planned->ID) {
-                    update_option('wp_page_for_privacy_policy', (int) $planned->ID);
-                }
-            }
-            $privacy_page_id = (int) get_option('wp_page_for_privacy_policy', 0) ?: null;
-        }
-
-        // Permalinks last, so the freshly assigned front/posts/shop slugs are
-        // all covered by the same flush (same whitelist + fallback as
-        // webhook_set_permalink_structure). keep_permalink: a site the owner
-        // runs keeps its structure; the rules are refreshed for the new
-        // pages and plugins.
-        $keep_permalink = !empty($params['keep_permalink']);
-        if ($keep_permalink) {
-            if (function_exists('flush_rewrite_rules')) {
-                flush_rewrite_rules(false);
-            } elseif (isset($GLOBALS['wp_rewrite']) && is_object($GLOBALS['wp_rewrite'])) {
-                $GLOBALS['wp_rewrite']->flush_rules(false);
-            }
-        } else {
-            $structure = isset($params['permalink']) ? (string) $params['permalink'] : '/%postname%/';
-            $allowed = [
-                '/%postname%/',
-                '/%year%/%monthnum%/%postname%/',
-                '/%year%/%monthnum%/%day%/%postname%/',
-                '/%category%/%postname%/',
-                '/archives/%post_id%',
-            ];
-            if (!in_array($structure, $allowed, true)) {
-                $structure = '/%postname%/';
-            }
-            $this->switch_permalink_structure($structure);
-        }
-
-        $out = [
-            'front_page_id' => $designed ? (int) $designed->ID : null,
-            'posts_page_id' => $posts_page_id,
-            'shop_renamed' => $shop_renamed,
-            'permalink_structure' => get_option('permalink_structure'),
-            'front_decision' => $decision,
-            'front_reason' => $reason,
-            'previous' => $previous,
-            'privacy_page_id' => $privacy_page_id,
-        ];
-        if ($keep_permalink) {
-            $out['permalink_left_alone'] = true;
-        }
-        if ($connected) {
-            $out['posts_page_left_alone'] = $posts_page_left_alone;
-            $out['shop_left_alone'] = $shop_left_alone;
-        }
-        return $out;
-    }
-
-    /**
-     * The designed homepage of a build: front_page_id when that page is
-     * WPMaven's, else the page at front_slug. On a site the owner runs only a
-     * page WPMaven made counts (a parked draft is still reported, to be
-     * offered); on a fresh hosted site the page at the address, as before.
-     */
-    private function designed_front_page($params, bool $connected) {
-        $id = isset($params['front_page_id']) ? (int) $params['front_page_id'] : 0;
-        if ($id > 0) {
-            $page = get_post($id);
-            if ($page && (string) ($page->post_type ?? '') === 'page' && (string) ($page->post_status ?? '') !== 'trash'
-                && WebMaven_Front_Page::is_wpmaven_page($id)) {
-                return $page;
-            }
-        }
-        $page = get_page_by_path(sanitize_title($params['front_slug'] ?? 'index'), OBJECT, 'page');
-        if (!$page) {
-            return null;
-        }
-        if (!$connected) {
-            return $page;
-        }
-        return WebMaven_Front_Page::is_wpmaven_page((int) $page->ID) ? $page : null;
-    }
-
     /** Whether WPMaven made this post or page (the AI marker). */
     private function is_ours(int $post_id): bool {
         return $post_id > 0 && class_exists('WebMaven_AI_Marking') && WebMaven_AI_Marking::is_ai_generated($post_id);
@@ -3349,7 +3295,7 @@ class WebMaven_Webhook_Actions {
         if (empty($params['protect_existing']) || $this->is_ours($page_id)) {
             return;
         }
-        throw new \Exception("This page or post (#{$page_id}) is the owner's, not one WPMaven made: the first build leaves it alone and does not {$verb} it. Ask for the change after the build, so the owner can approve it.");
+        throw new \Exception("This page or post (#{$page_id}) is the owner's, not one WPMaven made: the first build leaves it alone and does not {$verb} it. Ask for the change after the build, so the owner can approve it."); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
     }
 
     // ── Post revisions ──────────────────────────────────────────────────
@@ -3390,16 +3336,6 @@ class WebMaven_Webhook_Actions {
     // ── Backups ─────────────────────────────────────────────────────────
 
     /**
-     * Create a backup: dump the DB via wp-cli (or wpdb fallback) + zip
-     * the uploads dir, store under wp-content/uploads/webmaven-backups/
-     * for the dev environment. Production should swap the storage path
-     * for GCS streaming.
-     *
-     * Returns the shape backupService expects:
-     *   { success: true, data: { gcsPath, sizeBytes, ... } }
-     * In dev, gcsPath is a `file://` URI to the local archive.
-     */
-    /**
      * Keep a directory under uploads private: an index.php so a listing shows
      * nothing, and a .htaccess that denies every request on Apache (the
      * uploads tree is served as static files, and a database dump holds every
@@ -3407,12 +3343,12 @@ class WebMaven_Webhook_Actions {
      * directory created before 2026-09-22 is covered too. nginx does not read
      * .htaccess; the archive's random name is the second line there.
      */
-    private function protect_private_dir(string $dir): void {
+    private function protect_private_dir(string $dir, bool $deny = true): void {
         if (!is_dir($dir)) return;
         if (!file_exists($dir . '/index.php')) {
             @file_put_contents($dir . '/index.php', "<?php\n// Silence is golden.\n");
         }
-        if (!file_exists($dir . '/.htaccess')) {
+        if ($deny && !file_exists($dir . '/.htaccess')) {
             @file_put_contents(
                 $dir . '/.htaccess',
                 "# WPMaven: backup archives are never served.\n"
@@ -3435,14 +3371,32 @@ class WebMaven_Webhook_Actions {
         }
     }
 
+    /**
+     * Create a backup on the site: the database dumped (compressed) and the
+     * uploads folder zipped into one archive under
+     * wp-content/uploads/wpmaven/backups/ (WebMaven_Backup_Retention::DIR),
+     * a private folder. Nothing is sent anywhere: the answer gives the
+     * archive's local path (gcsPath, a file:// address, the name the API
+     * reads) and its size.
+     */
     public function webhook_backup_create($params) {
-        $note = isset($params['note']) ? sanitize_text_field((string) $params['note']) : null;
+        $note = isset($params['note']) && is_scalar($params['note']) ? sanitize_text_field((string) $params['note']) : null;
+        // The archives this call must keep while it writes (`keep`, sent by
+        // the WPMaven API only for a restore of one of them, which makes this
+        // backup first): never removed to make room or by the retention
+        // below. Only names of our archives, at most five; absent, nothing
+        // changes.
+        $keep = WebMaven_Backup_Retention::keep_on_request(isset($params['keep']) ? $params['keep'] : null);
         $upload_info = wp_upload_dir();
-        $backup_root = trailingslashit($upload_info['basedir']) . 'webmaven-backups';
+        // {uploads}/wpmaven/backups; the folder releases before 1.12.0 used
+        // is still kept bounded with it.
+        $folders = WebMaven_Backup_Retention::folders($upload_info['basedir']);
+        $backup_root = $folders[0];
         wp_mkdir_p($backup_root);
         if (!wp_is_writable($backup_root)) {
             return ['success' => false, 'error' => "Backup directory not writable: $backup_root"];
         }
+        $this->protect_private_dir(dirname($backup_root), false);
         $this->protect_private_dir($backup_root);
 
         // The folder stays bounded, or a site's disk would fill one backup at
@@ -3453,8 +3407,8 @@ class WebMaven_Webhook_Actions {
         // the last one, the oldest archive goes first (two always stay to
         // fall back on while this one is written); still no room, and the
         // backup is refused instead of filling the disk the site runs on.
-        WebMaven_Backup_Retention::sweep_stale_stages($backup_root);
-        $room = WebMaven_Backup_Retention::make_room($backup_root);
+        WebMaven_Backup_Retention::sweep_stale_stages($folders);
+        $room = WebMaven_Backup_Retention::make_room($folders, $keep);
         if ($room['problem'] !== null) {
             return ['success' => false, 'error' => $room['problem'], 'pruned' => $room['removed']];
         }
@@ -3468,8 +3422,9 @@ class WebMaven_Webhook_Actions {
         $stage_dir = $backup_root . '/.stage-' . $stamp;
         wp_mkdir_p($stage_dir);
 
-        // 1. DB dump
-        $sql_path = $stage_dir . '/db.sql';
+        // 1. DB dump: compressed as it is written, under a random name in the
+        // denied folder, never a plain .sql file; it goes once it is in the zip.
+        $sql_path = $stage_dir . '/' . $this->archive_nonce() . '.sql.gz';
         $db_dumped = $this->dump_database($sql_path);
         if (!$db_dumped['ok']) {
             $this->rmrf($stage_dir);
@@ -3487,7 +3442,7 @@ class WebMaven_Webhook_Actions {
             $this->rmrf($stage_dir);
             return ['success' => false, 'error' => 'Could not open archive for writing'];
         }
-        $zip->addFile($sql_path, 'db.sql');
+        $zip->addFile($sql_path, self::ARCHIVE_DUMP);
         if ($note) {
             $zip->addFromString('NOTE.txt', $note);
         }
@@ -3511,7 +3466,7 @@ class WebMaven_Webhook_Actions {
         // This archive is written: the newest ones stay (this one always),
         // older ones go. An archive that cannot be removed is logged there
         // and the backup is reported as made all the same.
-        $retention = WebMaven_Backup_Retention::prune($backup_root, basename($archive));
+        $retention = WebMaven_Backup_Retention::prune($folders, basename($archive), WebMaven_Backup_Retention::KEEP, $keep);
 
         // The webhook layer wraps this in `wp_send_json_success({data: $result})`,
         // so we return the FLAT payload (no extra success/data nesting) — the
@@ -3532,138 +3487,21 @@ class WebMaven_Webhook_Actions {
     }
 
     /**
-     * Restore from a previously-created backup.
-     * Params: { gcsPath: string }   ← what the API stores in the Backup row.
-     *
-     * For dev (file:// scheme) we read directly. Production would download
-     * from GCS first.
-     */
-    public function webhook_backup_restore($params) {
-        $gcs_path = isset($params['gcsPath']) ? (string) $params['gcsPath'] : '';
-        if ($gcs_path === '') {
-            return ['success' => false, 'error' => 'gcsPath is required'];
-        }
-        $local_path = $gcs_path;
-        if (str_starts_with($local_path, 'file://')) {
-            $local_path = substr($local_path, 7);
-        }
-        // The archive is fed straight to ZipArchive
-        // + import_database, so an arbitrary caller-named path could import a
-        // db.sql from anywhere on disk. Constrain the source to the plugin's own
-        // backups dir ({uploads}/webmaven-backups), resolved with realpath so ..
-        // and symlinks cannot escape it. Fail closed.
-        $wm_backup_root = realpath(trailingslashit(wp_upload_dir()['basedir']) . 'webmaven-backups');
-        $wm_real = realpath($local_path);
-        if ($wm_backup_root === false || $wm_real === false
-            || strpos($wm_real, $wm_backup_root . DIRECTORY_SEPARATOR) !== 0
-            || !preg_match('/\.(zip|sql)$/i', $wm_real)) {
-            // An archive of ours that is simply gone: only the newest ones are
-            // kept (WebMaven_Backup_Retention). Its name alone is read here,
-            // and only to choose the sentence.
-            $wm_name = basename(str_replace('\\', '/', $local_path));
-            if ($wm_backup_root !== false && $wm_real === false && WebMaven_Backup_Retention::is_archive_name($wm_name)
-                && !file_exists($wm_backup_root . DIRECTORY_SEPARATOR . $wm_name)) {
-                return ['success' => false, 'error' => sprintf('This backup is no longer on the site: the newest %d backups are kept and older ones are removed.', WebMaven_Backup_Retention::KEEP)];
-            }
-            return ['success' => false, 'error' => 'Restore source must be a backup archive in the plugin backups directory'];
-        }
-        $local_path = $wm_real;
-        if (!file_exists($local_path)) {
-            return ['success' => false, 'error' => "Backup archive not found: $local_path"];
-        }
-        if (!class_exists('ZipArchive')) {
-            return ['success' => false, 'error' => 'ZipArchive not available; cannot restore'];
-        }
-
-        $upload_info = wp_upload_dir();
-        $stage = trailingslashit($upload_info['basedir']) . 'webmaven-restore-' . gmdate('Ymd-His') . '-' . $this->archive_nonce();
-        wp_mkdir_p($stage);
-        $this->protect_private_dir($stage);
-
-        $zip = new \ZipArchive();
-        if ($zip->open($local_path) !== true) {
-            return ['success' => false, 'error' => 'Could not open backup archive'];
-        }
-        $zip->extractTo($stage);
-        $zip->close();
-
-        // WPMaven's connection and the site's administrators survive the
-        // restore (2026-09-22). A dump is a copy of the whole options and
-        // usermeta tables: an older one puts back rotated tokens and older
-        // capability rows, a crafted one (any archive in this directory, put
-        // there by an approved write) removes WPMaven's options, its place in
-        // active_plugins or every administrator. The same snapshots every
-        // other write path takes are taken here and put back after the
-        // import, and the answer says what was preserved. A real restore of
-        // an older dump always rewrites these rows, so the put-back is the
-        // rule, not a failure.
-        $protect_before = WebMaven_Self_Protect::snapshot();
-        $admins_before = WebMaven_Admin_Guard::admin_rows();
-        $acting_admin = function_exists('get_current_user_id') ? (int) get_current_user_id() : 0;
-        // The site's keys and salts never change with a restore (1.6.0):
-        // secret_key derives the key that reads WPMaven's connection.
-        $keys_before = WebMaven_Self_Protect::site_keys_snapshot();
-
-        // Restore DB if present
-        $sql = $stage . '/db.sql';
-        $db_result = ['ok' => true, 'note' => 'no db.sql in archive'];
-        $percent_repaired = 0;
-        if (file_exists($sql)) {
-            $percent_repaired = $this->repair_dump_placeholders($sql);
-            $db_result = $this->import_database($sql);
-        }
-
-        // Restore uploads if present (does NOT delete current files —
-        // overwrites in place. Matches "rollback" semantics for dev).
-        $extracted_uploads = $stage . '/uploads';
-        if (is_dir($extracted_uploads)) {
-            $this->copy_dir($extracted_uploads, $upload_info['basedir']);
-        }
-
-        $this->rmrf($stage);
-
-        // Put WPMaven's rows and the protected administrators back, and make
-        // sure WPMaven's own table exists again (a dump that dropped it
-        // without recreating it would otherwise leave it gone).
-        $wpmaven_preserved = WebMaven_Self_Protect::restore_if_changed($protect_before);
-        $keys_preserved = WebMaven_Self_Protect::site_keys_restore($keys_before);
-        $admins_lost = WebMaven_Admin_Guard::admins_lost($admins_before, $acting_admin);
-        if ($admins_lost !== null) {
-            WebMaven_Admin_Guard::restore_admin_rows($admins_before);
-        }
-        if ($this->plugin && method_exists($this->plugin, 'ensure_tables')) {
-            try {
-                $this->plugin->ensure_tables();
-            } catch (\Throwable $e) {
-                WebMaven_Log::write('WebMaven: could not recreate the plugin table after a restore: ' . $e->getMessage());
-            }
-        }
-
-        if (!$db_result['ok']) {
-            // For real failures, throw — wp_send_json_error path returns {success:false}.
-            throw new \Exception('DB restore failed: ' . $db_result['error']);
-        }
-        return [
-            'restored_from' => basename($local_path),
-            'db' => $db_result,
-            'uploads_restored' => is_dir($extracted_uploads),
-            'wpmaven_preserved' => $wpmaven_preserved,
-            'administrators_preserved' => $admins_lost !== null ? $admins_lost : null,
-            'site_keys_preserved' => $keys_preserved,
-            'percent_repaired' => $percent_repaired,
-        ];
-    }
-
-    /**
-     * List local backups for visibility / debugging.
+     * List local backups for visibility / debugging: the backups folder's,
+     * and those a release before 1.12.0 left in its older folder.
      */
     public function webhook_backup_list($params) {
         $upload_info = wp_upload_dir();
-        $backup_root = trailingslashit($upload_info['basedir']) . 'webmaven-backups';
-        if (!is_dir($backup_root)) {
-            return ['backups' => []];
+        // How many archives the folders keep, and that a backup_create can
+        // be asked to keep one more while it writes (`keep`): the WPMaven API
+        // reads this before a restore, so an older plugin is never asked.
+        $retention = ['kept' => WebMaven_Backup_Retention::KEEP, 'keep_on_request' => true];
+        $files = [];
+        foreach (WebMaven_Backup_Retention::folders($upload_info['basedir']) as $backup_root) {
+            if (is_dir($backup_root)) {
+                $files = array_merge($files, glob($backup_root . '/backup-*.zip') ?: []);
+            }
         }
-        $files = glob($backup_root . '/backup-*.zip') ?: [];
         $rows = [];
         foreach ($files as $f) {
             $rows[] = [
@@ -3674,15 +3512,14 @@ class WebMaven_Webhook_Actions {
             ];
         }
         usort($rows, fn($a, $b) => strcmp($b['mtime'], $a['mtime']));
-        return ['backups' => $rows];
+        return ['backups' => $rows] + $retention;
     }
 
     // ── Backup helpers ──────────────────────────────────────────────────
 
     /**
-     * The database dump: WPMaven Agent's WP-CLI export when Agent is here
-     * and it works (faster, complete; webmaven_backup_dump_database), else
-     * the wpdb-driven dump. Returns { ok: bool, error?: string }.
+     * The database dump, through wpdb, unless another plugin made it already
+     * (webmaven_backup_dump_database). Returns { ok: bool, error?: string }.
      */
     private function dump_database(string $sql_path): array {
         $done = apply_filters('webmaven_backup_dump_database', null, $sql_path);
@@ -3696,46 +3533,50 @@ class WebMaven_Webhook_Actions {
      * Pure-PHP fallback using wpdb. Slow on big sites but no exec()
      * dependency. Includes only WP core tables (prefix-matched).
      */
-    // A database dump is written and read a line at a time: it can be larger
-    // than PHP's memory, and WordPress's filesystem API reads and writes whole
-    // files only. The file is the backup's own, under the uploads folder.
-    // phpcs:disable WordPress.WP.AlternativeFunctions.file_system_operations_fopen, WordPress.WP.AlternativeFunctions.file_system_operations_fwrite, WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+    // A database dump is written a line at a time, compressed as it goes: it
+    // can be larger than PHP's memory, and WordPress's filesystem API reads
+    // and writes whole files only. The file is the backup's own, in the
+    // denied backups folder.
     private function dump_database_wpdb(string $sql_path): array {
         global $wpdb;
-        $fp = @fopen($sql_path, 'w');
+        if (!function_exists('gzopen')) return ['ok' => false, 'error' => 'zlib is not available; cannot compress the dump'];
+        $fp = @gzopen($sql_path, 'wb6');
         if (!$fp) return ['ok' => false, 'error' => 'cannot open dump file for writing'];
         try {
-            $tables = $wpdb->get_col($wpdb->prepare(
+            $tables = $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the site's own tables listed for the backup the owner asked for, which no WordPress function dumps; read as the database is now
                 'SHOW TABLES LIKE %s',
                 $wpdb->esc_like($wpdb->prefix) . '%',
             ));
-            fwrite($fp, self::WPDB_DUMP_HEADER . gmdate('c') . "\n");
-            fwrite($fp, self::WPDB_DUMP_PERCENT_SAFE . "\n");
-            fwrite($fp, "SET FOREIGN_KEY_CHECKS=0;\n\n");
+            gzwrite($fp, self::WPDB_DUMP_HEADER . gmdate('c') . "\n");
+            gzwrite($fp, self::WPDB_DUMP_PERCENT_SAFE . "\n");
+            gzwrite($fp, "SET FOREIGN_KEY_CHECKS=0;\n\n");
             foreach ($tables as $table) {
-                $create = $wpdb->get_row("SHOW CREATE TABLE `$table`", ARRAY_N);
+                $create = $wpdb->get_row($wpdb->prepare('SHOW CREATE TABLE %i', $table), ARRAY_N); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- SHOW CREATE TABLE only reads a table's definition, for the backup the owner asked for; nothing changes, and nothing is cached
                 if (!$create) continue;
-                fwrite($fp, "DROP TABLE IF EXISTS `$table`;\n");
-                fwrite($fp, $create[1] . ";\n\n");
-                $rows = $wpdb->get_results("SELECT * FROM `$table`", ARRAY_A);
+                gzwrite($fp, "DROP TABLE IF EXISTS `$table`;\n");
+                gzwrite($fp, $create[1] . ";\n\n");
+                $rows = $wpdb->get_results($wpdb->prepare('SELECT * FROM %i', $table), ARRAY_A); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- a table's rows, written into the backup the owner asked for, as the database is now
                 foreach ($rows as $row) {
                     $cols = array_map(fn($c) => "`$c`", array_keys($row));
                     $vals = array_map(function ($v) use ($wpdb) {
                         if ($v === null) return 'NULL';
                         return "'" . self::dump_literal($wpdb, (string) $v) . "'";
                     }, array_values($row));
-                    fwrite($fp, "INSERT INTO `$table` (" . implode(',', $cols) . ") VALUES (" . implode(',', $vals) . ");\n");
+                    gzwrite($fp, "INSERT INTO `$table` (" . implode(',', $cols) . ") VALUES (" . implode(',', $vals) . ");\n");
                 }
-                fwrite($fp, "\n");
+                gzwrite($fp, "\n");
             }
-            fwrite($fp, "SET FOREIGN_KEY_CHECKS=1;\n");
-            fclose($fp);
+            gzwrite($fp, "SET FOREIGN_KEY_CHECKS=1;\n");
+            gzclose($fp);
             return ['ok' => true];
         } catch (\Throwable $e) {
-            @fclose($fp);
+            @gzclose($fp);
             return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
+
+    /** The database dump's name inside an archive (releases before 1.12.0 wrote a plain db.sql). */
+    const ARCHIVE_DUMP = 'db.sql.gz';
 
     /** The first line of every dump dump_database_wpdb writes. */
     const WPDB_DUMP_HEADER = '-- WebMaven backup ';
@@ -3743,7 +3584,7 @@ class WebMaven_Webhook_Actions {
     /**
      * The second line of the dumps written since 1.6.0: their values carry
      * their own % (dump_literal). An older dump lacks it, and only such a
-     * dump has its placeholders turned back (repair_dump_placeholders).
+     * dump has its placeholders turned back when it is restored.
      */
     const WPDB_DUMP_PERCENT_SAFE = '-- wm-dump: percent-safe';
 
@@ -3761,77 +3602,6 @@ class WebMaven_Webhook_Actions {
         return method_exists($wpdb, 'remove_placeholder_escape')
             ? $wpdb->remove_placeholder_escape($escaped)
             : $escaped;
-    }
-
-    /**
-     * Turn back into % the placeholders a dump written before 1.6.0 holds,
-     * so a backup already taken restores the site as it was. Only a dump of
-     * dump_database_wpdb without the percent-safe line is touched, never a
-     * wp-cli export (mysqldump writes no placeholder); the one risk left is
-     * a value of such an old dump that really was a { and 64 hex digits and
-     * a }. Returns the number of placeholders put back.
-     */
-    private function repair_dump_placeholders(string $sql_path): int {
-        $in = @fopen($sql_path, 'r');
-        if (!$in) return 0;
-        $first = fgets($in);
-        $second = $first === false ? false : fgets($in);
-        if ($first === false || strpos($first, self::WPDB_DUMP_HEADER) !== 0
-            || ($second !== false && rtrim($second) === self::WPDB_DUMP_PERCENT_SAFE)) {
-            fclose($in);
-            return 0;
-        }
-        $tmp = $sql_path . '.repaired';
-        $out = @fopen($tmp, 'w');
-        if (!$out) { fclose($in); return 0; }
-        $count = 0;
-        fwrite($out, $first);
-        $line = $second;
-        while ($line !== false) {
-            $n = 0;
-            $fixed = preg_replace('/\{[0-9a-f]{64}\}/', '%', $line, -1, $n);
-            $count += (int) $n;
-            fwrite($out, $fixed ?? $line);
-            $line = fgets($in);
-        }
-        fclose($in);
-        fclose($out);
-        if ($count === 0 || !WebMaven_Files::move($tmp, $sql_path)) {
-            wp_delete_file($tmp);
-            return 0;
-        }
-        return $count;
-    }
-
-    // phpcs:enable WordPress.WP.AlternativeFunctions.file_system_operations_fopen, WordPress.WP.AlternativeFunctions.file_system_operations_fwrite, WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-
-    /**
-     * Restore the database: WPMaven Agent's WP-CLI import when Agent is
-     * here and WP-CLI runs (webmaven_backup_import_database answers), else
-     * the import through wpdb.
-     */
-    private function import_database(string $sql_path): array {
-        $done = apply_filters('webmaven_backup_import_database', null, $sql_path);
-        if (is_array($done)) {
-            return $done;
-        }
-        return $this->import_database_mysqli($sql_path);
-    }
-
-    private function import_database_mysqli(string $sql_path): array {
-        global $wpdb;
-        $sql = @file_get_contents($sql_path);
-        if ($sql === false) return ['ok' => false, 'error' => 'cannot read sql dump'];
-        $statements = array_filter(array_map('trim', explode(";\n", $sql)));
-        foreach ($statements as $stmt) {
-            if ($stmt === '' || str_starts_with($stmt, '--')) continue;
-            // A statement of the site's own backup dump, which backup_create wrote.
-            $result = $wpdb->query($stmt); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            if ($result === false) {
-                return ['ok' => false, 'error' => "statement failed: " . substr($wpdb->last_error, 0, 200)];
-            }
-        }
-        return ['ok' => true, 'method' => 'mysqli'];
     }
 
     /**
@@ -3853,25 +3623,6 @@ class WebMaven_Webhook_Actions {
                 $zip->addEmptyDir($prefix . '/' . $rel);
             } else {
                 $zip->addFile($path, $prefix . '/' . $rel);
-            }
-        }
-    }
-
-    /** Recursively copy $src directory contents into $dst (overwrites). */
-    private function copy_dir(string $src, string $dst): void {
-        if (!is_dir($src)) return;
-        if (!is_dir($dst)) wp_mkdir_p($dst);
-        $iter = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST,
-        );
-        foreach ($iter as $entry) {
-            $rel = substr($entry->getPathname(), strlen($src) + 1);
-            $target = $dst . '/' . $rel;
-            if ($entry->isDir()) {
-                if (!is_dir($target)) wp_mkdir_p($target);
-            } else {
-                @copy($entry->getPathname(), $target);
             }
         }
     }

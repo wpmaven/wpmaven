@@ -9,7 +9,7 @@
  * API wrote: failures come through as written.
  */
 import type {
-  EditCheck, EditOperation, EditResult, EditStatus, SiteMap, SiteMapBlockText, SiteMapForm, SiteMapFact, SiteMapMenu, SiteMapPage, TokenColor,
+  EditCheck, EditOperation, EditResult, EditStatus, SiteMap, SiteMapBlockText, SiteMapForm, SiteMapFact, SiteMapLanguages, SiteMapMenu, SiteMapPage, TokenColor,
 } from '../types/edits';
 import { nameOr, siteBrand, type SiteBrand } from '../utils/brand';
 
@@ -233,6 +233,7 @@ export function normalizeSiteMap(body: any): SiteMap {
   const colors = isObj(b.tokens?.colors) ? b.tokens.colors : {};
   const fonts = isObj(b.tokens?.fonts) ? b.tokens.fonts : {};
   const blockSite = b.engine === 'wordpress';
+  const languages = blockSite ? null : siteLanguagesOf(b.languages);
   return {
     engine: b.engine === 'genstudio' || blockSite ? b.engine : 'legacy',
     ...(blockSite ? blockSiteFields(b) : {}),
@@ -300,6 +301,7 @@ export function normalizeSiteMap(body: any): SiteMap {
       },
     } : {}),
     ...(Array.isArray(b.forms) ? { forms: b.forms.filter((f: unknown) => isObj(f) && typeof (f as any).name === 'string').map(normalizeForm) } : {}),
+    ...(languages ? { languages } : {}),
     ...(isObj(b.social) ? {
       social: {
         links: Array.isArray(b.social.links)
@@ -310,6 +312,29 @@ export function normalizeSiteMap(body: any): SiteMap {
       },
     } : {}),
   };
+}
+
+/**
+ * A site's languages, checked: two or more, the main one among them, each
+ * other one with an address prefix ("/ca/"). Anything else reads as a site
+ * in one language (nothing changes in the editor).
+ */
+export function siteLanguagesOf(raw: unknown): SiteMapLanguages | null {
+  if (!isObj(raw) || typeof raw.main !== 'string' || !Array.isArray(raw.list)) return null;
+  const list = raw.list.filter((l: any) => isObj(l) && typeof l.tag === 'string' && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$/.test(l.tag)).map((l: any) => {
+    const main = l.tag === raw.main;
+    const prefix = main ? '' : (typeof l.prefix === 'string' && /^\/[a-z0-9-]{2,20}\/$/.test(l.prefix) ? l.prefix : `/${l.tag.toLowerCase()}/`);
+    return {
+      tag: l.tag as string,
+      name: plain(str(l.name, l.tag)),
+      prefix,
+      main,
+      pages: typeof l.pages === 'number' ? l.pages : 0,
+      ...(l.behind === true ? { behind: true } : {}),
+    };
+  });
+  if (list.length < 2 || !list.some((l) => l.main)) return null;
+  return { main: raw.main, list };
 }
 
 const FIELD_TYPES = ['text', 'email', 'tel', 'url', 'number', 'date', 'textarea', 'select', 'radio', 'checkbox'];

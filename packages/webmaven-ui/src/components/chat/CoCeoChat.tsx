@@ -22,6 +22,7 @@ import {
 import { chatFailedReplyText } from './store';
 import { CoCeoSuggestions, type ChatSiteFacts, type CoCeoSuggestionsVariant } from './coCeoSuggestions';
 import type { CoCeoChatHandle } from './useCoCeoChat';
+import { KIT_COPY } from '../../lib/kitCopy';
 import s from './CoCeoChat.module.css';
 
 /** What a renderer gets besides the message. */
@@ -145,7 +146,7 @@ export const CHAT_UNANSWERED_LINE = 'No answer came back for this message. Put i
 
 /** The header's words: "Your Co-CEO", and ": {subject}" when the conversation has one. */
 export function chatHeaderText(title: string, subject: string | null | undefined): { lead: string; subject: string | null; full: string } {
-  const lead = `Your ${title}`;
+  const lead = KIT_COPY.coCeoChat.yourTitle(title);
   const sub = chatSubjectOf(subject ?? null);
   return { lead, subject: sub, full: sub ? `${lead}: ${sub}` : lead };
 }
@@ -167,7 +168,7 @@ const SaidLine: React.FC<{ operator: string; title: string; text: string }> = ({
   <div className={s.said} data-testid="chat-said" data-operator={operator}>
     <p className={s.saidWho}>
       <OperatorAvatar id={operator} title={title} presence="still" size={OPERATOR_AVATAR_SIZES.row} decorative />
-      <span>{`Your ${title}`}</span>
+      <span>{KIT_COPY.coCeoChat.yourTitle(title)}</span>
     </p>
     <p className={s.saidText}>{text}</p>
   </div>
@@ -249,6 +250,8 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
   const title = titleProp || chat.title;
   const { state } = chat;
   const header = chatHeaderText(title, state.subject);
+  // "Your {0}" in the page's language, around the title drawn in the lead's colour.
+  const [yourBefore, yourAfter = ''] = KIT_COPY.coCeoChat.yourTitle('\u0000').split('\u0000');
   const waitingForYou = state.messages.some((m) => m.approval && (m.approval.status === 'waiting' || m.approval.status === 'sending'));
   const busy = state.busy || state.opening;
   const empty = state.messages.length === 0;
@@ -304,7 +307,7 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
     const name = refTitle(who);
     return {
       avatar: <OperatorAvatar id={who.id} title={name} presence={m.failed ? 'failed' : 'still'} size={OPERATOR_AVATAR_SIZES.bubble} />,
-      name: `Your ${name}`,
+      name: KIT_COPY.coCeoChat.yourTitle(name),
     };
   };
 
@@ -325,7 +328,7 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
       </ChatBubble>
       {m.unanswered && (
         <div className={s.underOwner}>
-          <p className={s.subLine}>{CHAT_UNANSWERED_LINE}</p>
+          <p className={s.subLine}>{KIT_COPY.coCeoChat.unanswered}</p>
           {reuseButton(m)}
         </div>
       )}
@@ -380,7 +383,7 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
       // The tool's name is never shown to an owner.
       name: '',
       status: step.status,
-      summary: said || (step.status === 'error' ? 'This step did not work.' : step.status === 'completed' ? 'Finished this step.' : 'Working on it'),
+      summary: said || (step.status === 'error' ? KIT_COPY.coCeoChat.stepFailed : step.status === 'completed' ? KIT_COPY.coCeoChat.stepDone : KIT_COPY.coCeoChat.stepWorking),
       ...(step.error ? { error: step.error } : {}),
       ...(step.durationMs !== undefined ? { durationMs: step.durationMs } : {}),
       // A specialist's step shows their face with its state; the lead's own steps keep the dot.
@@ -406,21 +409,21 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
       <GlassCard padding="16px" accent data-testid={ids.approval} data-status={a.status}>
         <strong className={s.approvalTitle}>
           <OperatorAvatar id={asker.id} title={askerTitle} presence={open ? 'waiting' : 'done'} size={OPERATOR_AVATAR_SIZES.card} decorative />
-          {`Your ${askerTitle} needs your yes`}
+          {KIT_COPY.coCeoChat.needsYes(askerTitle)}
         </strong>
         {/* Plain words: the reason can quote a title as written. */}
         {a.reason && <p className={s.approvalText}>{a.reason}</p>}
         {open ? (
           <div className={s.approvalActions}>
             <Button size="sm" variant="ghost" data-testid="approval-decline" disabled={a.status === 'sending'} onClick={() => void chat.approve(a.stepId, false)}>
-              Decline
+              {KIT_COPY.coCeoChat.decline}
             </Button>
             <Button size="sm" variant="primary" data-testid="approval-approve" disabled={a.status === 'sending'} onClick={() => void chat.approve(a.stepId, true)}>
-              Approve
+              {KIT_COPY.coCeoChat.approve}
             </Button>
           </div>
         ) : (
-          <p className={s.approvalDone} role="status">{a.status === 'approved' ? 'You said yes.' : 'You said no.'}</p>
+          <p className={s.approvalDone} role="status">{a.status === 'approved' ? KIT_COPY.coCeoChat.saidYes : KIT_COPY.coCeoChat.saidNo}</p>
         )}
       </GlassCard>
     );
@@ -489,7 +492,7 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
         variant="assistant"
         author={{
           avatar: <OperatorAvatar id={lead} title={title} presence="working" size={OPERATOR_AVATAR_SIZES.bubble} />,
-          name: `Your ${title}`,
+          name: KIT_COPY.coCeoChat.yourTitle(title),
         }}
       >
         <p className={s.workingLine}>
@@ -499,7 +502,7 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
           )}
           <span>{chatWorkingLine(state.progress, title, titleOf, lead)}</span>
         </p>
-        {state.long && <p className={s.subLine}>{CHAT_LONG_LINE}</p>}
+        {state.long && <p className={s.subLine}>{KIT_COPY.coCeoChat.longLine}</p>}
       </ChatBubble>
     </div>
   );
@@ -508,11 +511,11 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
     <div className={`${s.status} ${s[`status_${status.type}`] ?? ''}`} role="status">
       <span>
         {status.message}
-        {status.attempt != null && status.attempt > 0 && status.maxAttempts ? ` (attempt ${status.attempt}/${status.maxAttempts})` : ''}
+        {status.attempt != null && status.attempt > 0 && status.maxAttempts ? ` ${KIT_COPY.coCeoChat.attempt(status.attempt, status.maxAttempts)}` : ''}
       </span>
       {status.onRetry && (
         <button type="button" className={s.statusRetry} onClick={status.onRetry}>
-          {status.retryLabel || 'Retry'}
+          {status.retryLabel || KIT_COPY.coCeoChat.retry}
         </button>
       )}
     </div>
@@ -525,7 +528,7 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
   // the tooltip and is said with the switcher's own name.
   const openId = state.conversation?.id ?? '';
   const openName =
-    chatSubjectOf((conversations.find((c) => c.id === openId) ?? state.conversation)?.title ?? null) ?? 'New chat';
+    chatSubjectOf((conversations.find((c) => c.id === openId) ?? state.conversation)?.title ?? null) ?? KIT_COPY.coCeoChat.newChat;
   const arrowOnly = look === 'sidebar';
   const switcher = showSwitcher && chat.canList && conversations.length > 1 && (
     <label className={s.switcher} title={openName} data-arrow-only={arrowOnly ? 'true' : undefined}>
@@ -539,13 +542,13 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
           keyboard and a phone's picker keep working. */}
       <select
         className={s.switcherSelect}
-        aria-label={`Conversation: ${openName}`}
+        aria-label={KIT_COPY.coCeoChat.conversation(openName)}
         value={state.conversation?.id ?? ''}
         onChange={(e) => void chat.selectConversation(e.target.value)}
       >
-        {!state.conversation && <option value="">New chat</option>}
+        {!state.conversation && <option value="">{KIT_COPY.coCeoChat.newChat}</option>}
         {conversations.map((c) => (
-          <option key={c.id} value={c.id}>{chatSubjectOf(c.title) ?? 'New chat'}</option>
+          <option key={c.id} value={c.id}>{chatSubjectOf(c.title) ?? KIT_COPY.coCeoChat.newChat}</option>
         ))}
       </select>
     </label>
@@ -587,10 +590,11 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
             subject in a lighter weight. The whole line in the tooltip when
             the subject is cut. */}
         <Heading className={s.title} title={header.subject ? header.full : undefined}>
-          {'Your '}
+          {yourBefore}
           <span className={s.role} style={roleColors}>
             {title}
           </span>
+          {yourAfter}
           {header.subject && <span className={s.subject}>{`: ${header.subject}`}</span>}
         </Heading>
         <div className={s.actions}>
@@ -601,8 +605,8 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
               className={s.iconBtn}
               onClick={() => void chat.newChat()}
               disabled={state.opening}
-              aria-label="New chat"
-              title="New chat"
+              aria-label={KIT_COPY.coCeoChat.newChat}
+              title={KIT_COPY.coCeoChat.newChat}
             >
               <NavIcon name="plus" size={18} />
             </button>
@@ -613,8 +617,8 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
               className={s.iconBtn}
               onClick={onToggleFull}
               aria-pressed={full}
-              aria-label={full ? 'Leave full view' : 'Full view'}
-              title={full ? 'Leave full view (Esc)' : 'Full view'}
+              aria-label={full ? KIT_COPY.coCeoChat.leaveFullView : KIT_COPY.coCeoChat.fullView}
+              title={full ? KIT_COPY.coCeoChat.leaveFullViewTitle : KIT_COPY.coCeoChat.fullView}
             >
               <NavIcon name={full ? 'arrows-pointing-in' : 'arrows-pointing-out'} size={18} />
             </button>
@@ -636,12 +640,12 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
           role="log"
           aria-live="polite"
           aria-relevant="additions text"
-          aria-label={`Conversation with your ${title}`}
+          aria-label={KIT_COPY.coCeoChat.conversationWith(title)}
           aria-busy={state.loading ? true : undefined}
           // Scrollable, so reachable from the keyboard.
           tabIndex={0}
         >
-          {state.loadingOlder && <p className={s.loadingMore}>Loading earlier messages…</p>}
+          {state.loadingOlder && <p className={s.loadingMore}>{KIT_COPY.coCeoChat.loadingOlder}</p>}
           {(state.loading || !state.ready) && empty && (
             <div className={s.center}>
               <Loader size={32} />
@@ -665,15 +669,15 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
         {chat.thread.showNewMessages ? (
           <button type="button" className={s.newMessages} onClick={chat.thread.toBottom}>
             <NavIcon name="arrow-down" size={14} strokeWidth={2.25} />
-            New messages
+            {KIT_COPY.coCeoChat.newMessages}
           </button>
         ) : chat.thread.showToBottom ? (
           <button
             type="button"
             className={s.toBottom}
             onClick={chat.thread.toBottom}
-            aria-label="Back to the newest message"
-            title="Back to the newest message"
+            aria-label={KIT_COPY.coCeoChat.toNewest}
+            title={KIT_COPY.coCeoChat.toNewest}
           >
             <NavIcon name="arrow-down" size={16} strokeWidth={2} />
           </button>
@@ -684,8 +688,8 @@ export const CoCeoChat: React.FC<CoCeoChatProps> = ({
       <div className={s.footer} onFocus={compact ? () => setOpened(true) : undefined}>
         {aboveInput && <div className={s.aboveInput}>{aboveInput}</div>}
         <ChatInput
-          placeholder={placeholder ?? `Tell your ${title} what you'd like to change…`}
-          textareaAriaLabel={`Message to your ${title}`}
+          placeholder={placeholder ?? KIT_COPY.coCeoChat.placeholder(title)}
+          textareaAriaLabel={KIT_COPY.coCeoChat.messageTo(title)}
           value={state.draft}
           onChange={chat.setDraft}
           onSend={(text) => void chat.send(text)}

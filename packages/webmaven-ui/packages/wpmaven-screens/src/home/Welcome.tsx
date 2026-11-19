@@ -8,9 +8,12 @@
  * own line: the plugin's is about the site, the dashboard's about the
  * business or the businesses. The dashboard's portfolio controls sit at the
  * row's end (actions), where its "Your businesses" title was.
+ *
+ * Its words are in the page's language (homeCopy.ts, WELCOME_COPY).
  */
 import React, { useEffect, useState } from 'react';
 import { WMLogo } from '@yotako/webmaven-ui';
+import { WELCOME_COPY } from './homeCopy';
 
 /**
  * The two lines, from the top of the title's tallest letters to the
@@ -51,11 +54,11 @@ export function OurStillMark({ size }: { size: number }) {
   );
 }
 
-/** "Welcome back, Ana", or "Welcome, Ana" the first time; without a name, the words alone. */
+/** "Welcome back, Ana", or "Welcome, Ana" the first time; without a name, the words alone (in the page's language). */
 export function welcomeTitle(name: string | null | undefined, firstTime: boolean): string {
-  const words = firstTime ? 'Welcome' : 'Welcome back';
   const own = (name ?? '').trim();
-  return own ? `${words}, ${own}` : words;
+  if (own) return firstTime ? WELCOME_COPY.welcomeName(own) : WELCOME_COPY.welcomeBackName(own);
+  return firstTime ? WELCOME_COPY.welcome : WELCOME_COPY.welcomeBack;
 }
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
@@ -145,7 +148,7 @@ export function WelcomeHeader({ mark, title, subtitle, actions, className, ...da
               visibility: subtitle === null ? 'hidden' : undefined,
             }}
           >
-            {subtitle ?? 'Here is what is happening'}
+            {subtitle ?? WELCOME_COPY.subtitleRoom}
           </p>
         </div>
       </div>

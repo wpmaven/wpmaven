@@ -33,6 +33,13 @@ export interface OnboardingUIMemory {
    * check.
    */
   siteWay?: 'site' | 'idea' | 'keep' | 'fix' | 'redesign';
+  /**
+   * The typical sale the owner agreed on before the forecast (1073 A), in the
+   * plan's currency: the question is asked again only when the figure on
+   * screen is no longer this one (an offer edited or ticked since, a
+   * currency change).
+   */
+  typicalAgreed?: { cents: number; currency: string };
 }
 
 const KEY_PREFIX = 'wm-onboarding-ui:';

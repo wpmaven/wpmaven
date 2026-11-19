@@ -645,15 +645,6 @@ class WebMaven_WP_API_Client {
     }
     
     /**
-     * Test API connectivity with the site's own route (1.2.9). It asked
-     * GET /instances, which takes dashboard sign-ins only, so it always
-     * answered 401.
-     */
-    public function test_connection() {
-        return $this->make_request('/sites/me/plan');
-    }
-    
-    /**
      * Create a new conversation
      */
     public function create_conversation($title, $initial_message = null, $client_type = null, $editor_kind = null) {
@@ -797,19 +788,6 @@ class WebMaven_WP_API_Client {
     }
     
     /**
-     * Get configuration status
-     */
-    public function get_config_status() {
-        return array(
-            'api_url' => !empty($this->api_base_url),
-            'client_id' => !empty($this->client_id),
-            'client_secret' => !empty($this->client_secret),
-            'access_token' => !empty($this->access_token),
-            'refresh_token' => !empty($this->refresh_token)
-        );
-    }
-
-    /**
      * The owner's plan as this site may read it: plan, status, period, usage
      * and the footer badge decision (data.badge.showBadge / aiMarking).
      *
@@ -840,6 +818,10 @@ class WebMaven_WP_API_Client {
         // successful plan read keeps it for the WP-admin screens.
         if (class_exists('WebMaven_Brand')) {
             WebMaven_Brand::remember($data);
+        }
+        // An add-on that reads more of the same answer (what the plan includes).
+        if (function_exists('do_action')) {
+            do_action('webmaven_plan_read', $data);
         }
         $name = $data['planName'] ?? ($data['subscription']['plan'] ?? ($data['plan'] ?? null));
         if (is_string($name) && $name !== '') {

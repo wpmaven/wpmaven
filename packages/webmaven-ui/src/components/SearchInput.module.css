@@ -7,7 +7,7 @@
 
 .icon {
   position: absolute;
-  left: 14px;
+  inset-inline-start: 14px;
   color: var(--text-dim);
   pointer-events: none;
   display: flex;
@@ -16,7 +16,8 @@
 
 .input {
   width: 100%;
-  padding: 10px 14px 10px 40px;
+  padding-block: 10px;
+  padding-inline: 40px 14px;
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-md);

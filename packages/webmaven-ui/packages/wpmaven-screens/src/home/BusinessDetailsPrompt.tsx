@@ -12,15 +12,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, GlassCard } from '@yotako/webmaven-ui';
 import type { ScreensHost, ScreensTransport } from '../host/types';
 import { teamBusiness } from '../team/reads';
+import { BUSINESS_DETAILS_PROMPT_COPY } from './businessDetailsCopy';
 
 const enc = encodeURIComponent;
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-export const BUSINESS_DETAILS_PROMPT_COPY = {
-  title: 'Check what your site says about you',
-  body: 'Your name, phone, email, address, and opening hours: your site uses them wherever it shows how to reach you. Check them once, so customers reach the right place.',
-  button: 'Check my details',
-} as const;
+export { BUSINESS_DETAILS_PROMPT_COPY } from './businessDetailsCopy';
 
 /** Where the business page's Business details card is (its anchor on the Overview). */
 export const BUSINESS_DETAILS_ANCHOR = 'business-details';

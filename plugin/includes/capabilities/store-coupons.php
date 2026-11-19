@@ -24,10 +24,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 if (!class_exists('WebMaven_Store_Periods')) {
     require_once dirname(__DIR__) . '/class-webmaven-store-periods.php';
 }
@@ -100,7 +96,7 @@ final class WebMaven_Cap_Store_Coupons {
         $p = is_array($params) ? $params : [];
         foreach (array_keys($p) as $key) {
             if (!in_array($key, self::FIELDS, true)) {
-                throw self::error('VALIDATION', 'Unknown coupon field: ' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $key) . '.');
+                throw self::error('VALIDATION', 'Unknown coupon field: ' . preg_replace('/[^A-Za-z0-9_]/', '', (string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         $mode = $p['mode'] ?? 'create';
@@ -111,7 +107,7 @@ final class WebMaven_Cap_Store_Coupons {
         $existing = function_exists('wc_get_coupon_id_by_code') ? (int) wc_get_coupon_id_by_code($code) : 0;
         if ($mode === 'create') {
             if ($existing > 0) {
-                throw self::error('CODE_TAKEN', 'The code "' . $code . '" is already used by another coupon in your store. Choose another code, or change that coupon.');
+                throw self::error('CODE_TAKEN', 'The code "' . $code . '" is already used by another coupon in your store. Choose another code, or change that coupon.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if (!array_key_exists('discount_type', $p) || !array_key_exists('amount', $p)) {
                 throw self::error('VALIDATION', 'A new coupon needs its kind of discount and its amount.');
@@ -120,7 +116,7 @@ final class WebMaven_Cap_Store_Coupons {
             $coupon->set_code($code);
         } else {
             if ($existing <= 0) {
-                throw self::error('NOT_FOUND', 'There is no coupon "' . $code . '" in your store.');
+                throw self::error('NOT_FOUND', 'There is no coupon "' . $code . '" in your store.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $coupon = new WC_Coupon($existing);
         }
@@ -169,7 +165,7 @@ final class WebMaven_Cap_Store_Coupons {
         foreach (['free_shipping', 'individual_use'] as $key) {
             if (array_key_exists($key, $p)) {
                 if (!is_bool($p[$key])) {
-                    throw self::error('VALIDATION', $key . ' must be true or false.');
+                    throw self::error('VALIDATION', $key . ' must be true or false.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $set[$key] = $p[$key];
             }
@@ -243,7 +239,7 @@ final class WebMaven_Cap_Store_Coupons {
         $code = self::code($raw);
         $id = function_exists('wc_get_coupon_id_by_code') ? (int) wc_get_coupon_id_by_code($code) : 0;
         if ($id <= 0) {
-            throw self::error('NOT_FOUND', 'There is no coupon "' . $code . '" in your store.');
+            throw self::error('NOT_FOUND', 'There is no coupon "' . $code . '" in your store.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return new WC_Coupon($id);
     }
@@ -281,7 +277,7 @@ final class WebMaven_Cap_Store_Coupons {
             return 0;
         }
         if (!is_int($raw) && !(is_string($raw) && preg_match('/^\d{1,9}$/', $raw))) {
-            throw self::error('VALIDATION', $what . ' is a whole number, or nothing for no limit.');
+            throw self::error('VALIDATION', $what . ' is a whole number, or nothing for no limit.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return max(0, (int) $raw);
     }
@@ -291,7 +287,7 @@ final class WebMaven_Cap_Store_Coupons {
         foreach ($ids as $id) {
             $product = wc_get_product($id);
             if (!$product) {
-                throw self::error('VALIDATION', 'Product ' . $id . ' is not in your store.');
+                throw self::error('VALIDATION', 'Product ' . $id . ' is not in your store.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         return $ids;
@@ -302,7 +298,7 @@ final class WebMaven_Cap_Store_Coupons {
         foreach ($ids as $id) {
             $term = get_term($id, 'product_cat');
             if (!$term || is_wp_error($term) || ($term->taxonomy ?? 'product_cat') !== 'product_cat') {
-                throw self::error('VALIDATION', 'Category ' . $id . ' is not in your store.');
+                throw self::error('VALIDATION', 'Category ' . $id . ' is not in your store.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         return $ids;
@@ -313,12 +309,12 @@ final class WebMaven_Cap_Store_Coupons {
             return [];
         }
         if (!is_array($raw) || count($raw) > self::IDS_MAX) {
-            throw self::error('VALIDATION', $what . ' is a list of at most 100 ids.');
+            throw self::error('VALIDATION', $what . ' is a list of at most 100 ids.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $out = [];
         foreach ($raw as $id) {
             if (!(is_int($id) && $id > 0) && !(is_string($id) && preg_match('/^\d{1,18}$/', $id))) {
-                throw self::error('VALIDATION', $what . ' holds whole numbers.');
+                throw self::error('VALIDATION', $what . ' holds whole numbers.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $out[(int) $id] = (int) $id;
         }
@@ -335,7 +331,7 @@ final class WebMaven_Cap_Store_Coupons {
             'post_status' => 'publish',
             'numberposts' => 1,
             'fields' => 'ids',
-            'meta_key' => WebMaven_Pod_Guards::POD_PRODUCT_META,
+            'meta_key' => WebMaven_Pod_Guards::POD_PRODUCT_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- whether any product is printed, by WPMaven's own meta key, which postmeta indexes; one id
         ]);
         return !empty($ids);
     }

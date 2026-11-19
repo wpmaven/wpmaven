@@ -7,8 +7,13 @@ import { readWhatChanged, type HomeFinance, type HomeTraffic } from './reads';
 import { Figures, type FigureGroup } from './Figures';
 import { SampleFiguresChip } from './SampleFiguresChip';
 import type { BusinessHome } from './useBusinessHome';
+import { WHAT_CHANGED_COPY } from './homeCopy';
 
-/** Under Visitors: how the site counts them (the daily salt counts each person once a day). */
+/**
+ * Under Visitors: how the site counts them (the daily salt counts each person
+ * once a day). English, for importers; the card reads WHAT_CHANGED_COPY.visitorsNote
+ * (the same words, in the page's language) when it draws.
+ */
 export const VISITORS_NOTE = PROGRESS_COPY.visitorsNote;
 
 /**
@@ -24,27 +29,29 @@ export const WHAT_CHANGED_FIGURES = { minPx: 80, gapPx: 16 } as const;
  * The figures, in their two natural groups: what the site saw over the last
  * 7 days, and what the store took this week. The group names the period, so
  * the labels no longer repeat it. Each figure appears only when its source
- * actually answered; null when there is nothing to show, or only zeros.
+ * actually answered; null when there is nothing to show, or only zeros. The
+ * words are in the page's language; each figure keeps an English `id` for
+ * its test id.
  */
 export function whatChangedGroups(finance: HomeFinance | null, traffic: HomeTraffic | null): FigureGroup[] | null {
-  const week: FigureGroup = { key: 'last-7-days', heading: 'Last 7 days', figures: [] };
+  const week: FigureGroup = { key: 'last-7-days', heading: WHAT_CHANGED_COPY.last7Days, figures: [] };
   // Counted once a day per person (a daily salt): said under the short label, as Analytics says it.
-  if (traffic?.uniqueVisitors != null) week.figures.push({ value: String(traffic.uniqueVisitors), label: 'Visitors', detail: VISITORS_NOTE });
-  if (traffic?.pageviews != null) week.figures.push({ value: String(traffic.pageviews), label: 'Pageviews' });
+  if (traffic?.uniqueVisitors != null) week.figures.push({ id: 'visitors', value: String(traffic.uniqueVisitors), label: WHAT_CHANGED_COPY.visitors, detail: WHAT_CHANGED_COPY.visitorsNote });
+  if (traffic?.pageviews != null) week.figures.push({ id: 'pageviews', value: String(traffic.pageviews), label: WHAT_CHANGED_COPY.pageviews });
   // AI assistants reading the site (2026-09-16): fetches by ChatGPT, Claude,
   // Perplexity and the rest, counted by the plugin. What "AI ready" looks like.
   // The assistants are a line of their own, so the label stays one word wide.
   if (traffic?.aiVisits && traffic.aiVisits.total > 0) {
     const who = traffic.aiVisits.byAgent.slice(0, 2).map((a) => a.label).join(', ');
-    week.figures.push({ value: String(traffic.aiVisits.total), label: 'AI reads', detail: who || undefined });
+    week.figures.push({ id: 'ai-reads', value: String(traffic.aiVisits.total), label: WHAT_CHANGED_COPY.aiReads, detail: who || undefined });
   }
-  const store: FigureGroup = { key: 'this-week', heading: 'This week', figures: [] };
-  if (finance?.orderCount != null) store.figures.push({ value: String(finance.orderCount), label: 'Orders' });
+  const store: FigureGroup = { key: 'this-week', heading: WHAT_CHANGED_COPY.thisWeek, figures: [] };
+  if (finance?.orderCount != null) store.figures.push({ id: 'orders', value: String(finance.orderCount), label: WHAT_CHANGED_COPY.orders });
   if (finance?.netRevenue != null && finance.netRevenue > 0) {
     const SYMBOL: Record<string, string> = { EUR: '€', USD: '$', GBP: '£' };
     const code = (finance.currency || 'USD').toUpperCase();
     const cur = SYMBOL[code] ?? `${code} `;
-    store.figures.push({ value: `${cur}${Math.round(finance.netRevenue)}`, label: 'Revenue' });
+    store.figures.push({ id: 'revenue', value: `${cur}${Math.round(finance.netRevenue)}`, label: WHAT_CHANGED_COPY.revenue });
   }
   const groups = [week, store].filter((g) => g.figures.length > 0);
   // Day 0 is all zeros by definition; three zeros under a "what changed"
@@ -65,7 +72,7 @@ export const WhatChanged: React.FC<{ finance: HomeFinance | null; traffic: HomeT
   return (
     <div>
       <div style={{ fontSize: 'var(--text-label)', fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--text-dim)', marginBottom: 8 }}>
-        What changed
+        {WHAT_CHANGED_COPY.title}
       </div>
       {sample && <div style={{ marginBottom: 8 }}><SampleFiguresChip /></div>}
       <Figures groups={groups} {...WHAT_CHANGED_FIGURES} />
@@ -87,7 +94,7 @@ export function whatChangedItems(finance: HomeFinance | null, traffic: HomeTraff
     label: f.label,
     value: f.value,
     hint: [g.heading, f.detail].filter(Boolean).join('. '),
-    testId: `what-changed-${f.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    testId: `what-changed-${(f.id ?? f.label).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
   })));
 }
 

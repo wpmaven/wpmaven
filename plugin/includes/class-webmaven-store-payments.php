@@ -10,8 +10,10 @@
  *
  *   wc_list_payment_gateways {}               -> {gateways: [{id, title, enabled}]}
  *   wc_gateway_status        {gateway}        -> {connected: 'connected'|'pending'|'none', enabled}
- *   wc_install_gateway       {gateway}        -> the gateway's plugin installed AND active
- *   wc_enable_gateway        {gateway}        -> the WooCommerce gateway's 'enabled' setting is 'yes'
+ *   wc_install_gateway       {gateway}        -> REQUIRES_AGENT here
+ *   wc_enable_gateway        {gateway}        -> REQUIRES_AGENT here
+ *   wc_configure_gateway     {gateway, mode, credentials, country} -> REQUIRES_AGENT here
+ *   wc_disable_gateway       {gateway}        -> REQUIRES_AGENT here
  *   wc_get_connect_url       {gateway, returnUrl} -> {connectUrl: string|null}
  *   wc_finalize_gateway      {gateway, payload}   -> {ok: bool}
  *
@@ -35,17 +37,27 @@
  * core makes into each gateway plugin (see live_ready()). Anything that cannot
  * be verified is 'pending', never 'connected'.
  *
- * On its own class, like the edge host, so the execute_command bridge
- * (webhook_<name>) cannot reach it.
+ * Local payment services (2026-11-16): beside the three, the services in
+ * data/local-payment-services.json (Mollie, Razorpay, Mercado Pago, Payfast
+ * and more), the copy of the API's registry. Each names its plugin's slug,
+ * the WooCommerce gateways it registers, and, for a service the owner
+ * connects with keys, the settings each key goes to. For a local service,
+ * wc_gateway_status also reports its mode (live or test keys), the fields
+ * still missing, and whether WooCommerce offers it at checkout; "connected"
+ * means live keys, every field, on and offered.
+ *
+ * This edition reads the other plugins' gateways and installs, sets up or
+ * switches on none: wc_install_gateway, wc_enable_gateway,
+ * wc_configure_gateway (the owner's keys into a service's own settings) and
+ * wc_disable_gateway answer REQUIRES_AGENT. WPMaven Agent runs them, and
+ * turns Stripe's and WooPayments' local methods on once the status finds the
+ * account connected (webmaven_gateway_methods_on_connect). WPMaven Payments,
+ * the store's own gateway, has its own commands (payments.php).
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 final class WebMaven_Store_Payments {
 
@@ -77,67 +89,19 @@ final class WebMaven_Store_Payments {
                 'enabled' => self::gateway_enabled($gateway),
             ];
         }
-        return ['woocommerce_active' => true, 'gateways' => $gateways];
+        return [
+            'woocommerce_active' => true,
+            'gateways' => $gateways,
+            // The store's country (WooCommerce's base country), for the
+            // local services that serve it (2026-11-16).
+            'storeCountry' => self::store_country(),
+            'capabilities' => ['local_services' => count(self::local_services())],
+        ];
     }
 
     /** wc_gateway_status: connection state of one managed gateway. */
     public static function gateway_status($params) {
         return self::status_for(self::resolve($params));
-    }
-
-    /**
-     * wc_enable_gateway: switch the gateway on in WooCommerce, the same writes
-     * WooCommerce's own gateway toggle makes (WC_AJAX::toggle_gateway_enabled).
-     *
-     * Unlike that toggle it does not refuse a gateway that still needs setup:
-     * the API enables BEFORE the owner connects the account, and refusing
-     * would stop every first connection here. needs_setup is reported instead.
-     */
-    public static function enable_gateway($params) {
-        $def = self::resolve($params);
-        if (!self::woocommerce_active()) {
-            throw new Exception("WooCommerce is not active on this site, so {$def['title']} cannot be enabled.");
-        }
-        $gateway = self::wc_gateway($def['wc_id']);
-        if (!$gateway) {
-            throw new Exception("{$def['title']} is not registered with WooCommerce (gateway id {$def['wc_id']}). Install and activate {$def['slug']} first.");
-        }
-        if (!is_callable([$gateway, 'update_option']) || !is_callable([$gateway, 'get_option_key'])) {
-            throw new Exception("{$def['title']} does not expose WooCommerce gateway settings, so it cannot be enabled here.");
-        }
-
-        // Decided and verified on the STORED settings: the in-memory object
-        // can carry a form default that was never saved.
-        $option_key = (string) $gateway->get_option_key();
-        $already = self::stored_enabled($option_key);
-        if (!$already) {
-            do_action('woocommerce_update_option', ['id' => $option_key]);
-            $gateway->update_option('enabled', 'yes');
-            do_action('woocommerce_update_options');
-            if (!self::stored_enabled($option_key)) {
-                throw new Exception("{$def['title']} could not be enabled: WooCommerce did not save the setting.");
-            }
-        }
-        if (property_exists($gateway, 'enabled')) {
-            $gateway->enabled = 'yes';
-        }
-
-        $needs_setup = null;
-        if (is_callable([$gateway, 'needs_setup'])) {
-            try {
-                $needs_setup = (bool) $gateway->needs_setup();
-            } catch (\Throwable $e) {
-                $needs_setup = null;
-            }
-        }
-
-        return [
-            'gateway' => $def['key'],
-            'wc_gateway_id' => $def['wc_id'],
-            'enabled' => true,
-            'already_enabled' => $already,
-            'needs_setup' => $needs_setup,
-        ];
     }
 
     /**
@@ -149,13 +113,12 @@ final class WebMaven_Store_Payments {
      * there, so returnUrl is not used. null when the gateway is already
      * connected or its plugin is not active.
      *
-     * Hosted owners have no WordPress password, so the dashboard does not open
-     * this URL directly: it opens a one-click sign-in link to the gateway's
-     * onboarding screen (capabilities/owner-admin-login.php, targets
-     * woopayments_onboarding, stripe_settings and paypal_onboarding), which signs the owner in as
-     * their own administrator first. requiresWpAdminLogin says so. Minting a
-     * gateway-hosted onboarding link server-side would need each gateway's
-     * private onboarding API, which this plugin does not call.
+     * A local service's own screen instead, when the data file names one
+     * (setupPath).
+     *
+     * The owner opens it signed in to WordPress (requiresWpAdminLogin says so).
+     * Minting a gateway-hosted onboarding link server-side would need each
+     * gateway's private onboarding API, which this plugin does not call.
      */
     public static function get_connect_url($params) {
         $def = self::resolve($params);
@@ -166,9 +129,12 @@ final class WebMaven_Store_Payments {
         if ($status['connected'] === 'connected') {
             return ['gateway' => $def['key'], 'connectUrl' => null, 'reason' => 'already_connected'];
         }
+        $path = !empty($def['local']['setupPath']) && is_string($def['local']['setupPath'])
+            ? $def['local']['setupPath']
+            : 'admin.php?page=wc-settings&tab=checkout&section=' . rawurlencode($def['wc_id']);
         return [
             'gateway' => $def['key'],
-            'connectUrl' => admin_url('admin.php?page=wc-settings&tab=checkout&section=' . rawurlencode($def['wc_id'])),
+            'connectUrl' => admin_url($path),
             'requiresWpAdminLogin' => true,
         ];
     }
@@ -201,6 +167,9 @@ final class WebMaven_Store_Payments {
         if (!self::woocommerce_active() || !self::plugin_active($def['slug'])) {
             return $base + ['connected' => 'none', 'enabled' => false, 'plugin_active' => false];
         }
+        if (!empty($def['local'])) {
+            return $base + self::local_status($def);
+        }
         $gateway = self::wc_gateway($def['wc_id']);
         if (!$gateway) {
             return $base + ['connected' => 'pending', 'enabled' => false, 'plugin_active' => true];
@@ -211,11 +180,15 @@ final class WebMaven_Store_Payments {
         } catch (\Throwable $e) {
             $live = false;
         }
+        // Stripe's and WooPayments' local methods waiting for this moment are
+        // WPMaven Agent's to turn on (they change the gateway plugin's
+        // settings); this edition only reads.
+        $methods = $live ? apply_filters('webmaven_gateway_methods_on_connect', null, $def['key']) : null;
         return $base + [
             'connected' => $live ? 'connected' : 'pending',
             'enabled' => self::gateway_enabled($gateway),
             'plugin_active' => true,
-        ];
+        ] + ($methods ? ['methods_enabled' => $methods] : []);
     }
 
     /**
@@ -362,20 +335,255 @@ final class WebMaven_Store_Payments {
         return false;
     }
 
+    // ── Local payment services (2026-11-16) ─────────────────────────────────
+
+    /** The local services this plugin may set up, by id (data/local-payment-services.json). */
+    public static function local_services() {
+        static $services = null;
+        if ($services !== null) {
+            return $services;
+        }
+        $services = [];
+        $file = __DIR__ . '/data/local-payment-services.json';
+        $data = is_readable($file) ? json_decode((string) file_get_contents($file), true) : null;
+        if (!is_array($data) || !isset($data['services']) || !is_array($data['services'])) {
+            return $services;
+        }
+        foreach ($data['services'] as $service) {
+            if (is_array($service) && isset($service['id'], $service['slug'], $service['name'], $service['gateways'])
+                && is_string($service['id']) && preg_match('/^[a-z0-9_]+$/', $service['id'])
+                && is_string($service['slug']) && preg_match('/^[a-z0-9-]+$/', $service['slug'])
+                && is_array($service['gateways']) && $service['gateways']) {
+                $services[$service['id']] = $service;
+            }
+        }
+        return $services;
+    }
+
+    /** The local services that pay a business selling in $code (and, when given, based in $country). */
+    public static function local_services_for($code, $country = null) {
+        $code = is_scalar($code) ? strtoupper(trim((string) $code)) : '';
+        $country = is_scalar($country) ? strtoupper(trim((string) $country)) : '';
+        $out = [];
+        foreach (self::local_services() as $id => $service) {
+            $currencies = isset($service['currencies']) && is_array($service['currencies']) ? $service['currencies'] : [];
+            $countries = isset($service['countries']) && is_array($service['countries']) ? $service['countries'] : [];
+            if (in_array($code, $currencies, true) && ($country === '' || !preg_match('/^[A-Z]{2}$/', $country) || in_array($country, $countries, true))) {
+                $out[$id] = $service;
+            }
+        }
+        return $out;
+    }
+
+    /** The store's country (WooCommerce's base country), or null. */
+    public static function store_country() {
+        if (!self::woocommerce_active()) {
+            return null;
+        }
+        $wc = WC();
+        $country = '';
+        if (is_object($wc) && isset($wc->countries) && is_object($wc->countries) && is_callable([$wc->countries, 'get_base_country'])) {
+            $country = (string) $wc->countries->get_base_country();
+        } else {
+            $raw = (string) get_option('woocommerce_default_country', '');
+            $country = explode(':', $raw)[0];
+        }
+        $country = strtoupper(trim($country));
+        return preg_match('/^[A-Z]{2}$/', $country) ? $country : null;
+    }
+
+    /** A service's main gateway id: its first exact id, else its first prefix. */
+    public static function main_gateway_id($service) {
+        foreach ($service['gateways'] as $id) {
+            if (is_string($id) && substr($id, -1) !== '*') {
+                return $id;
+            }
+        }
+        return rtrim((string) $service['gateways'][0], '*');
+    }
+
+    /** The WooCommerce gateways of a local service that are registered now (an id ending in "*" is a prefix). */
+    public static function local_gateways($service) {
+        $out = [];
+        $registered = self::registered_gateways();
+        foreach ($service['gateways'] as $id) {
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+            if (substr($id, -1) === '*') {
+                $prefix = substr($id, 0, -1);
+                foreach ($registered as $gid => $gateway) {
+                    if (is_object($gateway) && strpos((string) $gid, $prefix) === 0) {
+                        $out[(string) $gid] = $gateway;
+                    }
+                }
+            } elseif (isset($registered[$id]) && is_object($registered[$id])) {
+                $out[$id] = $registered[$id];
+            }
+        }
+        return $out;
+    }
+
+    /** The fields a mode needs: both modes' shared ones and that mode's own. */
+    public static function local_fields($service, $mode) {
+        $out = [];
+        foreach (isset($service['fields']) && is_array($service['fields']) ? $service['fields'] : [] as $field) {
+            if (is_array($field) && isset($field['id'], $field['store']) && (empty($field['mode']) || $field['mode'] === $mode)) {
+                $out[] = $field;
+            }
+        }
+        return $out;
+    }
+
+    /** Where a 'gateway' service keeps its settings: its main gateway's WooCommerce option. */
+    public static function local_option_key($service) {
+        $main = self::wc_gateway(self::main_gateway_id($service));
+        if ($main && is_callable([$main, 'get_option_key'])) {
+            return (string) $main->get_option_key();
+        }
+        return 'woocommerce_' . self::main_gateway_id($service) . '_settings';
+    }
+
+    /** One stored setting of a local service, as a string ('' when not set). */
+    public static function local_read($service, $store) {
+        $type = isset($service['storage']['type']) ? $service['storage']['type'] : 'gateway';
+        if ($type === 'options') {
+            $value = get_option($store, '');
+        } else {
+            $option = $type === 'option_array' ? (string) $service['storage']['option'] : self::local_option_key($service);
+            $all = get_option($option, []);
+            $value = is_array($all) && isset($all[$store]) ? $all[$store] : '';
+        }
+        return is_scalar($value) ? trim((string) $value) : '';
+    }
+
+
+    /** 'live' or 'test' keys, from the plugin's switch or the shape of a key; null when not set yet. */
+    private static function local_mode($service) {
+        if (!empty($service['modeSetting']) && is_array($service['modeSetting'])) {
+            $stored = self::local_read($service, (string) $service['modeSetting']['store']);
+            if ($stored === (string) $service['modeSetting']['test']) {
+                return 'test';
+            }
+            return $stored === (string) $service['modeSetting']['live'] ? 'live' : null;
+        }
+        if (!empty($service['testWhen']) && is_array($service['testWhen'])) {
+            $value = self::local_read($service, (string) $service['testWhen']['field']);
+            if ($value === '') {
+                return null;
+            }
+            return @preg_match('/' . str_replace('/', '\/', (string) $service['testWhen']['pattern']) . '/', $value) ? 'test' : 'live';
+        }
+        return 'live';
+    }
+
+    /** The field ids a mode still lacks on this site. */
+    private static function local_missing($service, $mode) {
+        $missing = [];
+        foreach (self::local_fields($service, $mode) as $field) {
+            if (empty($field['optional']) && self::local_read($service, (string) $field['store']) === '') {
+                $missing[] = (string) $field['id'];
+            }
+        }
+        return $missing;
+    }
+
+    /**
+     * A local service's state: 'connected' only with live keys (every field
+     * there, for a service connected with keys), on, and offered at checkout
+     * by WooCommerce (is_available, and needs_setup not true). Anything less
+     * is 'pending', with the mode and the fields still missing.
+     */
+    private static function local_status($def) {
+        $service = $def['local'];
+        $gateways = self::local_gateways($service);
+        $keys = ($service['connect'] ?? '') === 'keys';
+        $mode = $keys ? self::local_mode($service) : null;
+        $missing = $keys ? self::local_missing($service, $mode ?: 'live') : [];
+        $enabled = false;
+        foreach ($gateways as $gateway) {
+            $enabled = $enabled || self::gateway_enabled($gateway);
+        }
+        $main = self::wc_gateway($def['wc_id']);
+        if (!$main && $gateways) {
+            $main = reset($gateways);
+        }
+        $available = null;
+        $needs_setup = null;
+        if ($main) {
+            try {
+                $available = is_callable([$main, 'is_available']) ? (bool) $main->is_available() : null;
+            } catch (\Throwable $e) {
+                $available = null;
+            }
+            try {
+                $needs_setup = is_callable([$main, 'needs_setup']) ? (bool) $main->needs_setup() : null;
+            } catch (\Throwable $e) {
+                $needs_setup = null;
+            }
+        }
+        $ready = $enabled && $available === true && $needs_setup !== true;
+        // A service whose plugin connects the account: only with the sign
+        // that it has (its token or secret set), since some call themselves
+        // available before any account is connected (PortOne, Xendit).
+        $connected = $keys ? ($ready && !$missing && $mode === 'live') : ($ready && self::local_connected_sign($service));
+        return [
+            'connected' => $connected ? 'connected' : 'pending',
+            'enabled' => $enabled,
+            'plugin_active' => true,
+            'available' => $available,
+            'mode' => $mode,
+            'missing' => $missing,
+            'gateways' => array_keys($gateways),
+        ];
+    }
+
+    /** Whether a service whose plugin connects the account shows the setting that is set once it has (connectedWhen). */
+    public static function local_connected_sign($service) {
+        $signs = isset($service['connectedWhen']) && is_array($service['connectedWhen']) ? $service['connectedWhen'] : [];
+        foreach ($signs as $sign) {
+            if (!is_array($sign) || empty($sign['option']) || !is_string($sign['option'])) {
+                continue;
+            }
+            $value = get_option($sign['option'], '');
+            if (!empty($sign['key']) && is_string($sign['key'])) {
+                $value = is_array($value) && isset($value[$sign['key']]) ? $value[$sign['key']] : '';
+            }
+            if ((is_string($value) && trim($value) !== '') || (is_array($value) && $value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     /** The managed gateway named by params['gateway'], or an exception. */
     public static function resolve($params) {
         $raw = (is_array($params) && isset($params['gateway']) && is_string($params['gateway'])) ? $params['gateway'] : '';
-        $key = preg_replace('/[^a-z0-9_\-]/', '', strtolower(trim($raw)));
+        $key = sanitize_key($raw);
         if (isset(self::ALIASES[$key])) {
             $key = self::ALIASES[$key];
         }
-        if ($key === '' || !isset(self::GATEWAYS[$key])) {
-            $named = $key !== '' ? " '{$key}'" : '';
-            throw new Exception("Unknown payment gateway{$named}. Supported: " . implode(', ', array_keys(self::GATEWAYS)) . '.');
+        if ($key !== '' && isset(self::GATEWAYS[$key])) {
+            return ['key' => $key, 'local' => null] + self::GATEWAYS[$key];
         }
-        return ['key' => $key] + self::GATEWAYS[$key];
+        $local = self::local_services();
+        if ($key !== '' && isset($local[$key])) {
+            $service = $local[$key];
+            return [
+                'key' => $key,
+                'slug' => (string) $service['slug'],
+                'wc_id' => self::main_gateway_id($service),
+                'title' => (string) $service['name'],
+                'local' => $service,
+            ];
+        }
+        $named = $key !== '' ? " '{$key}'" : '';
+        throw new Exception("Unknown payment gateway{$named}. Supported: " . implode(', ', array_merge(array_keys(self::GATEWAYS), array_keys($local))) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
     }
 
     public static function woocommerce_active() {
@@ -395,7 +603,8 @@ final class WebMaven_Store_Payments {
         return is_array($all) ? $all : [];
     }
 
-    private static function wc_gateway($wc_id) {
+    /** The gateway WooCommerce registered under $wc_id, or null. */
+    public static function wc_gateway($wc_id) {
         $all = self::registered_gateways();
         return (isset($all[$wc_id]) && is_object($all[$wc_id])) ? $all[$wc_id] : null;
     }
@@ -433,7 +642,7 @@ final class WebMaven_Store_Payments {
     }
 
     /** The gateway's saved settings say enabled. */
-    private static function stored_enabled($option_key) {
+    public static function stored_enabled($option_key) {
         $stored = get_option($option_key);
         return is_array($stored) && isset($stored['enabled']) && self::truthy($stored['enabled']);
     }

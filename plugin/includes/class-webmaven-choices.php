@@ -7,8 +7,8 @@
  * for a yes or a no to each (ChoicesQuestion), and Settings, What your site
  * shares, changes them any time.
  *
- * A site from before these choices existed never made one: WPMaven Agent
- * keeps what such a site always did (webmaven_choice_default).
+ * A choice the owner never made is off, unless another plugin gives it a
+ * default (webmaven_choice_default).
  */
 
 if (!defined('ABSPATH')) {

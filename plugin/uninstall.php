@@ -6,6 +6,16 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 
 delete_option('webmaven_wp_settings');
 delete_option('webmaven_wp_account');
+// What older releases stored and nothing reads any more: the link's scopes,
+// metadata and redirect address, each user's chat panel preferences, and the
+// conversation tables (the conversations live in the WPMaven account).
+delete_option('webmaven_wp_scopes');
+delete_option('webmaven_wp_metadata');
+delete_option('webmaven_wp_redirect_uri');
+delete_metadata('user', 0, 'wpai_user_prefs', '', true);
+global $wpdb;
+$wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $wpdb->prefix . 'wpai_conversations')); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- uninstall removes the conversation table older releases made, which nothing uses; nothing caches it
+$wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $wpdb->prefix . 'webmaven_wp_conversations')); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- uninstall removes the conversation table older releases made, which nothing uses; nothing caches it
 // Link tokens given out for a sign-in (1.2.14).
 delete_option('webmaven_wp_link_tokens');
 // The brand the WP-admin screens showed, and its read's bookkeeping (1.2.31).
@@ -42,7 +52,6 @@ delete_transient('webmaven_sec_login_failures');
 wp_clear_scheduled_hook('webmaven_security_scan');
 wp_clear_scheduled_hook('webmaven_security_report_flush');
 // Edit previews (2026-10-05): the staged changes and the hourly clean-up.
-// The previews' theme copies are WPMaven Agent's (its uninstall.php).
 $webmaven_previews = get_option('wpmaven_preview_index', []);
 foreach (is_array($webmaven_previews) ? array_keys($webmaven_previews) : [] as $webmaven_preview_id) {
     delete_option('wpmaven_preview_' . $webmaven_preview_id);
@@ -55,8 +64,8 @@ wp_clear_scheduled_hook('webmaven_preview_cleanup');
 wp_clear_scheduled_hook('webmaven_leads_purge');
 if (get_option('webmaven_remove_data_on_uninstall')) {
     global $wpdb;
-    $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'wpmaven_lead_events');
-    $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'wpmaven_leads');
+    $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $wpdb->prefix . 'wpmaven_lead_events')); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- uninstall removes the plugin's own messages tables when the owner chose to remove its data; nothing caches them
+    $wpdb->query($wpdb->prepare('DROP TABLE IF EXISTS %i', $wpdb->prefix . 'wpmaven_leads')); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- uninstall removes the plugin's own messages tables when the owner chose to remove its data; nothing caches them
     delete_option('webmaven_leads_db_version');
     delete_option('webmaven_leads_retention_days');
     delete_option('webmaven_remove_data_on_uninstall');

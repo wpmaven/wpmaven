@@ -22,6 +22,7 @@
  * shows a blank card.
  */
 import { productName } from '@yotako/wpmaven-onboarding/shared';
+import { CONNECT_COPY } from './teamCopy';
 
 export type ConnectStatus = 'connected' | 'needs_reconnect' | 'not_connected';
 
@@ -134,9 +135,7 @@ export function connectBlockedReason(n: ConnectNetworkLike): string | null {
 export function reconnectReason(n: ConnectNetworkLike, name: string, pressable = true): string {
   const said = typeof n.reconnect?.reason === 'string' ? n.reconnect.reason.trim() : '';
   if (said) return said;
-  return pressable
-    ? `Your ${name} login expired or was removed, so we cannot post there. Press Reconnect and sign in to ${name} again.`
-    : `Your ${name} login expired or was removed, so we cannot post there.`;
+  return pressable ? CONNECT_COPY.reconnectPress(name) : CONNECT_COPY.reconnect(name);
 }
 
 /**
@@ -147,7 +146,7 @@ export function reconnectReason(n: ConnectNetworkLike, name: string, pressable =
  */
 export function reconnectBlockedReason(n: ConnectNetworkLike, name: string): string {
   return connectBlockedReason(n)
-    ?? `${productName()} cannot reconnect ${name} from here yet.`;
+    ?? CONNECT_COPY.cannotReconnect(productName(), name);
 }
 
 /**
@@ -176,11 +175,9 @@ export function accountLabel(account: ConnectAccountLike | null | undefined): st
 export function connectSummaryLine(networks: readonly ConnectNetworkLike[]): string {
   const live = networks.filter(isPostable).length;
   const waiting = networks.filter((n) => networkStatus(n) === 'connected' && !isPostable(n)).length;
-  const head = `${live} of ${networks.length} channels live.`;
-  const more = waiting > 0
-    ? ` ${waiting} more ${waiting === 1 ? 'is' : 'are'} connected but cannot take posts yet.`
-    : '';
-  return `${head}${more} Your team only posts to live channels, and always with your approval.`;
+  // Whole sentences in the page's language (./teamCopy), joined with a space.
+  return [CONNECT_COPY.summaryLive(live, networks.length), waiting > 0 ? CONNECT_COPY.summaryWaiting(waiting) : null, CONNECT_COPY.summaryEnd]
+    .filter(Boolean).join(' ');
 }
 
 /**

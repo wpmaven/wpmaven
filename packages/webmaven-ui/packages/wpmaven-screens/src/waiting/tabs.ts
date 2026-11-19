@@ -6,30 +6,59 @@
  * hands it to the screen, so a link from a notification or the chat opens
  * it, and the browser's Back returns to the one before.
  *
- * No runtime imports, so the node tests load it directly.
+ * The tabs' words are in the page's language (WAITING_TABS_COPY, French in
+ * src/i18n/fr.json, namespace 'screensWaitingTabs'), read when the tabs are
+ * drawn. Only the kit's language helper at run time, so the node tests load
+ * it directly.
  */
+import { localized } from '@yotako/webmaven-ui';
 
 export type WaitingTab = 'yes' | 'held' | 'prepared' | 'fix' | 'customers';
+
+export const WAITING_TABS_COPY_EN = {
+  /** Tab label on Waiting for you: the work the AI team wants to do that waits for the owner's approval. */
+  yes: 'Waiting for your yes',
+  /**
+   * Tab label: work the owner already approved that waits until the plan's
+   * monthly actions (the plan's allowance of work) allow it to go ahead.
+   */
+  held: 'Waiting for actions',
+  /** Tab label: product and blog post changes that a person on the owner's team prepared, for the owner to publish or discard. */
+  prepared: 'Changes your team prepared',
+  /** Tab label: alerts about the business that are worth acting on. */
+  fix: 'Worth fixing',
+  /** Tab label: customer conversations that can still be answered. */
+  customers: 'Customers to reply to',
+  /** Said under a tab whose last item the owner just dealt with. */
+  allDone: 'All done here.',
+  /** A tab's label with how many items it holds ("Worth fixing (3)"); {0} the label, {1} the count. */
+  withCount: (label: string, count: number) => `${label} (${count})`,
+};
+
+export const WAITING_TABS_COPY = localized(WAITING_TABS_COPY_EN, 'screensWaitingTabs');
+
+const TAB_ORDER: readonly WaitingTab[] = ['yes', 'held', 'prepared', 'fix', 'customers'];
 
 /**
  * The tabs, in their order: what needs a decision first, then what was said
  * yes to and waits for the plan's actions (the plugin's second tab), then
- * the team's prepared changes, what to fix, and the customers.
+ * the team's prepared changes, what to fix, and the customers. Each label is
+ * read when it is drawn, in the page's language.
  */
-export const WAITING_TABS: ReadonlyArray<{ key: WaitingTab; label: string }> = [
-  { key: 'yes', label: 'Waiting for your yes' },
-  { key: 'held', label: 'Waiting for actions' },
-  { key: 'prepared', label: 'Changes your team prepared' },
-  { key: 'fix', label: 'Worth fixing' },
-  { key: 'customers', label: 'Customers to reply to' },
-];
+export const WAITING_TABS: ReadonlyArray<{ key: WaitingTab; readonly label: string }> = TAB_ORDER.map((key) => ({
+  key,
+  get label(): string {
+    return WAITING_TABS_COPY[key];
+  },
+}));
 
 export type WaitingCounts = Record<WaitingTab, number>;
 
 /** No tab has anything. */
 export const NO_WAITING: WaitingCounts = { yes: 0, held: 0, prepared: 0, fix: 0, customers: 0 };
 
-export const ALL_DONE_TEXT = 'All done here.';
+/** "All done here." in English, for importers; the screen reads WAITING_TABS_COPY.allDone when it draws. */
+export const ALL_DONE_TEXT = WAITING_TABS_COPY_EN.allDone;
 
 export function isWaitingTab(v: unknown): v is WaitingTab {
   return typeof v === 'string' && WAITING_TABS.some((t) => t.key === v);
@@ -38,7 +67,7 @@ export function isWaitingTab(v: unknown): v is WaitingTab {
 /** "Waiting for your yes (15)"; just the name once it is empty. */
 export function waitingTabLabel(key: WaitingTab, count: number): string {
   const label = WAITING_TABS.find((t) => t.key === key)?.label ?? key;
-  return count > 0 ? `${label} (${count})` : label;
+  return count > 0 ? WAITING_TABS_COPY.withCount(label, count) : label;
 }
 
 /**

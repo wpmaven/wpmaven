@@ -11,8 +11,13 @@
  * November 1, 2026, ..."). At this month's pack limit `buy` is null and the
  * card keeps the way to bigger plans.
  *
- * No runtime imports, so node tests load it directly.
+ * No runtime imports but the kit's language helper, so node tests load it
+ * directly. Its own few words are in the page's language (HELD_PACK_COPY;
+ * English is the source, the French is written by hand in src/i18n/fr.json,
+ * namespace screensHeldPack, the other languages by the dashboard's
+ * translation script); the API's sentences already are.
  */
+import { localized } from '@yotako/webmaven-ui';
 
 export interface HeldPackChoice {
   kind: 'buy' | 'limit';
@@ -168,11 +173,24 @@ export function stepFor(answer: HeldPackAnswer | null | undefined, notice: strin
   }
 }
 
-export const HELD_PACK_COPY = {
+/**
+ * Buying an action pack for a held item, from its card (namespace
+ * 'screensHeldPack'): the secure payment page, and what the card says after.
+ * An action pack adds to the plan's monthly actions.
+ */
+export const HELD_PACK_COPY_EN = {
+  /** The dialog's title when the pack is paid on a secure payment page. */
   checkoutTitle: 'Pay on the secure payment page',
+  /** Its button. */
   checkoutButton: 'Open the secure payment page',
+  /** Its button that closes it. */
   notNow: 'Not now',
+  /** Back from the payment page, paid. */
   paidReturn: 'Payment received. It goes out as soon as the payment goes through.',
+  /** Back from the payment page without paying. */
   canceledReturn: 'Nothing was charged. It still waits for actions.',
+  /** The purchase did not go through. */
   failed: 'That did not go through, and nothing was charged. Reload and try again.',
 } as const;
+
+export const HELD_PACK_COPY = localized(HELD_PACK_COPY_EN, 'screensHeldPack');

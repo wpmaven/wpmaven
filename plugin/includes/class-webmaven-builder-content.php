@@ -228,6 +228,89 @@ final class WebMaven_Builder_Content {
         return $tree;
     }
 
+    /** What a write here changes, per widget type: the settings an undo may put back. */
+    const EDITABLE = ['heading' => ['title'], 'text-editor' => ['editor'], 'button' => ['text', 'link'], 'image' => ['image']];
+
+    /**
+     * An undo's tree, checked and cleaned: everything but the words, links
+     * and pictures a write changes (EDITABLE) must be the page's as it is
+     * now, and those are cleaned as a write cleans them ($clean_html for a
+     * text, addresses through esc_url_raw). A restore that would change
+     * anything else (a section, a widget's code or style) fails.
+     */
+    public static function restore_tree(array $current, array $restore, callable $clean_html): array {
+        if (self::without_editable($current) != self::without_editable($restore)) {
+            throw new Exception('VALIDATION: restore puts back the words, links and pictures this page held, nothing else.');
+        }
+        return self::clean_editable($restore, $clean_html);
+    }
+
+    private static function without_editable(array $elements): array {
+        foreach ($elements as $i => $el) {
+            if (!is_array($el)) {
+                continue;
+            }
+            $keys = ($el['elType'] ?? '') === 'widget' ? (self::EDITABLE[(string) ($el['widgetType'] ?? '')] ?? []) : [];
+            if ($keys && is_array($el['settings'] ?? null)) {
+                foreach ($keys as $key) {
+                    if ($key === 'link' && is_array($el['settings']['link'] ?? null)) {
+                        // A write sets the address only; a link it created holds nothing else.
+                        unset($el['settings']['link']['url']);
+                        if ($el['settings']['link'] === []) {
+                            unset($el['settings']['link']);
+                        }
+                        continue;
+                    }
+                    unset($el['settings'][$key]);
+                }
+            }
+            if (!empty($el['elements']) && is_array($el['elements'])) {
+                $el['elements'] = self::without_editable($el['elements']);
+            }
+            $elements[$i] = $el;
+        }
+        return $elements;
+    }
+
+    private static function clean_editable(array $elements, callable $clean_html): array {
+        foreach ($elements as $i => $el) {
+            if (!is_array($el)) {
+                continue;
+            }
+            $type = ($el['elType'] ?? '') === 'widget' ? (string) ($el['widgetType'] ?? '') : '';
+            $s = is_array($el['settings'] ?? null) ? $el['settings'] : null;
+            if ($s !== null && isset(self::EDITABLE[$type])) {
+                foreach (['title', 'editor', 'text'] as $key) {
+                    if (in_array($key, self::EDITABLE[$type], true) && isset($s[$key]) && is_string($s[$key])) {
+                        $s[$key] = (string) $clean_html($s[$key]);
+                    }
+                }
+                if ($type === 'button' && is_array($s['link'] ?? null) && isset($s['link']['url'])) {
+                    $s['link']['url'] = is_string($s['link']['url']) ? esc_url_raw($s['link']['url']) : '';
+                }
+                if ($type === 'image' && is_array($s['image'] ?? null)) {
+                    $img = [];
+                    foreach ($s['image'] as $key => $value) {
+                        if ($key === 'url') {
+                            $img[$key] = is_string($value) ? esc_url_raw($value) : '';
+                        } elseif ($key === 'id') {
+                            $img[$key] = is_numeric($value) ? (int) $value : 0;
+                        } elseif (is_scalar($value)) {
+                            $img[$key] = wp_strip_all_tags((string) $value);
+                        }
+                    }
+                    $s['image'] = $img;
+                }
+                $el['settings'] = $s;
+            }
+            if (!empty($el['elements']) && is_array($el['elements'])) {
+                $el['elements'] = self::clean_editable($el['elements'], $clean_html);
+            }
+            $elements[$i] = $el;
+        }
+        return $elements;
+    }
+
     /** The widget a path names, changed by $fn; fails when it is not on the page. */
     private static function at(array $tree, string $path, callable $fn): array {
         if (!preg_match('/^([0-9a-z]{1,16})(?:\.p(\d{1,3}))?$/i', $path, $m)) {

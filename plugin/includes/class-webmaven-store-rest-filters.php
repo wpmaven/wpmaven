@@ -9,7 +9,7 @@
  * serves both:
  *
  *  - Products, variations and orders: every meta_data entry whose key starts
- *    with _wm_ or _webmaven_ is dropped (the print data and its mapping never
+ *    with _webmaven_ is dropped (the print data and its mapping never
  *    leave the site), and a `wpmaven` field says what the Store needs:
  *    WpmavenProductInfo, WpmavenVariationInfo (plus `enabled`) and
  *    WpmavenOrderInfo.
@@ -41,10 +41,10 @@ if (!defined('ABSPATH')) {
 
 final class WebMaven_Store_Rest_Filters {
 
-    /** Meta keys that never leave the site through REST. */
-    const INTERNAL_META = '/^_(?:wm_|webmaven_)/';
-    const DESIGN_KEY_META = '_wm_product_slug';
-    const CARD_SLOT_PREFIX = '_wm_card_slot_';
+    /** Meta keys that never leave the site through REST (another plugin may add more: webmaven_internal_meta_key). */
+    const INTERNAL_META = '/^_webmaven_/';
+    const DESIGN_KEY_META = '_webmaven_product_slug';
+    const CARD_SLOT_PREFIX = '_webmaven_card_slot_';
     const FULLHTML_META = '_webmaven_fullhtml';
     const KINDS = ['own', 'sample', 'printed'];
 
@@ -149,7 +149,7 @@ final class WebMaven_Store_Rest_Filters {
 
     /** The parcels the owner sent themselves ({carrier, number, url, at}), oldest first; never the printed parcels. */
     public static function own_shipments($order): array {
-        $raw = method_exists($order, 'get_meta') ? $order->get_meta('_wm_shipment', true) : [];
+        $raw = method_exists($order, 'get_meta') ? $order->get_meta('_webmaven_shipment', true) : [];
         $out = [];
         foreach (is_array($raw) ? $raw : [] as $s) {
             if (!is_array($s)) {
@@ -192,13 +192,13 @@ final class WebMaven_Store_Rest_Filters {
         return $url ? (string) $url : null;
     }
 
-    /** The design key (_wm_product_slug), or null for a product WPMaven did not design. */
+    /** The design key (_webmaven_product_slug), or null for a product WPMaven did not design. */
     public static function design_key(int $id): ?string {
         $key = $id > 0 ? trim((string) get_post_meta($id, self::DESIGN_KEY_META, true)) : '';
         return $key !== '' ? $key : null;
     }
 
-    /** The designed card's text: {key: text} from _wm_card_slot_<key>. */
+    /** The designed card's text: {key: text} from _webmaven_card_slot_<key>. */
     public static function card_slots(int $id): array {
         $out = [];
         if ($id <= 0) {
@@ -316,7 +316,9 @@ final class WebMaven_Store_Rest_Filters {
     }
 
     public static function is_internal_key($key): bool {
-        return is_string($key) && preg_match(self::INTERNAL_META, $key) === 1;
+        if (!is_string($key)) return false;
+        if (preg_match(self::INTERNAL_META, $key) === 1) return true;
+        return function_exists('apply_filters') && apply_filters('webmaven_internal_meta_key', false, $key) === true;
     }
 
     private static function without_internal(array $list): array {
@@ -386,15 +388,15 @@ final class WebMaven_Store_Rest_Filters {
             ['key' => WebMaven_Pod_Guards::POD_PRODUCT_META, 'value' => '', 'compare' => '='],
         ];
         if ($kind === 'printed') {
-            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], ['key' => WebMaven_Pod_Guards::POD_PRODUCT_META, 'value' => '', 'compare' => '!=']);
+            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], ['key' => WebMaven_Pod_Guards::POD_PRODUCT_META, 'value' => '', 'compare' => '!=']); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the store list's filter the owner picked, by meta keys postmeta indexes; one page of products is listed
         } elseif ($kind === 'sample') {
-            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], [
+            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the store list's filter the owner picked, by meta keys postmeta indexes; one page of products is listed
                 'relation' => 'AND',
                 ['key' => WebMaven_Pod_Guards::SAMPLE_META, 'value' => ['', '0'], 'compare' => 'NOT IN'],
                 $not_printed,
             ]);
         } elseif ($kind === 'own') {
-            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], $not_printed);
+            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], $not_printed); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the store list's filter the owner picked, by meta keys postmeta indexes; one page of products is listed
         }
         if (self::flag(self::param($request, 'wpmaven_no_photo'))) {
             $placeholder = (int) get_option('woocommerce_placeholder_image', 0);
@@ -402,7 +404,7 @@ final class WebMaven_Store_Rest_Filters {
             if ($placeholder > 0) {
                 $empty[] = (string) $placeholder;
             }
-            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], [
+            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the store list's filter the owner picked, by meta keys postmeta indexes; one page of products is listed
                 'relation' => 'OR',
                 ['key' => '_thumbnail_id', 'compare' => 'NOT EXISTS'],
                 ['key' => '_thumbnail_id', 'value' => $empty, 'compare' => 'IN'],
@@ -435,7 +437,7 @@ final class WebMaven_Store_Rest_Filters {
             return $args;
         }
         if (self::flag(self::param($request, 'wpmaven_no_alt'))) {
-            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], [
+            $args['meta_query'] = self::with_clause($args['meta_query'] ?? [], [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- the media list's filter the owner picked, by meta keys postmeta indexes; one page of pictures is listed
                 'relation' => 'OR',
                 ['key' => '_wp_attachment_image_alt', 'compare' => 'NOT EXISTS'],
                 ['key' => '_wp_attachment_image_alt', 'value' => '', 'compare' => '='],
@@ -448,7 +450,7 @@ final class WebMaven_Store_Rest_Filters {
             $used = WebMaven_Media_Usage::used_ids();
             if ($used) {
                 $not_in = array_map('intval', (array) ($args['post__not_in'] ?? []));
-                $args['post__not_in'] = array_values(array_unique(array_merge($not_in, $used)));
+                $args['post__not_in'] = array_values(array_unique(array_merge($not_in, $used))); // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- the media list's Unused filter leaves out the pictures in use; one page of pictures is listed
             }
         }
         return $args;

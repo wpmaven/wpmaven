@@ -43,7 +43,7 @@ final class WebMaven_Actor {
     /** Seconds a claim lives. */
     const LIFETIME = 120;
     const TIERS = ['owner', 'store', 'content'];
-    /** The marker WPMaven Agent's owner sign-in puts on an account it created. */
+    /** The marker an account made through the owner's WPMaven account carries. */
     const MARKER_META = '_webmaven_admin_login_created';
 
     /** The tier of a WordPress user: 'owner', 'store', 'content' or null. */
@@ -80,7 +80,7 @@ final class WebMaven_Actor {
         return null;
     }
 
-    /** A login WPMaven made on this site: 'owner' (the owner's own) or 'staff' (WPMaven support), else null. */
+    /** The sign-in marker of an account ('owner' or 'staff', as the account wrote it), else null. */
     public static function wpm_marker($user_id) {
         if (!function_exists('get_user_meta') || (int) $user_id <= 0) {
             return null;

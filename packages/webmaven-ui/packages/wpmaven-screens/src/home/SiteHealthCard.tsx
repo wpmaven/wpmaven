@@ -18,7 +18,7 @@ import type { ScreensHost } from '../host/types';
 import { ScreensHostProvider } from '../host/HostContext';
 import { teamBusiness } from '../team/reads';
 import {
-  SITE_HEALTH_COPY, SiteHealthCheckRefused, checkSiteHealth, readSiteHealth, type SiteHealthView,
+  SITE_HEALTH_CARD_COPY, SITE_HEALTH_COPY, SiteHealthCheckRefused, checkSiteHealth, readSiteHealth, type SiteHealthView,
 } from './reads';
 import { SectionLoading, SectionProblem, isRefusal, sectionErrorText } from './SectionState';
 
@@ -191,7 +191,7 @@ export const SiteHealthCardView: React.FC<{
   labels?: Partial<HealthSummaryLabels>;
   now?: Date;
 }> = ({ state, canCheck = true, maxIssues, labels, now }) => {
-  const title = labels?.title ?? 'Site health';
+  const title = labels?.title ?? SITE_HEALTH_CARD_COPY.title;
   if (state.status === 'idle' || state.status === 'refused') return null;
   if (state.status === 'loading' && !state.health) {
     return <SectionLoading title={title} label={SITE_HEALTH_COPY.loading} testId="site-health-loading" />;

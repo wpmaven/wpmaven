@@ -1,0 +1,997 @@
+{
+  "_about": "The local payment services the WPMaven plugin may set up, exported from the registry of WPMaven's service. Do not edit by hand.",
+  "services": [
+    {
+      "id": "mollie",
+      "name": "Mollie",
+      "slug": "mollie-payments-for-woocommerce",
+      "gateways": [
+        "mollie_wc_gateway_*"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "options"
+      },
+      "fields": [
+        {
+          "id": "liveApiKey",
+          "store": "mollie-payments-for-woocommerce_live_api_key",
+          "mode": "live"
+        },
+        {
+          "id": "testApiKey",
+          "store": "mollie-payments-for-woocommerce_test_api_key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "mollie-payments-for-woocommerce_test_mode_enabled",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=mollie_settings",
+      "countries": [
+        "AT",
+        "BE",
+        "BG",
+        "HR",
+        "CY",
+        "CZ",
+        "DK",
+        "EE",
+        "FI",
+        "FR",
+        "DE",
+        "GR",
+        "HU",
+        "IS",
+        "IE",
+        "IT",
+        "LV",
+        "LI",
+        "LT",
+        "LU",
+        "MT",
+        "NL",
+        "NO",
+        "PL",
+        "PT",
+        "RO",
+        "SK",
+        "SI",
+        "ES",
+        "SE",
+        "CH",
+        "GB"
+      ],
+      "currencies": [
+        "EUR",
+        "GBP",
+        "CHF",
+        "SEK",
+        "NOK",
+        "DKK",
+        "PLN",
+        "CZK",
+        "HUF",
+        "RON"
+      ]
+    },
+    {
+      "id": "vipps_mobilepay",
+      "name": "Vipps MobilePay",
+      "slug": "woo-vipps",
+      "gateways": [
+        "vipps"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "merchantSerialNumber",
+          "store": "merchantSerialNumber",
+          "mode": "live"
+        },
+        {
+          "id": "clientId",
+          "store": "clientId",
+          "mode": "live"
+        },
+        {
+          "id": "clientSecret",
+          "store": "secret",
+          "mode": "live"
+        },
+        {
+          "id": "subscriptionKey",
+          "store": "Ocp_Apim_Key_eCommerce",
+          "mode": "live"
+        }
+      ],
+      "countryPresets": {
+        "NO": {
+          "country": "NO",
+          "payment_method_name": "Vipps"
+        },
+        "SE": {
+          "country": "SE",
+          "payment_method_name": "Vipps"
+        },
+        "DK": {
+          "country": "DK",
+          "payment_method_name": "MobilePay"
+        },
+        "FI": {
+          "country": "FI",
+          "payment_method_name": "MobilePay"
+        }
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=vipps",
+      "countries": [
+        "NO",
+        "SE",
+        "DK",
+        "FI"
+      ],
+      "currencies": [
+        "NOK",
+        "SEK",
+        "DKK",
+        "EUR"
+      ]
+    },
+    {
+      "id": "iyzico",
+      "name": "iyzico",
+      "slug": "iyzico-woocommerce",
+      "gateways": [
+        "iyzico"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "apiKey",
+          "store": "api_key"
+        },
+        {
+          "id": "secretKey",
+          "store": "secret_key"
+        }
+      ],
+      "modeSetting": {
+        "store": "api_type",
+        "live": "https://api.iyzipay.com",
+        "test": "https://sandbox-api.iyzipay.com"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=iyzico",
+      "countries": [
+        "TR"
+      ],
+      "currencies": [
+        "TRY"
+      ]
+    },
+    {
+      "id": "komoju",
+      "name": "KOMOJU",
+      "slug": "komoju-japanese-payments",
+      "gateways": [
+        "komoju_*"
+      ],
+      "connect": "plugin",
+      "connectedWhen": [
+        {
+          "option": "komoju_woocommerce_secret_key"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=komoju_settings",
+      "countries": [
+        "JP"
+      ],
+      "currencies": [
+        "JPY"
+      ]
+    },
+    {
+      "id": "mercado_pago",
+      "name": "Mercado Pago",
+      "slug": "woocommerce-mercadopago",
+      "gateways": [
+        "woo-mercado-pago-basic",
+        "woo-mercado-pago-custom",
+        "woo-mercado-pago-ticket",
+        "woo-mercado-pago-pix",
+        "woo-mercado-pago-pse",
+        "woo-mercado-pago-credits",
+        "woo-mercado-pago-yape"
+      ],
+      "connect": "plugin",
+      "connectedWhen": [
+        {
+          "option": "_mp_access_token_prod"
+        }
+      ],
+      "setupPath": "admin.php?page=mercadopago-settings",
+      "countries": [
+        "AR",
+        "BR",
+        "CL",
+        "CO",
+        "MX",
+        "PE",
+        "UY"
+      ],
+      "currencies": [
+        "ARS",
+        "BRL",
+        "CLP",
+        "COP",
+        "MXN",
+        "PEN",
+        "UYU"
+      ]
+    },
+    {
+      "id": "transbank",
+      "name": "Transbank Webpay Plus",
+      "slug": "transbank-webpay-plus-rest",
+      "gateways": [
+        "transbank_webpay_plus_rest"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "commerceCode",
+          "store": "commerce_code"
+        },
+        {
+          "id": "apiKey",
+          "store": "api_key"
+        }
+      ],
+      "modeSetting": {
+        "store": "environment",
+        "live": "LIVE",
+        "test": "TEST"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=transbank_webpay_plus_rest",
+      "countries": [
+        "CL"
+      ],
+      "currencies": [
+        "CLP"
+      ]
+    },
+    {
+      "id": "wompi",
+      "name": "Wompi",
+      "slug": "wompi-portal-de-pagos",
+      "gateways": [
+        "wompi"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "publicKey",
+          "store": "public_key",
+          "mode": "live"
+        },
+        {
+          "id": "privateKey",
+          "store": "private_key",
+          "mode": "live"
+        },
+        {
+          "id": "eventsSecret",
+          "store": "event_secret_key",
+          "mode": "live"
+        },
+        {
+          "id": "integritySecret",
+          "store": "integrity_key",
+          "mode": "live"
+        },
+        {
+          "id": "testPublicKey",
+          "store": "test_public_key",
+          "mode": "test"
+        },
+        {
+          "id": "testPrivateKey",
+          "store": "test_private_key",
+          "mode": "test"
+        },
+        {
+          "id": "testEventsSecret",
+          "store": "test_event_secret_key",
+          "mode": "test"
+        },
+        {
+          "id": "testIntegritySecret",
+          "store": "test_integrity_key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "testmode",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=wompi",
+      "countries": [
+        "CO"
+      ],
+      "currencies": [
+        "COP"
+      ]
+    },
+    {
+      "id": "tilopay",
+      "name": "Tilopay",
+      "slug": "tilopay",
+      "gateways": [
+        "tilopay"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "apiKey",
+          "store": "tpay_key"
+        },
+        {
+          "id": "apiUser",
+          "store": "tpay_user"
+        },
+        {
+          "id": "apiPassword",
+          "store": "tpay_password"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=tilopay",
+      "countries": [
+        "CR"
+      ],
+      "currencies": [
+        "CRC"
+      ]
+    },
+    {
+      "id": "portone",
+      "name": "PortOne",
+      "slug": "iamport-for-woocommerce",
+      "gateways": [
+        "iamport_card",
+        "iamport_trans",
+        "iamport_vbank",
+        "iamport_phone",
+        "iamport_kakao",
+        "iamport_tosspay",
+        "iamport_payco",
+        "iamport_samsung",
+        "iamport_hub_naverpay"
+      ],
+      "connect": "plugin",
+      "connectedWhen": [
+        {
+          "option": "woocommerce_iamport_card_settings",
+          "key": "imp_user_code"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=iamport_card",
+      "countries": [
+        "KR"
+      ],
+      "currencies": [
+        "KRW"
+      ]
+    },
+    {
+      "id": "xendit",
+      "name": "Xendit",
+      "slug": "woo-xendit-virtual-accounts",
+      "gateways": [
+        "xendit_gateway"
+      ],
+      "connect": "plugin",
+      "connectedWhen": [
+        {
+          "option": "woocommerce_xendit_oauth_data"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=xendit_gateway",
+      "countries": [
+        "ID",
+        "PH"
+      ],
+      "currencies": [
+        "IDR",
+        "PHP"
+      ]
+    },
+    {
+      "id": "opn",
+      "name": "Opn Payments",
+      "slug": "omise",
+      "gateways": [
+        "omise",
+        "omise_promptpay",
+        "omise_truemoney",
+        "omise_mobilebanking",
+        "omise_installment",
+        "omise_rabbit_linepay",
+        "omise_shopeepay"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "publicKey",
+          "store": "live_public_key",
+          "mode": "live"
+        },
+        {
+          "id": "secretKey",
+          "store": "live_private_key",
+          "mode": "live"
+        },
+        {
+          "id": "testPublicKey",
+          "store": "test_public_key",
+          "mode": "test"
+        },
+        {
+          "id": "testSecretKey",
+          "store": "test_private_key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "sandbox",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=omise",
+      "countries": [
+        "TH"
+      ],
+      "currencies": [
+        "THB"
+      ]
+    },
+    {
+      "id": "billplz",
+      "name": "Billplz",
+      "slug": "billplz-for-woocommerce",
+      "gateways": [
+        "billplz"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "apiKey",
+          "store": "api_key"
+        },
+        {
+          "id": "xSignature",
+          "store": "x_signature"
+        },
+        {
+          "id": "collectionId",
+          "store": "collection_id"
+        }
+      ],
+      "modeSetting": {
+        "store": "is_sandbox",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=billplz",
+      "countries": [
+        "MY"
+      ],
+      "currencies": [
+        "MYR"
+      ]
+    },
+    {
+      "id": "ecpay",
+      "name": "ECPay",
+      "slug": "ecpay-ecommerce-for-woocommerce",
+      "gateways": [
+        "Wooecpay_Gateway_Credit",
+        "Wooecpay_Gateway_Atm",
+        "Wooecpay_Gateway_Cvs",
+        "Wooecpay_Gateway_Barcode",
+        "Wooecpay_Gateway_Webatm",
+        "Wooecpay_Gateway_Twqr"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "options"
+      },
+      "fields": [
+        {
+          "id": "merchantId",
+          "store": "wooecpay_payment_mid"
+        },
+        {
+          "id": "hashKey",
+          "store": "wooecpay_payment_hashkey"
+        },
+        {
+          "id": "hashIv",
+          "store": "wooecpay_payment_hashiv"
+        }
+      ],
+      "modeSetting": {
+        "store": "wooecpay_enabled_payment_stage",
+        "live": "no",
+        "test": "yes"
+      },
+      "presets": {
+        "wooecpay_enabled_payment": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=wooecpay_setting",
+      "countries": [
+        "TW"
+      ],
+      "currencies": [
+        "TWD"
+      ]
+    },
+    {
+      "id": "payos",
+      "name": "payOS",
+      "slug": "payos",
+      "gateways": [
+        "payos"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "option_array",
+        "option": "payos_gateway_settings"
+      },
+      "fields": [
+        {
+          "id": "clientId",
+          "store": "client_id"
+        },
+        {
+          "id": "apiKey",
+          "store": "api_key"
+        },
+        {
+          "id": "checksumKey",
+          "store": "checksum_key"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=payos",
+      "countries": [
+        "VN"
+      ],
+      "currencies": [
+        "VND"
+      ]
+    },
+    {
+      "id": "payhere",
+      "name": "PayHere",
+      "slug": "payhere-payment-gateway",
+      "gateways": [
+        "payhere"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "merchantId",
+          "store": "merchant_id"
+        },
+        {
+          "id": "merchantSecret",
+          "store": "secret"
+        }
+      ],
+      "modeSetting": {
+        "store": "test_mode",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=payhere",
+      "countries": [
+        "LK"
+      ],
+      "currencies": [
+        "LKR"
+      ]
+    },
+    {
+      "id": "razorpay",
+      "name": "Razorpay",
+      "slug": "woo-razorpay",
+      "gateways": [
+        "razorpay"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "keyId",
+          "store": "key_id"
+        },
+        {
+          "id": "keySecret",
+          "store": "key_secret"
+        }
+      ],
+      "testWhen": {
+        "field": "key_id",
+        "pattern": "^rzp_test_"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=razorpay",
+      "countries": [
+        "IN",
+        "MY"
+      ],
+      "currencies": [
+        "INR",
+        "MYR"
+      ]
+    },
+    {
+      "id": "cashfree",
+      "name": "Cashfree Payments",
+      "slug": "cashfree",
+      "gateways": [
+        "cashfree"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "appId",
+          "store": "app_id"
+        },
+        {
+          "id": "secretKey",
+          "store": "secret_key"
+        }
+      ],
+      "modeSetting": {
+        "store": "sandbox",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=cashfree",
+      "countries": [
+        "IN"
+      ],
+      "currencies": [
+        "INR"
+      ]
+    },
+    {
+      "id": "payu_india",
+      "name": "PayU India",
+      "slug": "payu-india",
+      "gateways": [
+        "payubiz"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "merchantKey",
+          "store": "currency1_payu_key"
+        },
+        {
+          "id": "merchantSalt",
+          "store": "currency1_payu_salt"
+        }
+      ],
+      "modeSetting": {
+        "store": "gateway_module",
+        "live": "production",
+        "test": "sandbox"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=payubiz",
+      "countries": [
+        "IN"
+      ],
+      "currencies": [
+        "INR"
+      ]
+    },
+    {
+      "id": "phonepe",
+      "name": "PhonePe",
+      "slug": "phonepe-payment-solutions",
+      "gateways": [
+        "phonepe"
+      ],
+      "connect": "plugin",
+      "connectedWhen": [
+        {
+          "option": "woocommerce_phonepe_settings",
+          "key": "clientId"
+        },
+        {
+          "option": "woocommerce_phonepe_settings",
+          "key": "merchantIdentifier"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=phonepe",
+      "countries": [
+        "IN"
+      ],
+      "currencies": [
+        "INR"
+      ]
+    },
+    {
+      "id": "square",
+      "name": "Square",
+      "slug": "woocommerce-square",
+      "gateways": [
+        "square_credit_card",
+        "square_cash_app_pay"
+      ],
+      "connect": "plugin",
+      "connectedWhen": [
+        {
+          "option": "wc_square_access_tokens"
+        }
+      ],
+      "setupPath": "admin.php?page=wc-settings&tab=square",
+      "countries": [
+        "AU"
+      ],
+      "currencies": [
+        "AUD"
+      ]
+    },
+    {
+      "id": "afterpay",
+      "name": "Afterpay",
+      "slug": "afterpay-gateway-for-woocommerce",
+      "gateways": [
+        "afterpay"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "merchantId",
+          "store": "prod-id",
+          "mode": "live"
+        },
+        {
+          "id": "secretKey",
+          "store": "prod-secret-key",
+          "mode": "live"
+        },
+        {
+          "id": "testMerchantId",
+          "store": "test-id",
+          "mode": "test"
+        },
+        {
+          "id": "testSecretKey",
+          "store": "test-secret-key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "testmode",
+        "live": "production",
+        "test": "sandbox"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=afterpay",
+      "countries": [
+        "AU",
+        "NZ"
+      ],
+      "currencies": [
+        "AUD",
+        "NZD"
+      ]
+    },
+    {
+      "id": "zip",
+      "name": "Zip",
+      "slug": "zipmoney-payments-woocommerce",
+      "gateways": [
+        "zipmoney"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "publicKey",
+          "store": "merchant_public_key",
+          "mode": "live"
+        },
+        {
+          "id": "privateKey",
+          "store": "merchant_private_key",
+          "mode": "live"
+        },
+        {
+          "id": "testPublicKey",
+          "store": "sandbox_merchant_public_key",
+          "mode": "test"
+        },
+        {
+          "id": "testPrivateKey",
+          "store": "sandbox_merchant_private_key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "sandbox",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=zipmoney",
+      "countries": [
+        "AU",
+        "NZ"
+      ],
+      "currencies": [
+        "AUD",
+        "NZD"
+      ]
+    },
+    {
+      "id": "payfast",
+      "name": "Payfast",
+      "slug": "woocommerce-payfast-gateway",
+      "gateways": [
+        "payfast"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "merchantId",
+          "store": "merchant_id"
+        },
+        {
+          "id": "merchantKey",
+          "store": "merchant_key"
+        },
+        {
+          "id": "passphrase",
+          "store": "pass_phrase"
+        }
+      ],
+      "modeSetting": {
+        "store": "testmode",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=payfast",
+      "countries": [
+        "ZA"
+      ],
+      "currencies": [
+        "ZAR"
+      ]
+    },
+    {
+      "id": "yoco",
+      "name": "Yoco",
+      "slug": "yoco-payment-gateway",
+      "gateways": [
+        "class_yoco_wc_payment_gateway"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "liveSecretKey",
+          "store": "live_secret_key",
+          "mode": "live"
+        },
+        {
+          "id": "testSecretKey",
+          "store": "test_secret_key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "mode",
+        "live": "live",
+        "test": "test"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=class_yoco_wc_payment_gateway",
+      "countries": [
+        "ZA"
+      ],
+      "currencies": [
+        "ZAR"
+      ]
+    },
+    {
+      "id": "paystack",
+      "name": "Paystack",
+      "slug": "woo-paystack",
+      "gateways": [
+        "paystack"
+      ],
+      "connect": "keys",
+      "storage": {
+        "type": "gateway"
+      },
+      "fields": [
+        {
+          "id": "livePublicKey",
+          "store": "live_public_key",
+          "mode": "live"
+        },
+        {
+          "id": "liveSecretKey",
+          "store": "live_secret_key",
+          "mode": "live"
+        },
+        {
+          "id": "testPublicKey",
+          "store": "test_public_key",
+          "mode": "test"
+        },
+        {
+          "id": "testSecretKey",
+          "store": "test_secret_key",
+          "mode": "test"
+        }
+      ],
+      "modeSetting": {
+        "store": "testmode",
+        "live": "no",
+        "test": "yes"
+      },
+      "setupPath": "admin.php?page=wc-settings&tab=checkout&section=paystack",
+      "countries": [
+        "ZA"
+      ],
+      "currencies": [
+        "ZAR"
+      ]
+    }
+  ]
+}

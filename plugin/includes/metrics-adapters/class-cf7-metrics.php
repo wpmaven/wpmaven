@@ -38,7 +38,7 @@ class WebMaven_CF7_Metrics implements WebMaven_Metrics_Adapter {
     private function get_flamingo_submissions(string $start, string $end): array {
         global $wpdb;
 
-        $results = $wpdb->get_results($wpdb->prepare(
+        $results = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Flamingo's saved messages counted by channel in one query, which get_posts cannot do; read for the reports, which need today's figures, so nothing is cached
             "SELECT pm.meta_value AS channel,
                     COUNT(*) AS submissions
              FROM {$wpdb->posts} p

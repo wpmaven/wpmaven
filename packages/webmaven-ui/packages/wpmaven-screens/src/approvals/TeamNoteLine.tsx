@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { OperatorInline } from '@yotako/wpmaven-onboarding/shared';
-import { TEAM_NOTE_LABEL, splitTeamNote } from './teamNote';
+import { TEAM_NOTE_COPY, splitTeamNote } from './teamNote';
 
 export interface TeamNoteLineProps {
   /** The approval's whole sentence, as the API sent it. */
@@ -27,7 +27,7 @@ export const TeamNoteLine: React.FC<TeamNoteLineProps> = ({ sentence, as = 'span
       style={{ fontSize: 12, color: 'var(--text-dim)', ...style }}
       data-testid="approval-team-note"
     >
-      {TEAM_NOTE_LABEL} “<OperatorInline text={note} />”
+      {TEAM_NOTE_COPY.label} “<OperatorInline text={note} />”
     </Tag>
   );
 };

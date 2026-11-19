@@ -48,13 +48,13 @@
  * change takes away is refused unless the same change removes it. before
  * lists a created variation as {variationId, remove: true}: the undo patch.
  *
- * A printed product (_wm_pod_product set) is made to order from a fixed set
+ * A printed product (_webmaven_pod_product set) is made to order from a fixed set
  * of options: its options, its stock and its shipping data are refused
  * (POD_OPTIONS_LOCKED, POD_MADE_TO_ORDER), one option at least stays on sale,
  * and no price may go under its floor (PRICE_BELOW_FLOOR): the floors the
- * API sends, else the ones the site keeps (_wm_price_floor). The floors the
+ * API sends, else the ones the site keeps (_webmaven_price_floor). The floors the
  * API sends are kept on the site, so WooCommerce's own screens hold the same
- * line (WebMaven_Pod_Guards). These commands never write the _wm_pod* meta.
+ * line (WebMaven_Pod_Guards). These commands never write the _webmaven_pod* meta.
  *
  * Failures THROW an Exception whose message is "CODE: sentence" (the API
  * reads ^([A-Z_]+):\s*(.*)$ and may show the sentence to the owner). Codes:
@@ -70,10 +70,6 @@
 if (!defined('ABSPATH')) {
     exit;
 }
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
     $handlers['store_product_read'] = ['WebMaven_Cap_Store', 'product_read'];
@@ -91,12 +87,12 @@ add_filter('webmaven_webhook_action_handlers', function ($handlers) {
 
 final class WebMaven_Cap_Store {
 
-    const POD_PRODUCT_META = '_wm_pod_product';
-    const SAMPLE_META = '_wm_sample_product';
-    const CARD_SLOT_PREFIX = '_wm_card_slot_';
+    const POD_PRODUCT_META = '_webmaven_pod_product';
+    const SAMPLE_META = '_webmaven_sample_product';
+    const CARD_SLOT_PREFIX = '_webmaven_card_slot_';
     const FULLHTML_META = '_webmaven_fullhtml';
-    const POD_META = '_wm_pod';
-    const DESIGN_KEY_META = '_wm_product_slug';
+    const POD_META = '_webmaven_pod';
+    const DESIGN_KEY_META = '_webmaven_product_slug';
 
     /** Every ProductFields key. */
     const PRODUCT_FIELDS = [
@@ -448,7 +444,7 @@ final class WebMaven_Cap_Store {
     private static function product_plan($product, array $fields, array $floors, bool $creating): array {
         foreach (array_keys($fields) as $key) {
             if (!in_array($key, self::PRODUCT_FIELDS, true)) {
-                throw self::error('VALIDATION', 'Unknown product field: ' . self::plain((string) $key) . '.');
+                throw self::error('VALIDATION', 'Unknown product field: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         $id = (int) $product->get_id();
@@ -465,12 +461,12 @@ final class WebMaven_Cap_Store {
         if ($printed) {
             foreach (['attributes', 'newVariations'] as $key) {
                 if (array_key_exists($key, $fields)) {
-                    throw self::error('POD_OPTIONS_LOCKED', 'The options of a printed product are set by what can be printed, so ' . $name . ' keeps its options.');
+                    throw self::error('POD_OPTIONS_LOCKED', 'The options of a printed product are set by what can be printed, so ' . $name . ' keeps its options.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             foreach (self::MADE_TO_ORDER_FIELDS as $key) {
                 if (array_key_exists($key, $fields)) {
-                    throw self::error('POD_MADE_TO_ORDER', 'A printed product is made to order, so ' . $name . ' has no stock, weight or size to set.');
+                    throw self::error('POD_MADE_TO_ORDER', 'A printed product is made to order, so ' . $name . ' has no stock, weight or size to set.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             if (is_array($fields['allVariations'] ?? null) && array_key_exists('stockStatus', $fields['allVariations'])) {
@@ -511,14 +507,14 @@ final class WebMaven_Cap_Store {
             } elseif (!$for_variations && $variable) {
                 $children = array_map('intval', (array) $product->get_children());
                 if (array_diff($children, self::removals($fields))) {
-                    throw self::error('VALIDATION', 'Remove the variations of ' . $name . ' in the same change, or keep an option used for variations.');
+                    throw self::error('VALIDATION', 'Remove the variations of ' . $name . ' in the same change, or keep an option used for variations.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $plan['to_type'] = 'simple';
                 $variable_after = false;
             }
         }
         if (array_key_exists('newVariations', $fields) && !$variable_after) {
-            throw self::error('VALIDATION', 'Add an option used for variations to ' . $name . ' first, then its variations.');
+            throw self::error('VALIDATION', 'Add an option used for variations to ' . $name . ' first, then its variations.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         // Plain text and HTML.
@@ -571,7 +567,7 @@ final class WebMaven_Cap_Store {
             $dimensions = [];
             foreach ($fields['dimensions'] as $key => $value) {
                 if (!in_array($key, ['length', 'width', 'height'], true)) {
-                    throw self::error('VALIDATION', 'Unknown dimension: ' . self::plain((string) $key) . '.');
+                    throw self::error('VALIDATION', 'Unknown dimension: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $dimensions[$key] = self::measure($value, $key);
             }
@@ -616,7 +612,7 @@ final class WebMaven_Cap_Store {
                 $term_id = self::positive_int($raw);
                 $term = $term_id > 0 ? get_term($term_id, 'product_cat') : null;
                 if (!$term || is_wp_error($term)) {
-                    throw self::error('NOT_FOUND', 'Product category ' . $term_id . ' was not found.');
+                    throw self::error('NOT_FOUND', 'Product category ' . $term_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $ids[] = $term_id;
             }
@@ -641,7 +637,7 @@ final class WebMaven_Cap_Store {
             foreach ($fields['cardSlots'] as $key => $value) {
                 $key = (string) $key;
                 if (!array_key_exists($key, $existing)) {
-                    throw self::error('VALIDATION', 'The product card has no text named ' . self::plain($key) . '.');
+                    throw self::error('VALIDATION', 'The product card has no text named ' . self::plain($key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 if (!is_string($value) || strlen($value) > 500) {
                     throw self::error('VALIDATION', 'A card text is at most 500 characters.');
@@ -733,7 +729,7 @@ final class WebMaven_Cap_Store {
      */
     private static function attributes_plan($product, $raw): array {
         if (!is_array($raw) || count($raw) > self::MAX_ATTRIBUTES) {
-            throw self::error('VALIDATION', 'attributes is a list of at most ' . self::MAX_ATTRIBUTES . ' options.');
+            throw self::error('VALIDATION', 'attributes is a list of at most ' . self::MAX_ATTRIBUTES . ' options.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $current = [];
         foreach ((array) $product->get_attributes('edit') as $attribute) {
@@ -750,22 +746,22 @@ final class WebMaven_Cap_Store {
             }
             foreach (array_keys($entry) as $key) {
                 if (!in_array($key, self::ATTRIBUTE_FIELDS, true)) {
-                    throw self::error('VALIDATION', 'Unknown option field: ' . self::plain((string) $key) . '.');
+                    throw self::error('VALIDATION', 'Unknown option field: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             $name = self::plain_text($entry['name'] ?? null, 'An option name', 1, 100);
             if (isset($names[self::lower($name)])) {
-                throw self::error('VALIDATION', 'Two options are named "' . self::plain($name) . '".');
+                throw self::error('VALIDATION', 'Two options are named "' . self::plain($name) . '".'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $names[self::lower($name)] = true;
             if (!is_array($entry['options'] ?? null) || !$entry['options'] || count($entry['options']) > self::MAX_ATTRIBUTE_VALUES) {
-                throw self::error('VALIDATION', 'The option "' . self::plain($name) . '" has 1 to ' . self::MAX_ATTRIBUTE_VALUES . ' values.');
+                throw self::error('VALIDATION', 'The option "' . self::plain($name) . '" has 1 to ' . self::MAX_ATTRIBUTE_VALUES . ' values.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $values = [];
             foreach ($entry['options'] as $value) {
                 $value = self::plain_text($value, 'A value of "' . self::plain($name) . '"', 1, 200);
                 if (strpos($value, '|') !== false) {
-                    throw self::error('VALIDATION', 'A value cannot hold "|": ' . self::plain($value) . '.');
+                    throw self::error('VALIDATION', 'A value cannot hold "|": ' . self::plain($value) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $values[self::lower($value)] = $value;
             }
@@ -773,7 +769,7 @@ final class WebMaven_Cap_Store {
             $taxonomy = is_object($existing) && method_exists($existing, 'is_taxonomy') && $existing->is_taxonomy() ? (string) $existing->get_name() : null;
             $key = $taxonomy !== null ? $taxonomy : sanitize_title($name);
             if ($key === '' || isset($keys[$key])) {
-                throw self::error('VALIDATION', 'The option name "' . self::plain($name) . '" needs letters or numbers of its own.');
+                throw self::error('VALIDATION', 'The option name "' . self::plain($name) . '" needs letters or numbers of its own.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $keys[$key] = true;
             $out[] = [
@@ -813,7 +809,7 @@ final class WebMaven_Cap_Store {
                 }
                 $attribute = $by_key[(string) $key] ?? null;
                 if ($attribute === null || self::attribute_value($attribute, $value) === null) {
-                    throw self::error('VALIDATION', '"' . self::plain((string) $variation->get_name('edit')) . '" uses an option value this change takes away. Remove that variation in the same change, or keep its value.');
+                    throw self::error('VALIDATION', '"' . self::plain((string) $variation->get_name('edit')) . '" uses an option value this change takes away. Remove that variation in the same change, or keep its value.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
         }
@@ -842,7 +838,7 @@ final class WebMaven_Cap_Store {
     /** newVariations, each checked: one value per attribute used for variations, no combination twice. */
     private static function plan_new_variations($product, $raw, array &$plan, int $decimals): void {
         if (!is_array($raw) || count($raw) > self::MAX_NEW_VARIATIONS) {
-            throw self::error('VALIDATION', 'newVariations is a list of at most ' . self::MAX_NEW_VARIATIONS . ' variations.');
+            throw self::error('VALIDATION', 'newVariations is a list of at most ' . self::MAX_NEW_VARIATIONS . ' variations.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $attributes = $plan['attributes'];
         if ($attributes === null) {
@@ -878,7 +874,7 @@ final class WebMaven_Cap_Store {
             }
             foreach (array_keys($entry) as $key) {
                 if (!in_array($key, self::NEW_VARIATION_FIELDS, true)) {
-                    throw self::error('VALIDATION', 'Unknown variation field: ' . self::plain((string) $key) . '.');
+                    throw self::error('VALIDATION', 'Unknown variation field: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             if (!is_array($entry['options'] ?? null) || !$entry['options']) {
@@ -889,23 +885,23 @@ final class WebMaven_Cap_Store {
             foreach ($entry['options'] as $name => $value) {
                 $attribute = $by_name[self::lower((string) $name)] ?? null;
                 if ($attribute === null) {
-                    throw self::error('VALIDATION', '"' . self::plain((string) $name) . '" is not an option used for variations.');
+                    throw self::error('VALIDATION', '"' . self::plain((string) $name) . '" is not an option used for variations.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $match = is_string($value) ? self::attribute_value($attribute, $value) : null;
                 if ($match === null) {
-                    throw self::error('VALIDATION', '"' . self::plain(is_string($value) ? $value : '') . '" is not a value of "' . self::plain($attribute['name']) . '".');
+                    throw self::error('VALIDATION', '"' . self::plain(is_string($value) ? $value : '') . '" is not a value of "' . self::plain($attribute['name']) . '".'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $values[$attribute['key']] = $match;
                 $labels[$attribute['name']] = $match;
             }
             if (count($values) !== count($by_name)) {
-                throw self::error('VALIDATION', 'Each new variation names one value for every option used for variations: ' . implode(', ', array_map(function ($a) {
+                throw self::error('VALIDATION', 'Each new variation names one value for every option used for variations: ' . implode(', ', array_map(function ($a) { // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                     return self::plain($a['name']);
                 }, array_values($by_name))) . '.');
             }
             $combination = self::combination($values);
             if (isset($seen[$combination])) {
-                throw self::error('VALIDATION', 'Two variations would have the same options: ' . self::plain(implode(', ', $labels)) . '.');
+                throw self::error('VALIDATION', 'Two variations would have the same options: ' . self::plain(implode(', ', $labels)) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $seen[$combination] = true;
             $regular = self::decimal($entry['regularPrice'] ?? null, 'The regular price', $decimals);
@@ -978,7 +974,7 @@ final class WebMaven_Cap_Store {
             $patch = [];
             foreach ($all as $key => $value) {
                 if (!in_array($key, self::ALL_VARIATIONS_FIELDS, true)) {
-                    throw self::error('VALIDATION', 'Unknown field for every option: ' . self::plain((string) $key) . '.');
+                    throw self::error('VALIDATION', 'Unknown field for every option: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 if ($key === 'regularPrice') {
                     $patch['regularPrice'] = self::decimal($value, 'The regular price', $decimals);
@@ -1005,12 +1001,12 @@ final class WebMaven_Cap_Store {
                 }
                 foreach (array_keys($entry) as $key) {
                     if (!in_array($key, self::VARIATION_FIELDS, true)) {
-                        throw self::error('VALIDATION', 'Unknown option field: ' . self::plain((string) $key) . '.');
+                        throw self::error('VALIDATION', 'Unknown option field: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                     }
                 }
                 $vid = self::positive_int($entry['variationId'] ?? null);
                 if (!in_array($vid, $children, true)) {
-                    throw self::error('NOT_FOUND', 'Option ' . $vid . ' is not an option of this product.');
+                    throw self::error('NOT_FOUND', 'Option ' . $vid . ' is not an option of this product.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 if ($plan['printed']) {
                     if (!empty($entry['remove'])) {
@@ -1180,7 +1176,7 @@ final class WebMaven_Cap_Store {
             if (strpos($e->getMessage(), ': ') !== false && preg_match('/^[A-Z_]+: /', $e->getMessage())) {
                 throw $e;
             }
-            throw self::error('VALIDATION', self::plain(wp_strip_all_tags($e->getMessage())));
+            throw self::error('VALIDATION', self::plain(wp_strip_all_tags($e->getMessage()))); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $id = (int) $product->get_id();
         if ($plan['clear_sample']) {
@@ -1201,7 +1197,7 @@ final class WebMaven_Cap_Store {
                 }
                 $variation->save();
             } catch (\Exception $e) {
-                throw self::error('VALIDATION', self::plain(wp_strip_all_tags($e->getMessage())));
+                throw self::error('VALIDATION', self::plain(wp_strip_all_tags($e->getMessage()))); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         foreach ($plan['remove'] as $vid) {
@@ -1273,7 +1269,7 @@ final class WebMaven_Cap_Store {
                 $variation->set_status('publish');
                 $variation_id = (int) $variation->save();
             } catch (\Exception $e) {
-                throw self::error('VALIDATION', self::plain(wp_strip_all_tags($e->getMessage())));
+                throw self::error('VALIDATION', self::plain(wp_strip_all_tags($e->getMessage()))); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if ($variation_id <= 0) {
                 throw self::error('WRITE_FAILED', 'A new variation could not be created.');
@@ -1501,7 +1497,7 @@ final class WebMaven_Cap_Store {
         $plan = self::post_plan($post, $fields);
         $role = self::site_page((int) $post->ID);
         if ($role !== '' && isset($plan['post']['post_status']) && $plan['post']['post_status'] !== 'publish') {
-            throw self::error('PROTECTED_PAGE', 'This is ' . $role . ', which the site needs, so it stays published.');
+            throw self::error('PROTECTED_PAGE', 'This is ' . $role . ', which the site needs, so it stays published.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $before = self::post_touched($post, $plan);
         self::apply_post_plan((int) $post->ID, $plan);
@@ -1536,7 +1532,7 @@ final class WebMaven_Cap_Store {
         $data = $plan['post'] + ['post_type' => 'post', 'post_status' => 'draft'];
         $id = wp_insert_post(wp_slash($data), true);
         if (is_wp_error($id) || (int) $id <= 0) {
-            throw self::error('WRITE_FAILED', 'The post could not be created: ' . (is_wp_error($id) ? self::plain($id->get_error_message()) : 'unknown error') . '.');
+            throw self::error('WRITE_FAILED', 'The post could not be created: ' . (is_wp_error($id) ? self::plain($id->get_error_message()) : 'unknown error') . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $plan['post'] = [];
         self::apply_post_plan((int) $id, $plan);
@@ -1554,7 +1550,7 @@ final class WebMaven_Cap_Store {
     private static function post_plan($post, array $fields): array {
         foreach (array_keys($fields) as $key) {
             if (!in_array($key, self::POST_FIELDS, true)) {
-                throw self::error('VALIDATION', 'Unknown post field: ' . self::plain((string) $key) . '.');
+                throw self::error('VALIDATION', 'Unknown post field: ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         $is_post = $post === null || $post->post_type === 'post';
@@ -1569,7 +1565,7 @@ final class WebMaven_Cap_Store {
             $plan['touched'][] = 'title';
         }
         if (array_key_exists('excerpt', $fields)) {
-            $plan['post']['post_excerpt'] = self::plain_text($fields['excerpt'], 'The excerpt', 0, 600);
+            $plan['post']['post_excerpt'] = self::plain_text($fields['excerpt'], 'The excerpt', 0, 600, true);
             $plan['touched'][] = 'excerpt';
         }
         if (array_key_exists('slug', $fields)) {
@@ -1614,7 +1610,7 @@ final class WebMaven_Cap_Store {
                 $term_id = self::positive_int($raw);
                 $term = $term_id > 0 ? get_term($term_id, 'category') : null;
                 if (!$term || is_wp_error($term)) {
-                    throw self::error('NOT_FOUND', 'Category ' . $term_id . ' was not found.');
+                    throw self::error('NOT_FOUND', 'Category ' . $term_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $ids[] = $term_id;
             }
@@ -1648,14 +1644,14 @@ final class WebMaven_Cap_Store {
             }
             if ($post !== null) {
                 if (get_post_meta((int) $post->ID, self::FULLHTML_META, true)) {
-                    throw self::error('DESIGN_OWNED', 'The content of ' . $name . ' is part of the site design, so it changes through the design editor.');
+                    throw self::error('DESIGN_OWNED', 'The content of ' . $name . ' is part of the site design, so it changes through the design editor.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 $base = $content['baseHash'] ?? null;
                 if (!is_string($base) || !preg_match('/^[a-f0-9]{64}$/i', $base)) {
                     throw self::error('VALIDATION', 'content.baseHash must be the sha256 of the content the edit started from.');
                 }
                 if (!hash_equals(strtolower($base), hash('sha256', (string) $post->post_content))) {
-                    throw self::error('CHANGED_ELSEWHERE', 'The content of ' . $name . ' was changed elsewhere after this edit started.');
+                    throw self::error('CHANGED_ELSEWHERE', 'The content of ' . $name . ' was changed elsewhere after this edit started.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
             if (strlen($content['html']) > 500000) {
@@ -1672,7 +1668,7 @@ final class WebMaven_Cap_Store {
         if ($plan['post']) {
             $result = wp_update_post(wp_slash(['ID' => $id] + $plan['post']), true);
             if (is_wp_error($result) || !$result) {
-                throw self::error('WRITE_FAILED', 'The post could not be saved: ' . (is_wp_error($result) ? self::plain($result->get_error_message()) : 'unknown error') . '.');
+                throw self::error('WRITE_FAILED', 'The post could not be saved: ' . (is_wp_error($result) ? self::plain($result->get_error_message()) : 'unknown error') . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
         if ($plan['thumbnail'] !== false) {
@@ -1714,7 +1710,7 @@ final class WebMaven_Cap_Store {
         $post = self::content_post($params['post_id'] ?? null);
         $role = self::site_page((int) $post->ID);
         if ($role !== '' && empty($params['restore'])) {
-            throw self::error('PROTECTED_PAGE', 'This is ' . $role . ', which the site needs, so it cannot be moved to the trash.');
+            throw self::error('PROTECTED_PAGE', 'This is ' . $role . ', which the site needs, so it cannot be moved to the trash.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $status = self::trash_or_restore((int) $post->ID, !empty($params['restore']));
         return ['post_id' => (int) $post->ID, 'status' => $status];
@@ -1778,7 +1774,7 @@ final class WebMaven_Cap_Store {
         $set = [];
         foreach ($fields as $key => $value) {
             if (!in_array($key, self::TERM_FIELDS, true)) {
-                throw self::error('VALIDATION', $key . ' is not a field of a category.');
+                throw self::error('VALIDATION', self::plain((string) $key) . ' is not a field of a category.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $set[$key] = $key === 'name' ? self::plain_text($value, 'The name', 1, 200) : self::html($value, 'The description', 5000);
         }
@@ -1792,7 +1788,7 @@ final class WebMaven_Cap_Store {
         $result = wp_update_term($id, $taxonomy, $set);
         if (is_wp_error($result)) {
             if (in_array($result->get_error_code(), ['duplicate_term_slug', 'term_exists'], true)) {
-                throw self::error('VALIDATION', 'Another category is already called ' . self::plain((string) ($set['name'] ?? '')) . '.');
+                throw self::error('VALIDATION', 'Another category is already called ' . self::plain((string) ($set['name'] ?? '')) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             throw self::error('WRITE_FAILED', 'The category could not be saved.');
         }
@@ -1822,7 +1818,7 @@ final class WebMaven_Cap_Store {
         $id = self::positive_int($raw);
         $term = $id > 0 ? get_term($id, $taxonomy) : null;
         if (!$term || is_wp_error($term)) {
-            throw self::error('NOT_FOUND', 'Category ' . $id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Category ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $term;
     }
@@ -1841,7 +1837,7 @@ final class WebMaven_Cap_Store {
         $id = self::positive_int($raw);
         $product = $id > 0 ? wc_get_product($id) : null;
         if (!$product || $product->is_type('variation')) {
-            throw self::error('NOT_FOUND', 'Product ' . $id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Product ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $product;
     }
@@ -1851,7 +1847,7 @@ final class WebMaven_Cap_Store {
         $id = self::positive_int($raw);
         $post = $id > 0 ? get_post($id) : null;
         if (!$post || !in_array($post->post_type, self::POST_TYPES, true)) {
-            throw self::error('NOT_FOUND', 'Post ' . $id . ' was not found.');
+            throw self::error('NOT_FOUND', 'Post ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $post;
     }
@@ -1879,7 +1875,7 @@ final class WebMaven_Cap_Store {
         return $id > 0 && (string) get_post_meta($id, self::POD_PRODUCT_META, true) !== '';
     }
 
-    /** The designed card's text of a product: {key: text} from its _wm_card_slot_<key> meta. */
+    /** The designed card's text of a product: {key: text} from its _webmaven_card_slot_<key> meta. */
     private static function card_slots(int $id): array {
         $out = [];
         if ($id <= 0) {
@@ -1912,7 +1908,7 @@ final class WebMaven_Cap_Store {
             $found = wp_insert_term($name, $taxonomy);
         }
         if (is_wp_error($found)) {
-            throw self::error('WRITE_FAILED', 'The ' . ($taxonomy === 'product_tag' ? 'tag' : 'category') . ' "' . self::plain($name) . '" could not be created.');
+            throw self::error('WRITE_FAILED', 'The ' . ($taxonomy === 'product_tag' ? 'tag' : 'category') . ' "' . self::plain($name) . '" could not be created.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return (int) (is_array($found) ? $found['term_id'] : $found);
     }
@@ -1931,7 +1927,7 @@ final class WebMaven_Cap_Store {
             $current = is_string($modified) ? self::gmt_timestamp($modified) : null;
         }
         if ($current !== null && $current > $base_ts + self::MODIFIED_TOLERANCE) {
-            throw self::error('CHANGED_ELSEWHERE', ucfirst($name) . ' was changed elsewhere after this edit started.');
+            throw self::error('CHANGED_ELSEWHERE', ucfirst($name) . ' was changed elsewhere after this edit started.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
     }
 
@@ -1950,10 +1946,10 @@ final class WebMaven_Cap_Store {
             return;
         }
         if ($regular === null) {
-            throw self::error('VALIDATION', 'A sale price needs a regular price for ' . $name . '.');
+            throw self::error('VALIDATION', 'A sale price needs a regular price for ' . $name . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if ((float) $sale >= (float) $regular) {
-            throw self::error('VALIDATION', 'The sale price of ' . $name . ' (' . $sale . ') must be below its regular price (' . $regular . ').');
+            throw self::error('VALIDATION', 'The sale price of ' . $name . ' (' . $sale . ') must be below its regular price (' . $regular . ').'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
     }
 
@@ -1968,7 +1964,7 @@ final class WebMaven_Cap_Store {
             }
             if (self::to_minor($price, $decimals) < $floor_minor) {
                 $floor = number_format($floor_minor / (10 ** $decimals), $decimals, '.', '');
-                throw self::error('PRICE_BELOW_FLOOR', 'The price of "' . $label . '" cannot be under ' . $floor . ' ' . self::currency() . ', what it costs to make.');
+                throw self::error('PRICE_BELOW_FLOOR', 'The price of "' . $label . '" cannot be under ' . $floor . ' ' . self::currency() . ', what it costs to make.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
         }
     }
@@ -2014,7 +2010,7 @@ final class WebMaven_Cap_Store {
     private static function decimal($value, string $what, int $decimals): string {
         $pattern = $decimals > 0 ? '/^\d{1,12}(\.\d{1,' . $decimals . '})?$/' : '/^\d{1,12}$/';
         if (!is_string($value) || !preg_match($pattern, $value)) {
-            throw self::error('VALIDATION', $what . ' must be a number like ' . ($decimals > 0 ? '14.' . str_repeat('5', $decimals) : '14') . '.');
+            throw self::error('VALIDATION', $what . ' must be a number like ' . ($decimals > 0 ? '14.' . str_repeat('5', $decimals) : '14') . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return number_format((float) $value, $decimals, '.', '');
     }
@@ -2080,7 +2076,7 @@ final class WebMaven_Cap_Store {
         foreach (['from', 'to'] as $key) {
             $date = $value[$key] ?? null;
             if ($date !== null && (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/', $date))) {
-                throw self::error('VALIDATION', 'The sale ' . $key . ' date must be a date like 2026-10-12.');
+                throw self::error('VALIDATION', 'The sale ' . $key . ' date must be a date like 2026-10-12.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             // A date alone covers the whole day, as WooCommerce's own screen does:
             // the sale starts at midnight and ends at 23:59:59.
@@ -2100,38 +2096,39 @@ final class WebMaven_Cap_Store {
         return $out;
     }
 
-    private static function plain_text($value, string $what, int $min, int $max): string {
+    private static function plain_text($value, string $what, int $min, int $max, bool $multiline = false): string {
         if (!is_string($value)) {
-            throw self::error('VALIDATION', $what . ' must be text.');
+            throw self::error('VALIDATION', $what . ' must be text.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
-        $text = trim(wp_strip_all_tags($value));
+        // An excerpt keeps its line breaks; a name or a title is one line.
+        $text = $multiline ? sanitize_textarea_field($value) : sanitize_text_field($value);
         $length = function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
         if ($length < $min || $length > $max) {
-            throw self::error('VALIDATION', $what . ' has ' . ($min > 0 ? $min . ' to ' : 'at most ') . $max . ' characters.');
+            throw self::error('VALIDATION', $what . ' has ' . ($min > 0 ? $min . ' to ' : 'at most ') . $max . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $text;
     }
 
     private static function html($value, string $what, int $max): string {
         if (!is_string($value)) {
-            throw self::error('VALIDATION', $what . ' must be text.');
+            throw self::error('VALIDATION', $what . ' must be text.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if ((function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value)) > $max) {
-            throw self::error('VALIDATION', $what . ' has at most ' . $max . ' characters.');
+            throw self::error('VALIDATION', $what . ' has at most ' . $max . ' characters.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return wp_kses_post($value);
     }
 
     private static function one_of($value, array $allowed, string $what) {
         if (!in_array($value, $allowed, true)) {
-            throw self::error('VALIDATION', $what . ' must be one of: ' . implode(', ', $allowed) . '.');
+            throw self::error('VALIDATION', $what . ' must be one of: ' . implode(', ', $allowed) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }
 
     private static function boolean($value, string $what): bool {
         if (!is_bool($value)) {
-            throw self::error('VALIDATION', $what . ' must be true or false.');
+            throw self::error('VALIDATION', $what . ' must be true or false.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }
@@ -2141,14 +2138,14 @@ final class WebMaven_Cap_Store {
             return null;
         }
         if (!is_int($value) || abs($value) > 1000000000) {
-            throw self::error('VALIDATION', $what . ' must be a whole number or null.');
+            throw self::error('VALIDATION', $what . ' must be a whole number or null.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }
 
     private static function measure($value, string $what): string {
         if (!is_string($value) || ($value !== '' && !preg_match('/^\d{1,9}(\.\d{1,4})?$/', $value))) {
-            throw self::error('VALIDATION', 'The ' . $what . ' must be a number like 0.5, or empty.');
+            throw self::error('VALIDATION', 'The ' . $what . ' must be a number like 0.5, or empty.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $value;
     }
@@ -2157,9 +2154,9 @@ final class WebMaven_Cap_Store {
         if (!is_string($value) || strlen($value) > 100) {
             throw self::error('VALIDATION', 'The SKU is text of at most 100 characters.');
         }
-        $sku = trim(wp_strip_all_tags($value));
+        $sku = sanitize_text_field($value);
         if ($sku !== '' && function_exists('wc_product_has_unique_sku') && !wc_product_has_unique_sku($id, $sku)) {
-            throw self::error('VALIDATION', 'The SKU ' . self::plain($sku) . ' is already used by another product.');
+            throw self::error('VALIDATION', 'The SKU ' . self::plain($sku) . ' is already used by another product.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $sku;
     }
@@ -2169,7 +2166,7 @@ final class WebMaven_Cap_Store {
         $id = self::positive_int($value);
         $post = $id > 0 ? get_post($id) : null;
         if (!$post || $post->post_type !== 'attachment' || !wp_attachment_is_image($id)) {
-            throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.');
+            throw self::error('NOT_FOUND', 'Image ' . $id . ' was not found in the media library.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $id;
     }
@@ -2177,7 +2174,7 @@ final class WebMaven_Cap_Store {
     /** A list of term names: 1 to 100 characters each, at most 50. */
     private static function names($value, string $what): array {
         if (!is_array($value) || count($value) > 50) {
-            throw self::error('VALIDATION', $what . ' is a list of at most 50 names.');
+            throw self::error('VALIDATION', $what . ' is a list of at most 50 names.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $out = [];
         foreach ($value as $name) {

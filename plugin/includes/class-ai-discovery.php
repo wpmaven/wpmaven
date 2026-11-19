@@ -72,7 +72,7 @@ class WebMaven_AI_Discovery {
             header('X-Robots-Tag: noindex');
         }
         // A text/plain document (llms.txt), never read as HTML.
-        echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a text/plain document (llms.txt), never read as HTML
         exit;
     }
 
@@ -92,6 +92,9 @@ class WebMaven_AI_Discovery {
                 $lines[] = '';
                 $lines[] = '> ' . $summary;
             }
+
+            // An add-on may add a section here (it gets the function that writes a link line).
+            $lines = (array) apply_filters('webmaven_llms_txt_lines', $lines, \Closure::fromCallable([$this, 'link_line']));
 
             // WooCommerce shop/cart/checkout/account pages are excluded from the
             // page lists (the shop is represented by the Products section; the
@@ -232,7 +235,7 @@ class WebMaven_AI_Discovery {
         if (!$id) return '';
         $keys = [
             '_yoast_wpseo_metadesc', 'rank_math_description', '_seopress_titles_desc',
-            '_aioseo_description', '_webmaven_meta_description', '_meta_description', '_wme_meta_description',
+            '_aioseo_description', '_webmaven_meta_description', '_meta_description',
         ];
         foreach ($keys as $k) {
             $v = get_post_meta($id, $k, true);

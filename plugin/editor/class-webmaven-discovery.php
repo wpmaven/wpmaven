@@ -28,7 +28,7 @@ class WebMaven_Discovery {
 	/**
 	 * DOMPurify version of editor/assets/vendor/purify.min.js.
 	 */
-	public const PURIFY_VERSION = '3.4.17';
+	public const PURIFY_VERSION = '3.4.18';
 
 	/**
 	 * Stack frames for hierarchical UID generation. A block frame:
@@ -113,7 +113,7 @@ class WebMaven_Discovery {
 
 	public static function init(): void {
 		// Only annotate when discovery mode is active.
-		if ( empty( $_GET['webmaven_discover'] ) ) {
+		if ( empty( $_GET['webmaven_discover'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: discovery only marks up the page for a user who may edit posts (register_hooks checks it)
 			return;
 		}
 
@@ -172,7 +172,7 @@ class WebMaven_Discovery {
 		// reference is resolved, the way the site editor saves a part).
 		if ( 'core/pattern' === $parsed_block['blockName'] ) {
 			$token                     = 'b' . ( ++self::$next_token );
-			$parsed_block['wme_token'] = $token;
+			$parsed_block['webmaven_token'] = $token;
 			self::$uid_stack[]         = [ 'kind' => 'transparent', 'token' => $token ];
 			return $parsed_block;
 		}
@@ -197,9 +197,9 @@ class WebMaven_Discovery {
 		}
 
 		$token = 'b' . ( ++self::$next_token );
-		$parsed_block['wme_uid']   = $uid;
-		$parsed_block['wme_owner'] = $owner;
-		$parsed_block['wme_token'] = $token;
+		$parsed_block['webmaven_uid']   = $uid;
+		$parsed_block['webmaven_owner'] = $owner;
+		$parsed_block['webmaven_token'] = $token;
 
 		self::$uid_stack[] = [ 'kind' => 'block', 'uid' => $uid, 'owner' => $owner, 'counter' => 0, 'token' => $token ];
 
@@ -272,7 +272,7 @@ class WebMaven_Discovery {
 
 		// Pop this block's frames (and an owner frame it opened). A block
 		// that never went through render_block_data has no frame to pop.
-		$token = (string) ( $block['wme_token'] ?? '' );
+		$token = (string) ( $block['webmaven_token'] ?? '' );
 		if ( $token !== '' ) {
 			for ( $i = count( self::$uid_stack ) - 1; $i >= 0; $i-- ) {
 				if ( self::$uid_stack[ $i ]['token'] === $token && 'owner' !== self::$uid_stack[ $i ]['kind'] ) {
@@ -291,8 +291,8 @@ class WebMaven_Discovery {
 			return $block_content;
 		}
 
-		$block_uid = $block['wme_uid'] ?? '0';
-		$owner     = (string) ( $block['wme_owner'] ?? 'template' );
+		$block_uid = $block['webmaven_uid'] ?? '0';
+		$owner     = (string) ( $block['webmaven_owner'] ?? 'template' );
 		$category  = self::get_block_category( $block_name );
 		// The post the block is saved in: its owner's (a page, a synced pattern), else the page's.
 		$post_id = preg_match( '/^(?:post|pattern):(\d+)$/', $owner, $owned ) ? (int) $owned[1] : ( get_the_ID() ?: get_queried_object_id() );
@@ -856,7 +856,7 @@ class WebMaven_Discovery {
 		);
 		$extras = self::own_extras();
 		if ( $extras ) {
-			wp_add_inline_script( 'webmaven-discover', 'window.wmeOwn = ' . wp_json_encode( $extras ) . ';', 'before' );
+			wp_add_inline_script( 'webmaven-discover', 'window.webmavenOwn = ' . wp_json_encode( $extras ) . ';', 'before' );
 		}
 	}
 

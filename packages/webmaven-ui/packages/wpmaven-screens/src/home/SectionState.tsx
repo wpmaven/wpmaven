@@ -3,6 +3,7 @@ import { Button, GlassCard, Skeleton } from '@yotako/webmaven-ui';
 import { errorMessage } from '@yotako/wpmaven-onboarding/shared';
 import type { ScreensHost } from '../host/types';
 import { SECTION_LABEL } from './styles';
+import { SECTION_STATE_COPY } from './homeCopy';
 
 /** A section's failure in the reader's words: the host's rule, else the shared one. */
 export function sectionErrorText(host: ScreensHost, error: unknown, fallback: string): string {
@@ -36,7 +37,7 @@ export const SectionProblem: React.FC<{ title: React.ReactNode; text: string; on
     <div style={{ ...SECTION_LABEL, marginBottom: 12 }}>{title}</div>
     <div role="alert" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
       <p style={{ margin: 0, fontSize: 'var(--text-body, 14px)', color: 'var(--text)' }}>{text}</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>Retry</Button>
+      <Button variant="outline" size="sm" onClick={onRetry}>{SECTION_STATE_COPY.retry}</Button>
     </div>
   </GlassCard>
 );

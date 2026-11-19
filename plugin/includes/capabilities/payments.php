@@ -33,10 +33,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
-
 add_filter('webmaven_webhook_action_handlers', function ($handlers) {
     $handlers['payments_configure'] = ['WebMaven_Cap_Payments', 'configure'];
     $handlers['store_order_read'] = ['WebMaven_Cap_Payments', 'order_read'];
@@ -50,7 +46,7 @@ add_filter('webmaven_webhook_action_handlers', function ($handlers) {
 final class WebMaven_Cap_Payments {
 
     /** Order meta: every shipment the API reported ([{carrier, tracking_number, tracking_url}]). */
-    const TRACKING_META = '_wm_tracking';
+    const TRACKING_META = '_webmaven_tracking';
 
     const ACCOUNT_PATTERN = '/^acct_[A-Za-z0-9]{6,}$/';
 
@@ -60,8 +56,8 @@ final class WebMaven_Cap_Payments {
         if (!array_key_exists('enabled', $params) || !is_bool($params['enabled'])) {
             throw new Exception('payments_configure needs enabled (true or false).');
         }
-        $key = trim((string) ($params['publishable_key'] ?? ''));
-        $account = trim((string) ($params['account_id'] ?? ''));
+        $key = sanitize_text_field($params['publishable_key'] ?? '');
+        $account = sanitize_text_field($params['account_id'] ?? '');
         // A secret or restricted key never reaches a site, whatever the caller sends.
         if (preg_match('/^(?:sk|rk)_/', $key)) {
             throw new Exception('Only a publishable key is stored on the site.');
@@ -91,7 +87,7 @@ final class WebMaven_Cap_Payments {
         $id = is_numeric($params['order_id'] ?? null) ? (int) $params['order_id'] : 0;
         $order = $id > 0 ? wc_get_order($id) : null;
         if (!$order) {
-            throw new Exception('Order ' . $id . ' not found.');
+            throw new Exception('Order ' . $id . ' not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         return $order;
     }
@@ -126,8 +122,8 @@ final class WebMaven_Cap_Payments {
                 'quantity' => (int) $item->get_quantity(),
                 'total' => WebMaven_Payments::money($item->get_total()),
                 'tax' => WebMaven_Payments::money($item->get_total_tax()),
-                'variant_key' => $variation_id > 0 ? (string) get_post_meta($variation_id, '_wm_variant_key', true) : '',
-                'pod' => self::decode_json(get_post_meta($variation_id > 0 ? $variation_id : $product_id, '_wm_pod', true)),
+                'variant_key' => $variation_id > 0 ? (string) get_post_meta($variation_id, '_webmaven_variant_key', true) : '',
+                'pod' => self::decode_json(get_post_meta($variation_id > 0 ? $variation_id : $product_id, '_webmaven_pod', true)),
                 'printful_product_id' => isset($pod_product['printful_product_id']) ? (int) $pod_product['printful_product_id'] : null,
             ];
         }
@@ -180,7 +176,7 @@ final class WebMaven_Cap_Payments {
     public static function mark_paid($params = [], $step_id = null) {
         $order = self::order($params);
         self::ours($order);
-        $transaction = sanitize_text_field((string) ($params['transaction_id'] ?? ''));
+        $transaction = sanitize_text_field($params['transaction_id'] ?? '');
         if ($transaction === '') {
             throw new Exception('order_mark_paid needs the transaction id.');
         }
@@ -188,7 +184,7 @@ final class WebMaven_Cap_Payments {
             return ['status' => (string) $order->get_status()];
         }
         if (!$order->payment_complete($transaction)) {
-            throw new Exception('Order ' . (int) $order->get_id() . ' could not be marked paid from status ' . $order->get_status() . '.');
+            throw new Exception('Order ' . (int) $order->get_id() . ' could not be marked paid from status ' . $order->get_status() . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $order->add_order_note('Payment confirmed by Stripe (' . $transaction . ').');
         return ['status' => (string) $order->get_status()];
@@ -200,7 +196,7 @@ final class WebMaven_Cap_Payments {
         if ($order->get_status() !== 'pending') {
             return ['status' => (string) $order->get_status(), 'changed' => false];
         }
-        $reason = sanitize_text_field((string) ($params['reason'] ?? ''));
+        $reason = sanitize_text_field($params['reason'] ?? '');
         $order->update_status('failed', $reason !== '' ? 'Payment failed: ' . $reason : 'Payment failed.');
         return ['status' => (string) $order->get_status(), 'changed' => true];
     }
@@ -210,9 +206,9 @@ final class WebMaven_Cap_Payments {
     public static function shipped($params = [], $step_id = null) {
         $order = self::order($params);
         self::ours($order);
-        $number = sanitize_text_field((string) ($params['tracking_number'] ?? ''));
-        $carrier = sanitize_text_field((string) ($params['carrier'] ?? ''));
-        $url = trim((string) ($params['tracking_url'] ?? ''));
+        $number = sanitize_text_field($params['tracking_number'] ?? '');
+        $carrier = sanitize_text_field($params['carrier'] ?? '');
+        $url = is_string($params['tracking_url'] ?? null) ? trim($params['tracking_url']) : '';
         $url = preg_match('#^https?://#i', $url) ? esc_url_raw($url) : '';
         // Some parcels come with a tracking link only.
         if ($number === '' && $url === '') {
@@ -235,17 +231,27 @@ final class WebMaven_Cap_Payments {
         $shipments[] = $shipment;
         $order->update_meta_data(self::TRACKING_META, $shipments);
         $order->save();
-        $note = WebMaven_Payments::tracking_line($shipment) . ($url !== '' ? ' Track it here: ' . $url : '');
         // The first parcel completes the order: WooCommerce's "order complete"
         // email carries the tracking (WebMaven_Payments::email_tracking), so
         // the note stays private. A later parcel, or a store whose "order
-        // complete" email is off, tells the buyer with a customer note.
+        // complete" email is off, tells the buyer with a customer note, in
+        // the order's language; a private note reads the
+        // site's.
         $completing = $order->get_status() !== 'completed';
-        $order->add_order_note($note, !($completing && self::completed_email_on()));
+        $to_buyer = !($completing && self::completed_email_on());
+        $language = $to_buyer ? self::order_locale($order) : '';
+        $note = WebMaven_Payments::tracking_line($shipment, $language)
+            . ($url !== '' ? WebMaven_Visitor_Words::with('track_here', $url, $language) : '');
+        $order->add_order_note($note, $to_buyer);
         if ($completing) {
             $order->update_status('completed');
         }
         return ['status' => (string) $order->get_status()];
+    }
+
+    /** The WordPress locale of an order's language ('' for the site's own; an add-on answers on a site in several languages). */
+    private static function order_locale($order): string {
+        return (string) apply_filters('webmaven_order_locale', '', $order);
     }
 
     /** Whether WooCommerce sends the buyer its "order complete" email. */
@@ -268,7 +274,8 @@ final class WebMaven_Cap_Payments {
     public static function record_refund($params = [], $step_id = null) {
         $order = self::order($params);
         self::ours($order);
-        $refund_id = (string) ($params['refund_id'] ?? '');
+        // No (string) cast before the cleaning: a list would read "Array" and pass the pattern; cleaned, it is '' and refused.
+        $refund_id = sanitize_text_field($params['refund_id'] ?? '');
         if (!preg_match('/^[A-Za-z0-9_]{3,255}$/', $refund_id)) {
             throw new Exception('order_record_refund needs the refund id.');
         }
@@ -290,9 +297,9 @@ final class WebMaven_Cap_Payments {
             return ['recorded' => false];
         }
         if ((float) $amount > (float) $order->get_remaining_refund_amount() + 0.00001) {
-            throw new Exception('Order ' . (int) $order->get_id() . ' has only ' . WebMaven_Payments::money($order->get_remaining_refund_amount()) . ' left to refund.');
+            throw new Exception('Order ' . (int) $order->get_id() . ' has only ' . WebMaven_Payments::money($order->get_remaining_refund_amount()) . ' left to refund.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
-        $reason = sanitize_text_field((string) ($params['reason'] ?? ''));
+        $reason = sanitize_text_field($params['reason'] ?? '');
         $refund = wc_create_refund([
             'order_id' => (int) $order->get_id(),
             'amount' => $amount,
@@ -301,7 +308,7 @@ final class WebMaven_Cap_Payments {
             'restock_items' => false,
         ]);
         if (is_wp_error($refund)) {
-            throw new Exception('The refund could not be recorded: ' . $refund->get_error_message());
+            throw new Exception('The refund could not be recorded: ' . $refund->get_error_message()); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         // The refund may have moved the order to refunded through its own copy.
         $order = wc_get_order((int) $order->get_id()) ?: $order;

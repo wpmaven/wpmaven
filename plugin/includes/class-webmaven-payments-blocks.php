@@ -37,8 +37,8 @@ final class WebMaven_Payments_Blocks extends AbstractPaymentMethodType {
 
     public function get_payment_method_data() {
         return [
-            'title' => WebMaven_Payments::TITLE,
-            'description' => WebMaven_Payments::DESCRIPTION,
+            'title' => WebMaven_Payments::words('pay_title'),
+            'description' => WebMaven_Payments::words('pay_description'),
             'supports' => ['products'],
         ];
     }

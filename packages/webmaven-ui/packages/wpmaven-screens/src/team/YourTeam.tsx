@@ -33,18 +33,13 @@ import { TeamFaces } from './TeamFaces';
 import { PlanTab } from './PlanTab';
 import { ProgressTab } from './ProgressTab';
 import { ConnectTab } from './ConnectTab';
+import { YOUR_TEAM_COPY } from './teamCopy';
 
 /** How often a site reads again how many approvals wait for a yes. */
 const WAITING_POLL_MS = 60_000;
 
-export const YOUR_TEAM_COPY = {
-  title: 'Your team',
-  subtitle: "Your team's plan, its weekly progress, and the actions waiting for your yes.",
-  siteSubtitle: "Your team's plan, its weekly progress, and the channels it posts to.",
-  tabsLabel: 'Your team',
-  openApprovals: 'Open Approvals',
-  openWaiting: 'Open Waiting for you',
-};
+// The page's words, in the page's language (./teamCopy, namespace screensYourTeam).
+export { YOUR_TEAM_COPY };
 
 export interface YourTeamProps {
   host: ScreensHost;

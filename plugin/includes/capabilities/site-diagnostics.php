@@ -1,6 +1,6 @@
 <?php
 /**
- * Site diagnostics (1.2.6): read-only checks the API's operators use for
+ * Site diagnostics (1.2.6): read-only checks the API's AI team uses for
  * health, security and performance reports.
  *
  *   site_health_flags   wp-config switches (WP_DEBUG, WP_DEBUG_LOG,
@@ -178,7 +178,9 @@ class WebMaven_Cap_Diagnostics {
                 'dropin' => @file_exists(WP_CONTENT_DIR . '/object-cache.php'),
             ],
             'page_cache_dropin' => (bool) self::constant_value('WP_CACHE') && @file_exists(WP_CONTENT_DIR . '/advanced-cache.php'),
-            'hardening' => class_exists('WebMaven_Cap_Maintenance') ? WebMaven_Cap_Maintenance::hardening_state() : null,
+            // Security settings another plugin applied, when it reports them
+            // (webmaven_hardening_state); null here: this edition changes none.
+            'hardening' => function_exists('apply_filters') ? apply_filters('webmaven_hardening_state', null) : null,
             'hosted' => self::is_hosted(),
             'plugin_version' => defined('WEBMAVEN_WP_VERSION') ? WEBMAVEN_WP_VERSION : null,
         ];
@@ -193,11 +195,11 @@ class WebMaven_Cap_Diagnostics {
      * only while they stay on that host.
      */
     public static function page_timing($params = [], $step_id = null) {
-        $path = isset($params['path']) ? (string) $params['path'] : '/';
+        $path = isset($params['path']) ? $params['path'] : '/';
         if ($path === '') {
             $path = '/';
         }
-        if ($path[0] !== '/' || strpos($path, '//') === 0 || strlen($path) > 512 || preg_match('/[\s\x00-\x1f\x7f\\\\]/', $path)) {
+        if (!is_string($path) || $path[0] !== '/' || strpos($path, '//') === 0 || strlen($path) > 512 || preg_match('/[\s\x00-\x1f\x7f\\\\]/', $path)) {
             return ['success' => false, 'error' => 'path must be a path on this site, such as / or /shop/'];
         }
         $samples = isset($params['samples']) ? (int) $params['samples'] : 1;
@@ -205,7 +207,7 @@ class WebMaven_Cap_Diagnostics {
 
         $home = (string) home_url('/');
         $home_host = strtolower((string) wp_parse_url($home, PHP_URL_HOST));
-        $url = untrailingslashit($home) . $path;
+        $url = esc_url_raw(untrailingslashit($home) . $path, ['http', 'https']);
         if ($home_host === '' || strtolower((string) wp_parse_url($url, PHP_URL_HOST)) !== $home_host) {
             return ['success' => false, 'error' => 'Could not build a URL on this site for that path'];
         }
@@ -386,12 +388,12 @@ class WebMaven_Cap_Diagnostics {
         $limit = isset($params['limit']) ? (int) $params['limit'] : 20;
         $limit = max(1, min(100, $limit));
 
-        $total = (int) $wpdb->get_var($wpdb->prepare(
+        $total = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
             "SELECT COUNT(*) FROM %i WHERE post_type = 'attachment' AND post_mime_type LIKE %s",
             $wpdb->posts,
             'image/%'
         ));
-        $ids = array_map('intval', (array) $wpdb->get_col($wpdb->prepare(
+        $ids = array_map('intval', (array) $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
             "SELECT ID FROM %i WHERE post_type = 'attachment' AND post_mime_type LIKE %s ORDER BY ID DESC LIMIT %d",
             $wpdb->posts,
             'image/%',
@@ -457,17 +459,17 @@ class WebMaven_Cap_Diagnostics {
         // One %s per order post type.
         $orders = implode(', ', array_fill(0, count(self::ORDER_POST_TYPES), '%s'));
         $now = time();
-        $expired = (int) $wpdb->get_var($wpdb->prepare(
+        $expired = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
             "SELECT COUNT(*) FROM {$wpdb->options} WHERE (option_name LIKE %s OR option_name LIKE %s) AND CAST(option_value AS UNSIGNED) < %d",
             $wpdb->esc_like('_transient_timeout_') . '%',
             $wpdb->esc_like('_site_transient_timeout_') . '%',
             $now
         ));
         return [
-            'revisions' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'revision'"),
+            'revisions' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'revision'"), // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
             'auto_drafts' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_status = 'auto-draft'"),
-            'trashed_posts' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE post_status = 'trash' AND post_type NOT IN ($orders)", array_merge([$wpdb->posts], self::ORDER_POST_TYPES))), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            'trashed_orders' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE post_status = 'trash' AND post_type IN ($orders)", array_merge([$wpdb->posts], self::ORDER_POST_TYPES))), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            'trashed_posts' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE post_status = 'trash' AND post_type NOT IN ($orders)", array_merge([$wpdb->posts], self::ORDER_POST_TYPES))), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $orders is only %s placeholders, one per order post type
+            'trashed_orders' => (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE post_status = 'trash' AND post_type IN ($orders)", array_merge([$wpdb->posts], self::ORDER_POST_TYPES))), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $orders is only %s placeholders, one per order post type
             'spam_comments' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved = 'spam'"),
             'trashed_comments' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->comments} WHERE comment_approved = 'trash'"),
             'expired_transients' => $expired,
@@ -481,16 +483,16 @@ class WebMaven_Cap_Diagnostics {
         $autoload_values = function_exists('wp_autoload_values_to_autoload') ? wp_autoload_values_to_autoload() : ['yes'];
         $placeholders = implode(',', array_fill(0, count($autoload_values), '%s'));
         // $placeholders is only %s placeholders, one per value.
-        $autoload = $wpdb->get_row($wpdb->prepare(
-            "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(option_value)), 0) AS bytes FROM %i WHERE autoload IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $autoload = $wpdb->get_row($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
+            "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(option_value)), 0) AS bytes FROM %i WHERE autoload IN ($placeholders)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is only %s placeholders, one per autoload value
             array_merge([$wpdb->options], $autoload_values)
         ), ARRAY_A);
-        $largest = (array) $wpdb->get_results($wpdb->prepare(
-            "SELECT option_name AS name, LENGTH(option_value) AS bytes FROM %i WHERE autoload IN ($placeholders) ORDER BY LENGTH(option_value) DESC LIMIT 10", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $largest = (array) $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
+            "SELECT option_name AS name, LENGTH(option_value) AS bytes FROM %i WHERE autoload IN ($placeholders) ORDER BY LENGTH(option_value) DESC LIMIT 10", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is only %s placeholders, one per autoload value
             array_merge([$wpdb->options], $autoload_values)
         ), ARRAY_A);
 
-        $tables = $wpdb->get_results($wpdb->prepare(
+        $tables = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- database counts and sizes for the site check the owner runs, on demand, which no WordPress function gives; read as the site is now, so nothing is cached
             'SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_ROWS AS row_estimate, DATA_LENGTH AS data_bytes, INDEX_LENGTH AS index_bytes, DATA_FREE AS free_bytes'
             . ' FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME LIKE %s ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC',
             DB_NAME,

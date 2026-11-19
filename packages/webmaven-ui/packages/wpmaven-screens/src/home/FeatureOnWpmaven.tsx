@@ -23,13 +23,15 @@
  * WordPress, the owner's own account only); nothing is read then.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { OUR_NAME, productName } from '@yotako/wpmaven-onboarding/shared';
 import type { ScreensHost } from '../host/types';
 import { HostLink } from '../host/HostLink';
 import { ScreensHostProvider } from '../host/HostContext';
 import { sectionErrorText } from './SectionState';
+import { FEATURE_COPY, FEATURE_COPY_EN } from './featureCopy';
 
-export const FEATURE_ON_WPMAVEN_EXPLAINER =
-  'We post your business name and its link on WPMaven’s own accounts, only while this box is ticked. Nothing goes out from your own accounts without your approval.';
+/** The line under the box, in English, for importers; the box reads FEATURE_COPY.explainer when it draws. */
+export const FEATURE_ON_WPMAVEN_EXPLAINER = FEATURE_COPY_EN.explainerFor(OUR_NAME);
 
 export interface LaunchShareNote {
   text: string;
@@ -56,17 +58,18 @@ export function launchShareNote(result: unknown, where: 'dashboard' | 'plugin' =
   const wpmavenPosted = !!(str(r.appPostId) || str(r.retweetId));
   const ownPosted = !!str(r.userPostId);
 
+  const c = FEATURE_COPY;
   const parts: string[] = [];
-  if (wpmavenPosted) parts.push('Posted on WPMaven’s X account.');
-  else if (waiting || ownPosted) parts.push('Saved.');
-  else parts.push('Saved. It will be posted when WPMaven’s channel goes live.');
+  if (wpmavenPosted) parts.push(c.postedFor(productName()));
+  else if (waiting || ownPosted) parts.push(c.saved);
+  else parts.push(c.savedLaterFor(productName()));
 
   if (waiting) {
     parts.push(where === 'dashboard'
-      ? 'Your own X launch post is waiting for your approval.'
-      : 'Your own X launch post is waiting for your approval in your WPMaven dashboard, under Your team, then Approvals.');
+      ? c.ownWaiting
+      : c.ownWaitingPluginFor(productName()));
   } else if (ownPosted) {
-    parts.push('Your launch post is on your own X account.');
+    parts.push(c.ownPosted);
   }
 
   const approvalHref = where === 'dashboard' && waiting
@@ -119,13 +122,13 @@ const FeatureOnWpmavenCard: React.FC<FeatureOnWpmavenProps> = ({ host, instanceI
       setStatus((s) => (s ? { ...s, consent: next } : s));
       h.track?.('share', next ? 'feature_on_wpmaven_on' : 'feature_on_wpmaven_off', variant);
       if (!next) {
-        setNote({ text: 'Turned off. WPMaven’s accounts will not post anything new about your business.', approvalHref: null });
+        setNote({ text: FEATURE_COPY.turnedOffFor(productName()), approvalHref: null });
         return;
       }
       const share = await h.transport.post<unknown>(`${base}/x/share`);
       setNote(launchShareNote(share, 'dashboard'));
     } catch (e) {
-      setNote({ text: sectionErrorText(h, e, 'Could not save your choice. Try again.'), approvalHref: null });
+      setNote({ text: sectionErrorText(h, e, FEATURE_COPY.saveFailed), approvalHref: null });
     } finally {
       setBusy(false);
     }
@@ -146,9 +149,9 @@ const FeatureOnWpmavenCard: React.FC<FeatureOnWpmavenProps> = ({ host, instanceI
           style={{ marginTop: 3 }}
         />
         <span style={{ fontSize: size, color: 'var(--text)', lineHeight: 'var(--leading-body)' }}>
-          Feature my business on WPMaven’s channels
+          {FEATURE_COPY.label}
           <span style={{ display: 'block', color: 'var(--text-dim)' }} data-testid="feature-explainer">
-            {FEATURE_ON_WPMAVEN_EXPLAINER} Turn it off here anytime.
+            {FEATURE_COPY.explainer} {FEATURE_COPY.turnOff}
           </span>
         </span>
       </label>
@@ -165,12 +168,12 @@ const FeatureOnWpmavenCard: React.FC<FeatureOnWpmavenProps> = ({ host, instanceI
  * router; from WordPress, the dashboard).
  */
 export const FeatureNote: React.FC<{ note: LaunchShareNote | null; size?: string }> = ({ note, size = 'var(--text-meta)' }) => (
-  <p role="status" aria-live="polite" style={{ margin: note ? '4px 0 0 24px' : 0, fontSize: size, color: 'var(--text-dim)' }}>
+  <p role="status" aria-live="polite" style={{ marginTop: note ? 4 : 0, marginBottom: 0, marginInlineEnd: 0, marginInlineStart: note ? 24 : 0, fontSize: size, color: 'var(--text-dim)' }}>
     {note?.text}
     {note?.approvalHref && (
       <>
         {' '}
-        <HostLink to={note.approvalHref} style={{ color: 'inherit', textDecoration: 'underline' }} testId="feature-approval-link">Review it now</HostLink>
+        <HostLink to={note.approvalHref} style={{ color: 'inherit', textDecoration: 'underline' }} testId="feature-approval-link">{FEATURE_COPY.reviewNow}</HostLink>
       </>
     )}
   </p>

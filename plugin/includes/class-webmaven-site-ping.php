@@ -46,7 +46,7 @@ final class WebMaven_Site_Ping {
         $ok = false;
         if (is_object($wpdb)) {
             $previous = $wpdb->suppress_errors(true);
-            $wpdb->get_var("SELECT ID FROM {$wpdb->posts} LIMIT 1");
+            $wpdb->get_var("SELECT ID FROM {$wpdb->posts} LIMIT 1"); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- a health check: whether the database answers a read, which a cached answer would not show
             $ok = ($wpdb->last_error === '');
             $wpdb->suppress_errors($previous);
         }

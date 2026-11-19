@@ -18,11 +18,16 @@ import { splitTeamNote } from '../approvals/teamNote';
 import { TIKTOK_COPY } from '../approvals/tiktokPost';
 import { NextStepButton, PageButton, ReceiptNote, openPage } from '../approvals/ReceiptNote';
 import { decisionReceipt, type Receipt, type ReceiptTone } from '../approvals/receipts';
-import { HELD_REASK_NOTE, heldReasonBadge, heldReasonLine, heldReasonStep, holdReasonOf } from '../approvals/heldReason';
+import { HELD_REASON_COPY, heldReasonBadge, heldReasonLine, heldReasonStep, holdReasonOf } from '../approvals/heldReason';
 import { packChoiceOfRow } from '../approvals/heldPack';
 import { isVideoChoiceApproval } from '../approvals/videoLabel';
+import { adviceOf, isAdviceApproval } from '../approvals/advice';
 import { SectionHelpTip } from './HelpTip';
 import type { HomePlan } from './reads';
+import { WEEK_PLAN_COPY } from './weekPlanCopy';
+import { formatTag } from '../copyLanguage';
+
+export { WEEK_PLAN_COPY } from './weekPlanCopy';
 
 /**
  * "Your team is on it": this week's expansion of the plan, on the
@@ -35,9 +40,16 @@ import type { HomePlan } from './reads';
  * and one button to Waiting for you, where a site decides by its own rules
  * (money only from the owner's account, TikTok and YouTube in the
  * dashboard). The account's scope decides here, as the dashboard always did.
+ *
+ * Its words are in the page's language (weekPlanCopy.ts), the days as the
+ * browser writes them in it ("Mon" in English).
  */
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** A day of the week's short name in the page's language; 0 is Sunday ("Sun", French "dim."). */
+function dayName(dow: number): string {
+  // 2024-01-07 was a Sunday: day n of the week is 7 + n.
+  return new Intl.DateTimeFormat(formatTag('en-US'), { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 7 + dow)));
+}
 
 function startOfWeekMs(now = new Date()): number {
   const d = new Date(now);
@@ -54,7 +66,7 @@ export function cronWeekday(cadence: string | null): string | null {
   if (m.length !== 5) return null;
   const dow = Number(m[4]);
   if (!Number.isInteger(dow) || dow < 0 || dow > 6) return null;
-  return DAY_NAMES[dow];
+  return dayName(dow);
 }
 
 /** One row of the week, as Home draws it. */
@@ -78,20 +90,12 @@ export interface WeekRow {
 }
 type Row = WeekRow;
 
-export const WEEK_PLAN_COPY = {
-  heading: 'Your team is on it',
-  helpLabel: 'How does approving work?',
-  /** In a site's scope, where Approve was: a site decides in Waiting for you. */
-  openWaiting: 'Decide in Waiting for you',
-  decideFailed: 'That did not save. Your team page has the full inbox.',
-};
-
 /** The title of a held row with no task: what waits, and for what. */
 function heldTitle(a: OperatorApproval, site: boolean): string {
   const reason = holdReasonOf(a);
-  if (reason === 'long_form_limit') return 'A page or article is waiting for room this month';
-  if (reason === 'publishes_day_8') return 'A page or article publishes when your plan starts';
-  return site ? 'A change to your site is waiting for actions' : 'A post is waiting for actions';
+  if (reason === 'long_form_limit') return WEEK_PLAN_COPY.heldLongForm;
+  if (reason === 'publishes_day_8') return WEEK_PLAN_COPY.heldFirstWeek;
+  return site ? WEEK_PLAN_COPY.heldSiteChange : WEEK_PLAN_COPY.heldPost;
 }
 
 /** A pending approval that changes the site (API changesSite), rather than a post to publish. */
@@ -196,7 +200,7 @@ export function weekPlanHref(instanceId: string | null | undefined): string {
 
 /** The link beside the heading: how many there are when some are left out. */
 export function weekPlanSeeAllLabel(total: number, shown: number): string {
-  return total > shown ? `See all ${total} in Your team` : 'See everything in Your team';
+  return total > shown ? WEEK_PLAN_COPY.seeAll(total) : WEEK_PLAN_COPY.seeEverything;
 }
 
 /**
@@ -267,8 +271,8 @@ export function deriveRows(plan: Pick<HomePlan, 'tasks'> | null, approvals: Oper
       operatorId: t.operatorId,
       status,
       when: status === 'done'
-        ? (lastRun ? DAY_NAMES[new Date(lastRun).getDay()] : null)
-        : day ?? (next ? DAY_NAMES[next.getDay()] : null),
+        ? (lastRun ? dayName(new Date(lastRun).getDay()) : null)
+        : day ?? (next ? dayName(next.getDay()) : null),
       approval: pending,
       moreWaiting: Math.max(0, pendingList.length - 1),
     });
@@ -278,10 +282,11 @@ export function deriveRows(plan: Pick<HomePlan, 'tasks'> | null, approvals: Oper
   for (const a of approvals) {
     if (a.status !== 'PENDING') continue;
     if (a.operatorTaskId && rows.some((r) => r.key === a.operatorTaskId)) continue;
+    const advice = adviceOf(a);
     rows.push({
       key: `approval-${a.id}`,
-      icon: isSiteChange(a) ? '🛠' : '📣',
-      title: a.task?.title ?? (isSiteChange(a) ? 'A change to your site' : 'A post is ready for your approval'),
+      icon: advice ? '💡' : isSiteChange(a) ? '🛠' : '📣',
+      title: advice ? advice.title : a.task?.title ?? (isSiteChange(a) ? WEEK_PLAN_COPY.siteChange : WEEK_PLAN_COPY.postReady),
       operatorId: a.operatorId,
       status: 'awaiting',
       when: null,
@@ -323,7 +328,7 @@ export function deriveRows(plan: Pick<HomePlan, 'tasks'> | null, approvals: Oper
       icon: site ? '🛠' : '📣',
       title: a.task?.title ?? (deferred
         ? heldTitle(a, site)
-        : (site ? 'A change to your site failed' : 'A publish failed')),
+        : (site ? WEEK_PLAN_COPY.siteChangeFailed : WEEK_PLAN_COPY.publishFailed)),
       operatorId: a.operatorId,
       status: deferred ? 'deferred' : 'failed',
       when: null,
@@ -341,12 +346,12 @@ export function deriveRows(plan: Pick<HomePlan, 'tasks'> | null, approvals: Oper
  * caption &amp; tags" was prefilled with its markers and its entity.
  */
 export function refinePrefill(taskTitle: unknown): string {
-  return `About "${toPlainLine(taskTitle)}": `;
+  return WEEK_PLAN_COPY.refinePrefill(toPlainLine(taskTitle));
 }
 
 /** The link to the rest of a task's approvals: "1 more is waiting for your yes". */
 export function moreWaitingLabel(n: number): string {
-  return n === 1 ? '1 more is waiting for your yes' : `${n} more are waiting for your yes`;
+  return WEEK_PLAN_COPY.moreWaiting(n);
 }
 
 /** A press on a held row's way out ended (bought and sent, the secure payment page, refused). */
@@ -395,8 +400,8 @@ export const RowAnswer: React.FC<{
       {row.status === 'deferred' && receipt?.tone !== 'waiting' && (
         <p data-testid="week-held-line" style={{ margin: '6px 0 0', fontSize: 'var(--text-data)', color: 'var(--text-dim)', lineHeight: 'var(--leading-body)' }}>
           {(held && (packChoice?.text ?? heldReasonLine(held))) ?? `${row.siteChange
-            ? 'You approved this. It is not lost: your team makes this change by itself as soon as actions come back.'
-            : 'You approved this. It is not lost: it publishes by itself as soon as actions come back.'}${held?.goesToTikTok ? '' : ` ${HELD_REASK_NOTE}`}`}
+            ? WEEK_PLAN_COPY.heldLineChange
+            : WEEK_PLAN_COPY.heldLinePost}${held?.goesToTikTok ? '' : ` ${HELD_REASON_COPY.reask}`}`}
         </p>
       )}
       {/* What unlocks it, straight to it: the pack, Start my month now, or
@@ -419,12 +424,6 @@ const ROW_PRESENCE: Record<Row['status'], OperatorPresence> = {
   done: 'done', running: 'working', awaiting: 'waiting', scheduled: 'queued', failed: 'failed', deferred: 'still', paused: 'still',
 };
 
-const STATUS_LABEL: Record<Row['status'], string> = {
-  done: '✓ done', running: 'running', awaiting: 'awaiting your approval', scheduled: 'scheduled',
-  failed: 'failed · details in Your team',
-  deferred: 'Paused, out of actions',
-  paused: 'paused, not scheduled',
-};
 
 /** The decision call: the host's own (the dashboard's service), else the API's decide on the transport. */
 function decideCall(host: ScreensHost | null, id: string, approved: boolean): Promise<DecideResult> {
@@ -580,10 +579,7 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
             topic="approvals"
             label={WEEK_PLAN_COPY.helpLabel}
           >
-            Nothing is published and nothing on your site changes until you
-            approve it. Reject it and your team does something else. To
-            change the words of a post, refine it and say what to change. For a
-            change to your site, reject it and tell your Co-CEO what you want instead.
+            {WEEK_PLAN_COPY.helpText}
           </SectionHelpTip>
         </div>
         {/* Always beside the heading, and it says how many there are when
@@ -615,13 +611,26 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                 fontSize: 'var(--text-meta)', fontWeight: 600,
                 color: r.status === 'awaiting' || r.status === 'deferred' ? 'var(--warning)' : 'var(--text-dim)',
               }}>
-                {r.status === 'deferred' && r.held ? heldReasonBadge(r.held) : STATUS_LABEL[r.status]}{r.when && r.status !== 'awaiting' ? ` · ${r.when}` : ''}
+                {r.status === 'deferred' && r.held ? heldReasonBadge(r.held) : WEEK_PLAN_COPY.status[r.status]}{r.when && r.status !== 'awaiting' ? ` · ${r.when}` : ''}
               </span>
             </div>
 
             <RowAnswer row={r} receipt={receipt && receipt.rowKey === r.key ? receipt.receipt : null} onHeldPack={onHeldPack(r.key, i)} />
 
-            {r.approval && (
+            {r.approval && isAdviceApproval(r.approval) && (
+              // Advice: nothing to approve here. What to do, and its card with the steps.
+              <div style={{ marginTop: 8 }} data-testid="week-advice">
+                {adviceOf(r.approval)?.summary && (
+                  <p style={{ margin: '0 0 8px', fontSize: 'var(--text-body)', lineHeight: 'var(--leading-body)', color: 'var(--text)' }}>
+                    {adviceOf(r.approval)?.summary}
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <PageButton to="/waiting" source="home_week">{WEEK_PLAN_COPY.openAdvice}</PageButton>
+                </div>
+              </div>
+            )}
+            {r.approval && !isAdviceApproval(r.approval) && (
               <div style={{ marginTop: 8 }}>
                 {/* What saying yes does, in the owner's words (the API's
                     sentence): for a change to the site this is the only
@@ -656,7 +665,7 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                   if (!text) return null;
                   return (
                     <blockquote style={{
-                      margin: '0 0 10px', padding: '10px 12px', borderLeft: '3px solid var(--glass-border)',
+                      margin: '0 0 10px', padding: '10px 12px', borderInlineStart: '3px solid var(--glass-border)',
                       fontSize: 'var(--text-body)', lineHeight: 'var(--leading-body)',
                       color: 'var(--text)', whiteSpace: 'pre-wrap',
                     }}>
@@ -668,7 +677,7 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                           onClick={() => setExpanded(expanded === r.key ? null : r.key)}
                           style={{ background: 'none', border: 'none', padding: '4px 6px', cursor: 'pointer', fontSize: 'var(--text-data)', color: 'var(--text-mid)', minHeight: 30 }}
                         >
-                          {expanded === r.key ? 'less' : 'more'}
+                          {expanded === r.key ? WEEK_PLAN_COPY.less : WEEK_PLAN_COPY.more}
                         </button>
                       )}
                     </blockquote>
@@ -693,7 +702,7 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                     ? <>{host.renderers.videoChoiceRoute(r.approval)}</>
                     : (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }} data-testid="video-choice-route">
-                        <PageButton to={approvalPath(r.approval.id)} source="home_week">Choose your video</PageButton>
+                        <PageButton to={approvalPath(r.approval.id)} source="home_week">{WEEK_PLAN_COPY.chooseVideo}</PageButton>
                       </div>
                     )
                 ) : needsYouTubeChoice(r.approval) ? (
@@ -712,7 +721,7 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                     </Button>
                     <Button size="sm" variant="outline" disabled={deciding != null}
                       onClick={() => decide(r.approval!, false, r.key, i)}>
-                      Reject
+                      {WEEK_PLAN_COPY.reject}
                     </Button>
                     <span style={{ fontSize: 'var(--text-data)', color: 'var(--text-dim)' }}>
                       {CARD_ONLY_COPY.routeFirst}
@@ -727,11 +736,11 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                       disabled={deciding != null}
                       onClick={() => decide(r.approval!, true, r.key, i)}
                     >
-                      Approve
+                      {WEEK_PLAN_COPY.approve}
                     </Button>
                     <Button size="sm" variant="outline" disabled={deciding != null}
                       onClick={() => decide(r.approval!, false, r.key, i)}>
-                      Reject
+                      {WEEK_PLAN_COPY.reject}
                     </Button>
                     {/* Refine asks for different words, so it is offered where
                         Team and Waiting for you offer Request changes. A change
@@ -740,7 +749,7 @@ export const WeekPlan: React.FC<WeekPlanProps> = ({
                     {canRequestChanges(r.approval) && onRefine && (
                       <Button size="sm" variant="outline" disabled={deciding != null}
                         onClick={() => onRefine(r.title)}>
-                        Refine
+                        {WEEK_PLAN_COPY.refine}
                       </Button>
                     )}
                   </div>

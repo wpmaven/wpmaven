@@ -101,7 +101,7 @@ class WebMaven_REST_API {
 			$result['meta_title'] = get_the_title( $post_id );
 		}
 
-		$content               = apply_filters( 'the_content', $post->post_content );
+		$content               = apply_filters( 'the_content', $post->post_content ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress's own filter, to read the post as the site shows it
 		$result['post_title']  = get_the_title( $post_id );
 		$result['post_excerpt'] = $post->post_excerpt;
 		$result['word_count']  = str_word_count( wp_strip_all_tags( $content ) );
@@ -268,7 +268,7 @@ class WebMaven_REST_API {
 			$item['status'] = 'draft';
 		}
 		if ( $p->post_type === 'page' ) {
-			$wm_page = (string) get_post_meta( $p->ID, '_wm_page', true );
+			$wm_page = (string) get_post_meta( $p->ID, '_webmaven_page', true );
 			if ( $wm_page !== '' ) {
 				$item['wm_page'] = $wm_page;
 			}

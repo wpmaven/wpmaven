@@ -11,11 +11,16 @@
  * how a cross-post to TikTok once looked like it targeted nothing, and got a
  * one-click Approve.
  *
- * No runtime imports but the product's name: this module is loaded by the
- * node unit tests as well as by the apps.
+ * The headings and sentences an approval says are in the page's language
+ * (CARD_ONLY_COPY, PUBLISH_HEADINGS, PUBLISH_WORDS; French in
+ * src/i18n/fr.json), read when a card is drawn.
+ *
+ * No runtime imports but the product's name and the kit's language helper:
+ * this module is loaded by the node unit tests as well as by the apps.
  */
 
 import type { OperatorApproval } from './types';
+import { localized } from '@yotako/webmaven-ui';
 import { productName } from '@yotako/wpmaven-onboarding/shared';
 
 /** The networks crosspost_video uploads the file to. */
@@ -43,13 +48,23 @@ export function approvalNeedsCard(a: { approveOnCard?: boolean | null }): boolea
   return a.approveOnCard === true;
 }
 
-/** What Home says beside the button to the card of such a change. */
-export const CARD_ONLY_COPY = {
+/** What Home says beside the button to the card of such a change (namespace 'screensCardOnly'). */
+export const CARD_ONLY_COPY_EN = {
+  /**
+   * On Home's week plan, the button to the approval card of a change to the
+   * website that plain words cannot fully describe (a database change): the
+   * owner approves it on its card, where all of it is shown.
+   */
   routeButton: 'Review and approve',
+  /** Beside that button: why it opens the card; {0} the product's name. */
+  routeFirstFor: (product: string) => `${product} cannot put all of this change into words, so you approve it on its card, where the whole change is shown.`,
+  /** routeFirstFor with the product's name (not a text of its own; read through CARD_ONLY_COPY, it is in the page's language). */
   get routeFirst(): string {
-    return `${productName()} cannot put all of this change into words, so you approve it on its card, where the whole change is shown.`;
+    return this.routeFirstFor(productName());
   },
 } as const;
+
+export const CARD_ONLY_COPY = localized(CARD_ONLY_COPY_EN, 'screensCardOnly');
 
 function asObject(params: unknown): Record<string, unknown> | null {
   if (!params || typeof params !== 'object' || Array.isArray(params)) return null;
@@ -110,7 +125,7 @@ export function networkName(id: string): string {
 
 function andList(items: string[]): string {
   if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  return PUBLISH_WORDS.and(items.slice(0, -1).join(', '), items[items.length - 1]);
 }
 
 /** A video file by extension (the API's VIDEO_URL_RE). */
@@ -160,15 +175,47 @@ export function approvalGoesToYouTube(a: TargetSource): boolean {
  * TikTok. So a video that goes to TikTok alone is headed "A video for
  * TikTok", straight above the Post to TikTok screen, and a video for several
  * networks is "Share a video". Null for a tool that is not a publishing one.
+ * One heading per tool (namespace 'screensPublishHeadings').
  */
-export const PUBLISH_HEADINGS: Readonly<Record<string, string>> = {
+export const PUBLISH_HEADINGS_EN = {
+  /** An approval card's heading: a post to X (formerly Twitter). */
   social_post: 'Post to X',
+  /** An approval card's heading: a post to one or more of the owner's social network accounts. */
   social_publish: 'Publish to social networks',
+  /** An approval card's heading: a video shared to several of the owner's networks. */
   crosspost_video: 'Share a video',
+  /** An approval card's heading: a reply to a customer's message. */
   social_reply_message: 'Reply to a customer',
 };
 
-export const TIKTOK_ONLY_HEADING = 'A video for TikTok';
+export const PUBLISH_HEADINGS: Readonly<Record<string, string>> = localized(PUBLISH_HEADINGS_EN, 'screensPublishHeadings');
+
+/**
+ * The words of a publishing approval that are not a tool's heading: the
+ * heading of a video for TikTok alone, and what the approval does, naming its
+ * networks (namespace 'screensPublishWords').
+ */
+export const PUBLISH_WORDS_EN = {
+  /** An approval card's heading: a video that goes to TikTok only. */
+  tiktokOnly: 'A video for TikTok',
+  /**
+   * Under the heading: a video posted to some networks, then a link to it
+   * shared on others; {0} the video's networks ("TikTok and YouTube"), {1}
+   * the networks the link goes to.
+   */
+  videoThenLink: (to: string, links: string) => `Posts this video to ${to}, then shares a link to it on ${links}.`,
+  /** Under the heading: a video posted to networks; {0} the networks ("TikTok, Instagram and YouTube"). */
+  video: (to: string) => `Posts this video to ${to}.`,
+  /** Under the heading: a post (text or picture) to networks; {0} the networks ("Facebook and Instagram"). */
+  posts: (to: string) => `Posts to ${to}.`,
+  /** The last two names of a list of networks; {0} the names before ("TikTok, Instagram"), {1} the last name. */
+  and: (most: string, last: string) => `${most} and ${last}`,
+};
+
+export const PUBLISH_WORDS = localized(PUBLISH_WORDS_EN, 'screensPublishWords');
+
+/** "A video for TikTok" in English, for importers; a card reads PUBLISH_WORDS.tiktokOnly when it draws. */
+export const TIKTOK_ONLY_HEADING = PUBLISH_WORDS_EN.tiktokOnly;
 
 export function publishHeading(a: TargetSource): string | null {
   const toolName = a.toolName ?? '';
@@ -176,7 +223,7 @@ export function publishHeading(a: TargetSource): string | null {
   if (!known) return null;
   if (toolName === 'crosspost_video' || toolName === 'social_publish') {
     const targets = approvalTargets(a);
-    if (targets.length > 0 && targets.every((t) => t === 'tiktok')) return TIKTOK_ONLY_HEADING;
+    if (targets.length > 0 && targets.every((t) => t === 'tiktok')) return PUBLISH_WORDS.tiktokOnly;
   }
   return known;
 }
@@ -200,8 +247,8 @@ export function publishSentence(a: TargetSource): string | null {
     const links = hasLinkPost ? names(lowerList(p.linkPlatforms).filter((x) => LINK_NETWORKS.includes(x))) : [];
     const to = andList(names(video));
     return links.length
-      ? `Posts this video to ${to}, then shares a link to it on ${andList(links)}.`
-      : `Posts this video to ${to}.`;
+      ? PUBLISH_WORDS.videoThenLink(to, andList(links))
+      : PUBLISH_WORDS.video(to);
   }
   const all = names(approvalTargets(a));
   if (all.length === 0) return null;
@@ -209,7 +256,7 @@ export function publishSentence(a: TargetSource): string | null {
   // Our render counts as a video without its `.mp4` too: the API takes such
   // a finished render as the TikTok video.
   const video = media.some((u) => typeof u === 'string' && readsAsVideo(u.trim()));
-  return video ? `Posts this video to ${andList(all)}.` : `Posts to ${andList(all)}.`;
+  return video ? PUBLISH_WORDS.video(andList(all)) : PUBLISH_WORDS.posts(andList(all));
 }
 
 /**

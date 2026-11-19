@@ -70,7 +70,7 @@ final class WebMaven_Leads_Privacy {
             return ['data' => [], 'done' => true];
         }
         global $wpdb;
-        $rows = $wpdb->get_results($wpdb->prepare(
+        $rows = $wpdb->get_results($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; an export or erasure for one person reads the table as it is now
             'SELECT * FROM %i WHERE email = %s ORDER BY id ASC LIMIT %d OFFSET %d',
             WebMaven_Leads::table(),
             $email,
@@ -121,7 +121,7 @@ final class WebMaven_Leads_Privacy {
         }
         global $wpdb;
         $unseen = WebMaven_Leads::count_unseen();
-        $ids = $wpdb->get_col($wpdb->prepare(
+        $ids = $wpdb->get_col($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- WPMaven's own messages table, which no WordPress function reads or writes; an export or erasure for one person reads the table as it is now
             'SELECT id FROM %i WHERE email = %s ORDER BY id ASC LIMIT %d',
             WebMaven_Leads::table(),
             $email,

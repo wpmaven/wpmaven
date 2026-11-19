@@ -1,13 +1,23 @@
 /**
- * The rules of the Post to TikTok screen, with no React in them.
+ * The Post to TikTok screen (an approval's own step, before a video goes to
+ * the owner's TikTok account) and the words around a TikTok post: who can
+ * see it, the commercial content disclosure, the caption, the length check,
+ * the declaration above the button, a post waiting for the plan's actions,
+ * and what TikTok answered. TikTok's own sentences are translated, keeping
+ * TikTok's product and policy names as TikTok writes them in that language.
  *
- * TikTok's Content Sharing Guidelines
- * (https://developers.tiktok.com/docs/en/content-sharing-guidelines, "Last
- * updated August 4, 2026") say exactly what this screen must show, what starts
- * unchecked, what is greyed out and when the post button may be pressed. Each
- * of those decisions is a function here so it can be tested on its own
- * (the dashboard's components/connect/__tests__/tiktokPost.node.test.ts) and
- * so the component that draws the screen only draws it. In this package
+ * English is the source; the French is written by hand (src/i18n/fr.json,
+ * namespaces screensTikTokPost, screensTikTokScreen, screensTikTokPrivacy,
+ * screensTikTokDeclarations and screensTikTokMissing), the other languages
+ * by the dashboard's translation script.
+ *
+ * The rules of the screen, with no React in them. TikTok's Content Sharing
+ * Guidelines (https://developers.tiktok.com/docs/en/content-sharing-guidelines,
+ * "Last updated August 4, 2026") say exactly what this screen must show, what
+ * starts unchecked, what is greyed out and when the post button may be
+ * pressed. Each of those decisions is a function here so it can be tested on
+ * its own (the dashboard's components/connect/__tests__/tiktokPost.node.test.ts)
+ * and so the component that draws the screen only draws it. In this package
  * since 2026-10-16 (the dashboard's file re-exports it): the approval card
  * says its sentences in both apps.
  *
@@ -16,14 +26,17 @@
  * keeps the owner from pressing a button the server will refuse; it is not the
  * enforcement.
  *
- * No runtime imports on purpose: the node unit tests load this file directly.
+ * No runtime imports but the product's name and the kit's language helper,
+ * on purpose: the node unit tests load this file directly.
  */
 
 import type {
   DecideResult, TikTokConsentInput, TikTokDeclarationId, TikTokDraftInput, TikTokPostScreenReady,
   TikTokPrivacyLevel, TikTokPublishState, OperatorApproval,
 } from './types';
+import { localized } from '@yotako/webmaven-ui';
 import { postingApp, productName } from '@yotako/wpmaven-onboarding/shared';
+import { formatTag } from '../copyLanguage';
 
 // ── Copy ────────────────────────────────────────────────────────────────
 //
@@ -36,146 +49,294 @@ export const TIKTOK_TITLE_MAX_UTF16 = 2200;
 export const MUSIC_USAGE_URL = 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
 export const BRANDED_CONTENT_POLICY_URL = 'https://www.tiktok.com/legal/page/global/bc-policy/en';
 
-export const TIKTOK_COPY = {
+/** The Post to TikTok screen's sentences, and a TikTok post's around it (namespace 'screensTikTokPost'). */
+export const TIKTOK_COPY_EN = {
   /**
    * Said before the owner disconnects TikTok. The API deletes the connection
-   * and then asks TikTok to revoke WPMaven's access (best effort), which
-   * takes WPMaven off the account's app permissions in TikTok, so the next
-   * connect shows TikTok's permission page again.
+   * and then asks TikTok to revoke the app's access (best effort), which
+   * takes it off the account's app permissions in TikTok, so the next
+   * connect shows TikTok's permission page again. {0} the posting app's name
+   * as TikTok shows it ("WPMaven", or "our posting app" on a branded address).
    */
+  disconnectNoteFor: (app: string) => `We also ask TikTok to remove ${app} from your TikTok app permissions, so connecting again shows TikTok's permission page.`,
+  /** disconnectNoteFor with the posting app's name (not a text of its own). */
   get disconnectNote(): string {
-    return `We also ask TikTok to remove ${postingApp()} from your TikTok app permissions, so connecting again shows TikTok's permission page.`;
+    return this.disconnectNoteFor(postingApp());
   },
   /**
-   * Word for word the API's TIKTOK_TEXT.unauditedNotice:
-   * the rule, how to share a video now, and that the limit ends by itself. A
-   * private account is never offered Everyone, so sharing means making the
-   * account public first; and nothing says a video turns public on its own.
+   * Above the screen while TikTok has not approved the app for public posts
+   * (word for word the API's TIKTOK_TEXT.unauditedNotice): the rule, how to
+   * share a video now, and that the limit ends by itself. "Only you" and
+   * "Everyone" are TikTok's audience names. {0} the posting app's name, twice.
    */
+  unauditedNoticeFor: (app: string) => `TikTok has not approved ${app} for public posting yet, so for now it only takes posts from private accounts, and this video is posted as Only you. To share it now, after it posts, set your TikTok account to public and change who can watch the video to Everyone. Once TikTok approves ${app}, this limit lifts automatically: your account can stay public and you choose Everyone right here.`,
+  /** unauditedNoticeFor with the posting app's name (not a text of its own). */
   get unauditedNotice(): string {
-    return `TikTok has not approved ${postingApp()} for public posting yet, so for now it only takes posts from private accounts, and this video is posted as Only you. To share it now, after it posts, set your TikTok account to public and change who can watch the video to Everyone. Once TikTok approves ${postingApp()}, this limit lifts automatically: your account can stay public and you choose Everyone right here.`;
+    return this.unauditedNoticeFor(postingApp());
   },
   /**
-   * TikTok's whole list is selectable (guideline 2b); while WPMaven is not yet
-   * approved, the button says which one can actually be posted.
+   * Beside the disabled button while the app is not approved yet and the
+   * owner chose another audience: the one that can be posted. "Only you
+   * (private)" is the audience's label on this screen. {0} the posting app's name.
    */
+  privacyNeedsAuditFor: (app: string) => `Until TikTok approves ${app}, choose "Only you (private)" to post.`,
+  /** privacyNeedsAuditFor with the posting app's name (not a text of its own). */
   get privacyNeedsAudit(): string {
-    return `Until TikTok approves ${postingApp()}, choose "Only you (private)" to post.`;
+    return this.privacyNeedsAuditFor(postingApp());
   },
   /**
-   * Branded content ticked before the audit. "Only you" is the one audience
-   * an unaudited app may post to and the one branded content may not use (it
-   * is greyed out, 3b), so the way to post now is to turn Branded content off.
-   * Word for word the API's refusal (TIKTOK_TEXT.brandedNeedsAudit).
+   * Branded content ticked before TikTok approves the app: "Only you" is the
+   * one audience it may post to, and branded content cannot be private, so
+   * the way to post now is to turn Branded content off (word for word the
+   * API's refusal). {0} the posting app's name.
    */
+  brandedNeedsAuditFor: (app: string) => `Until TikTok approves ${app}, only "Only you (private)" posts can be sent, and branded content cannot be private. Turn off Branded content to post now.`,
+  /** brandedNeedsAuditFor with the posting app's name (not a text of its own). */
   get brandedNeedsAudit(): string {
-    return `Until TikTok approves ${postingApp()}, only "Only you (private)" posts can be sent, and branded content cannot be private. Turn off Branded content to post now.`;
+    return this.brandedNeedsAuditFor(postingApp());
   },
-  /** Only for an older API that still marks a level unavailable. */
+  /** After an audience an older API marks unavailable, in brackets. */
   unavailableFallback: 'Not available for this account',
+  /** Under Branded content when it cannot be ticked: the audience chosen is "Only you". */
   brandedPrivate: "Branded content can't be private. Choose another audience to select it.",
-  /** TikTok's hover text on the disabled "only me" option (3b). */
+  /** TikTok's hover text on the disabled "only me" audience while Branded content is ticked (TikTok's own sentence, translated). */
   selfOnlyBrandedHover: 'Branded content visibility cannot be set to private.',
-  /** TikTok's hover text on the disabled publish button (3a). */
+  /** TikTok's hover text on the disabled post button while the disclosure is on and nothing is ticked (TikTok's own sentence, translated). */
   disclosureIncomplete: 'You need to indicate if your content promotes yourself, a third party, or both.',
+  /** The audience picker's label. */
   privacyLabel: 'Who can see this video',
+  /** The audience picker before a choice (TikTok forbids a default). */
   privacyPlaceholder: 'Select who can see this',
+  /** Beside Comment, Duet or Stitch when the creator turned it off in TikTok. */
   interactionOff: 'Turned off for this TikTok account',
+  /** The switch that discloses commercial content (TikTok's setting, as TikTok names it in this language). */
   disclosureSwitch: 'Disclose commercial content',
+  /** Under that switch. */
   disclosureHelper: 'Turn this on if this video promotes yourself, a brand, a product or a service.',
+  /** A disclosure box (TikTok's own name for it, as TikTok writes it in this language). */
   yourBrand: 'Your brand',
+  /** Under Your brand. */
   yourBrandHelper: 'You are promoting yourself or your own business.',
+  /** A disclosure box (TikTok's own name for it, as TikTok writes it in this language). */
   brandedContent: 'Branded content',
+  /** Under Branded content. */
   brandedContentHelper: 'You are promoting another brand or a third party.',
   /**
-   * TikTok's prompts, word for word from the Content Sharing Guidelines (3a),
-   * "photo/video" included, so a reviewer comparing strings finds no
-   * difference. WPMaven posts videos only.
+   * TikTok's prompt once Your brand is ticked, word for word from its
+   * Content Sharing Guidelines, "photo/video" included; the label in quotes
+   * is TikTok's own, as TikTok writes it in this language.
    */
   promptPromotional: "Your photo/video will be labeled as 'Promotional content'",
+  /** TikTok's prompt once Branded content is ticked; the label in quotes is TikTok's own, as TikTok writes it in this language. */
   promptPaidPartnership: "Your photo/video will be labeled as 'Paid partnership'",
-  /** TikTok's checklist calls it "Title" (2a). */
+  /** The caption field's label: TikTok's checklist calls it "Title". */
   captionLabel: 'Title',
+  /** Under the caption field. */
   captionHelper: 'This is exactly what TikTok will show as the caption. Hashtags and mentions work here.',
+  /** A video the team made with AI: TikTok's label is always on. */
   aiLocked: 'TikTok will label this video as AI-generated.',
+  /** The owner's own box for a video made with AI. */
   aiOwnerChoice: 'This video was made with AI. TikTok will label it as AI-generated.',
+  /** After the post is sent, while TikTok processes it. */
   processingNotice: 'Sent to TikTok. It may take a few minutes to process and appear on your profile.',
+  /** Above the button, before the post is sent. */
   processingAhead: 'After you post, it may take a few minutes for TikTok to process the video and show it on your profile.',
+  /** Staff viewing the account as its owner cannot post for them. */
   staffRefusal: "TikTok posts need the owner's own consent",
+  /** Beside the disabled button: the audience comes first. */
   choosePrivacyFirst: 'Choose who can see this video first.',
-  /** Some phones load nothing until play is pressed, so the length never arrives on its own. */
+  /** While the video's length is checked; some phones load nothing until play is pressed. */
   videoLoading: "Checking the video's length against what TikTok allows. If this does not change, press play on the video once.",
-  videoUnreadable:
-    'This video could not be loaded here, so its length cannot be checked against what TikTok allows. Check again, or ask for changes.',
+  /** The video could not be loaded on the screen. */
+  videoUnreadable: 'This video could not be loaded here, so its length cannot be checked against what TikTok allows. Check again, or ask for changes.',
+  /** TikTok did not say the account's longest video. */
   maxUnknown: 'TikTok did not say how long a video this account can post. Check again.',
+  /** TikTok did not say which account the post goes to. */
   accountUnknown: 'TikTok did not say which account this would post to. Check again.',
+  /** The audience chosen is not offered for this account any more. */
   privacyUnavailable: 'That audience is not available for this TikTok account. Choose another one.',
-  // The 24 hour limit is OURS, not TikTok's: TIKTOK_CONSENT_TTL_MS in the API's
-  // tiktokConsent.ts. It exists so a post is always checked against what the
-  // account allows now rather than yesterday. Saying TikTok requires it hands
-  // our own policy to them, and it is the sentence a reviewer reads in the
-  // Direct Post audit demo. (routeFirst below is a different matter: choosing
-  // the audience before posting really is TikTok's rule.)
+  /**
+   * A TikTok post approved while the plan's actions are used up: it waits.
+   * The 24 hours are OUR rule (the API's TIKTOK_CONSENT_TTL_MS), never
+   * TikTok's: never say TikTok asks again. {0} the product's name.
+   */
+  heldTikTokFor: (product: string) => `You approved this. If your actions come back within 24 hours, it posts by itself; after that ${product} expires your confirmation and asks you again here, against your account settings at that moment. You can cancel it until it goes out.`,
+  /** heldTikTokFor with the product's name (not a text of its own). */
   get heldTikTok(): string {
-    return `You approved this. If your actions come back within 24 hours, it posts by itself; after that ${productName()} expires your confirmation and asks you again here, against your account settings at that moment. You can cancel it until it goes out.`;
+    return this.heldTikTokFor(productName());
   },
-  // The owner's way out of a held post (guideline 5: full awareness and
-  // control of what is posted). The API closes it and clears the consent.
+  /** The owner's way out of a waiting post (button). */
   cancelHeldButton: 'Cancel this TikTok post',
+  /** The cancel confirm's title. */
   cancelHeldTitle: 'Cancel this TikTok post?',
+  /** The cancel confirm's button. */
   cancelHeldConfirm: 'Cancel the post',
+  /** The cancel confirm's button that keeps the post waiting. */
   cancelHeldKeep: 'Keep it waiting',
+  /** A canceled post's badge (American spelling in English). */
   cancelledBadge: 'Canceled',
+  /** On a canceled post's card. */
   cancelledLine: 'You canceled this before it went out. Nothing was posted, to TikTok or anywhere else.',
+  /** Right after the cancel. */
   cancelledNotice: 'Canceled. Nothing was posted, to TikTok or anywhere else, and it will not go out when your actions come back.',
-  /** The visible title of the screen: TikTok's guidelines call it the "Post to TikTok page". */
+  /** The screen's visible title: TikTok's guidelines call it the "Post to TikTok page". */
   screenTitle: 'Post to TikTok',
+  /** On Home, beside the button to the screen: choosing the settings first is TikTok's rule. */
   routeFirst: 'TikTok asks you to choose the post settings first.',
   /** A refusal the API sent without a sentence of its own. */
   notSent: 'Nothing was sent to TikTok.',
+  /** On Home: the button to the Post to TikTok screen. */
   routeButton: 'Review and post to TikTok',
-  // Send to TikTok drafts (video.upload).
+  /** The heading of the other way: finishing the post in TikTok's own app (Send to TikTok drafts). */
   draftHeading: 'Or finish it in TikTok',
+  /** The button that sends the video to the owner's TikTok drafts (inbox). */
   draftButton: 'Send to TikTok drafts',
-  draftNotice:
-    'TikTok puts the video in your TikTok inbox. Open the notification in the TikTok app to finish it there: write the caption, choose who can see it, add sound or effects, and post it. The settings above are not used.',
+  /** What sending to drafts does. */
+  draftNotice: 'TikTok puts the video in your TikTok inbox. Open the notification in the TikTok app to finish it there: write the caption, choose who can see it, add sound or effects, and post it. The settings above are not used.',
+  /** After sending to drafts. */
   draftInbox: 'Sent to your TikTok inbox. Open the notification in the TikTok app to finish the post there and publish it.',
+  /** A draft the owner posted from TikTok. */
   draftPosted: 'You posted this video from your TikTok drafts.',
-  // The action allowance, said before the press (guideline 5c: nothing is
-  // sent before the owner agrees, and they should know when it will be).
+  /**
+   * Before the press, when the plan's actions are used up: nothing goes to
+   * TikTok yet, it waits up to 24 hours (our rule, never TikTok's). {0} the
+   * product's name.
+   */
+  actionsEmptyFor: (product: string) => `Your actions for this period are used up. If you post now, nothing goes to TikTok yet: it waits and is sent by itself when your actions come back, as long as that is within 24 hours. After that, ${product} asks you again here. You can cancel it while it waits.`,
+  /** actionsEmptyFor with the product's name (not a text of its own). */
   get actionsEmpty(): string {
-    return `Your actions for this period are used up. If you post now, nothing goes to TikTok yet: it waits and is sent by itself when your actions come back, as long as that is within 24 hours. After that, ${productName()} asks you again here. You can cancel it while it waits.`;
+    return this.actionsEmptyFor(productName());
   },
-  /** A failed payment: nothing was used up, and the card, not the reset, lets it go. */
+  /**
+   * Before the press, after a failed payment: nothing was used up, and the
+   * card, not the reset, lets it go (our 24 hours, never TikTok's). {0} the
+   * product's name.
+   */
+  actionsPaymentFailedFor: (product: string) => `Your last payment did not go through, so your plan's actions are paused. If you post now, nothing goes to TikTok yet: it waits and is sent by itself once your card is updated and the payment goes through, as long as that is within 24 hours. After that, ${product} asks you again here. You can cancel it while it waits.`,
+  /** actionsPaymentFailedFor with the product's name (not a text of its own). */
   get actionsPaymentFailed(): string {
-    return `Your last payment did not go through, so your plan's actions are paused. If you post now, nothing goes to TikTok yet: it waits and is sent by itself once your card is updated and the payment goes through, as long as that is within 24 hours. After that, ${productName()} asks you again here. You can cancel it while it waits.`;
+    return this.actionsPaymentFailedFor(productName());
   },
+  /** A link to the posted video on TikTok. */
   viewOnTikTok: 'View on TikTok',
+  /** A link to the post's numbers. */
   seeNumbers: 'See TikTok numbers',
 } as const;
 
-/** TikTok's enum is not self-explanatory to a person deciding in a hurry. */
-export const PRIVACY_LABELS: Record<TikTokPrivacyLevel, string> = {
+export const TIKTOK_COPY = localized(TIKTOK_COPY_EN, 'screensTikTokPost');
+
+/** The rest of the Post to TikTok screen's words, and what TikTok answered after a post (namespace 'screensTikTokScreen'). */
+export const TIKTOK_SCREEN_COPY_EN = {
+  /** An audience TikTok does not offer this account, with why, in brackets; {0} the audience, {1} why. */
+  withNote: (label: string, note: string) => `${label} (${note})`,
+  /** A box under the audience (TikTok's own setting). */
+  allowComments: 'Allow comments',
+  /** A box under the audience: Duet is TikTok's feature, named as TikTok writes it in this language. */
+  allowDuet: 'Allow Duet',
+  /** A box under the audience: Stitch is TikTok's feature, named as TikTok writes it in this language. */
+  allowStitch: 'Allow Stitch',
+  /**
+   * TikTok's policy's name, as TikTok writes it in this language: it must
+   * appear word for word in both declarations, where it is the link.
+   */
+  musicUsageLink: 'Music Usage Confirmation',
+  /**
+   * TikTok's policy's name, as TikTok writes it in this language: it must
+   * appear word for word in the branded declaration, where it is the link.
+   */
+  brandedPolicyLink: 'Branded Content Policy',
+  /** The video is longer than the account may post; {0} its seconds ("62.5"), {1} the most it may post. */
+  tooLong: (seconds: string, max: string) => `This video is ${seconds} seconds; this TikTok account can post up to ${max} seconds.`,
+  /** The video's length is fine; {0} its seconds ("12"), {1} the most the account may post. */
+  lengthOk: (seconds: string, max: string) => `This video is ${seconds} seconds. This TikTok account can post videos up to ${max} seconds.`,
+  /** The caption is too long; {0} its characters, {1} the most TikTok allows. */
+  captionTooLong: (length: number, max: number) => `The caption is ${length} characters; TikTok allows up to ${max}.`,
+  /** The checklist item for a caption too long; {0} the most TikTok allows. */
+  shortenTitle: (max: number) => `Shorten the title to ${max} characters or fewer`,
+  /** The post button when the video goes to TikTok alone. */
+  postButton: 'Post to TikTok',
+  /** The post button when other networks come along. */
+  approveAndPost: 'Approve and post',
+  /** The cancel confirm: what will not happen. */
+  cancelDetail: 'Nothing has been sent yet. If you cancel, it is not posted to TikTok, and it will not go out when your actions come back. Your team can make a new one.',
+  /** The same, naming the other networks it was going to; {0} their names ("Facebook, Instagram"). */
+  cancelDetailOthers: (others: string) => `Nothing has been sent yet. If you cancel, it is not posted to TikTok or to ${others}, and it will not go out when your actions come back. Your team can make a new one.`,
+  /** The card's badge while TikTok is pending or after it answered (short). */
+  badge: {
+    /** A draft on its way to the owner's TikTok inbox. */
+    sendingInbox: 'Sending to your TikTok inbox',
+    /** A post TikTok is processing. */
+    processing: 'Sent to TikTok, processing',
+    /** A draft waiting in the owner's TikTok inbox. */
+    inInbox: 'In your TikTok inbox',
+    /** Posted. */
+    posted: 'Posted on TikTok',
+    /** TikTok refused it. */
+    failed: 'TikTok did not post it',
+    /** No answer from TikTok. */
+    unconfirmed: 'Not confirmed by TikTok',
+  },
+  /** Under the badge once posted; {0} who can see it ("Your followers"). */
+  postedVisibleTo: (audience: string) => `Posted on TikTok (visible to: ${audience}).`,
+  /** Under the badge when TikTok refused it. */
+  notPosted: 'TikTok did not post this video.',
+  /** Under the badge when TikTok never answered. */
+  notConfirmed: 'TikTok has not confirmed this post after a day. Check your TikTok profile before posting it again.',
+};
+
+export const TIKTOK_SCREEN_COPY = localized(TIKTOK_SCREEN_COPY_EN, 'screensTikTokScreen');
+
+/** TikTok's audiences in words a person deciding in a hurry reads (namespace 'screensTikTokPrivacy'). */
+export const PRIVACY_LABELS_EN: Record<TikTokPrivacyLevel, string> = {
+  /** An audience: anyone on TikTok. */
   PUBLIC_TO_EVERYONE: 'Everyone on TikTok',
+  /** An audience: mutual followers. */
   MUTUAL_FOLLOW_FRIENDS: 'Friends (people you follow who follow you back)',
+  /** An audience: the account's followers. */
   FOLLOWER_OF_CREATOR: 'Your followers',
+  /** An audience: the owner alone. */
   SELF_ONLY: 'Only you (private)',
 };
 
+/** TikTok's enum is not self-explanatory to a person deciding in a hurry. */
+export const PRIVACY_LABELS: Record<TikTokPrivacyLevel, string> = localized(PRIVACY_LABELS_EN, 'screensTikTokPrivacy');
+
 /**
  * The declaration TikTok requires directly above the publish button, as a
- * fallback for an API answer without `declarations`. The server's text wins
- * when it sends one, and the server checks the id and version we echo.
+ * fallback for an API answer without `declarations` (namespace
+ * 'screensTikTokDeclarations'). The server's text wins when it sends one,
+ * and the server checks the id and version we echo.
  */
-export const DECLARATION_FALLBACK: Record<TikTokDeclarationId, string> = {
+export const DECLARATION_FALLBACK_EN: Record<TikTokDeclarationId, string> = {
+  /**
+   * TikTok's required declaration, translated; "Music Usage Confirmation" is
+   * TikTok's policy, named exactly as musicUsageLink says it.
+   */
   music: "By posting, you agree to TikTok's Music Usage Confirmation.",
+  /**
+   * The same while Branded content is ticked; TikTok's two policies are
+   * named exactly as brandedPolicyLink and musicUsageLink say them.
+   */
   branded_music: "By posting, you agree to TikTok's Branded Content Policy and Music Usage Confirmation.",
 };
 
-const KNOWN_LINKS: Record<string, string> = {
-  'Music Usage Confirmation': MUSIC_USAGE_URL,
-  'Branded Content Policy': BRANDED_CONTENT_POLICY_URL,
-};
+export const DECLARATION_FALLBACK: Record<TikTokDeclarationId, string> = localized(DECLARATION_FALLBACK_EN, 'screensTikTokDeclarations');
+
+/** TikTok's policies by name, in English and in the page's language, each to its page. */
+function knownLinks(): Record<string, string> {
+  return {
+    [TIKTOK_SCREEN_COPY_EN.musicUsageLink]: MUSIC_USAGE_URL,
+    [TIKTOK_SCREEN_COPY_EN.brandedPolicyLink]: BRANDED_CONTENT_POLICY_URL,
+    [TIKTOK_SCREEN_COPY.musicUsageLink]: MUSIC_USAGE_URL,
+    [TIKTOK_SCREEN_COPY.brandedPolicyLink]: BRANDED_CONTENT_POLICY_URL,
+  };
+}
+
+/** A video's seconds as the page's language writes them: whole when whole, one decimal otherwise ("62.5"). */
+function secondsText(sec: number): string {
+  const tenths = Math.round(sec * 10) / 10;
+  return new Intl.NumberFormat(formatTag('en-US'), { maximumFractionDigits: 1, useGrouping: false }).format(tenths);
+}
 
 // ── Form state ──────────────────────────────────────────────────────────
 
@@ -293,7 +454,7 @@ export function privacyChoices(screen: TikTokPostScreenReady, form: TikTokPostFo
     const base = (o.label && o.label.trim()) || PRIVACY_LABELS[o.value] || o.value;
     if (!o.available) {
       const note = (o.note && o.note.trim()) || TIKTOK_COPY.unavailableFallback;
-      return { value: o.value, label: `${base} (${note})`, disabled: true, title: note };
+      return { value: o.value, label: TIKTOK_SCREEN_COPY.withNote(base, note), disabled: true, title: note };
     }
     if (o.value === 'SELF_ONLY' && brandedTicked(form)) {
       return { value: o.value, label: base, disabled: true, title: TIKTOK_COPY.selfOnlyBrandedHover };
@@ -313,9 +474,9 @@ export interface InteractionChoice {
 /** Comment, Duet and Stitch: unchecked until ticked, greyed out where the creator turned them off (2c). */
 export function interactionChoices(screen: TikTokPostScreenReady, form: TikTokPostForm): InteractionChoice[] {
   const rows: Array<[InteractionChoice['key'], string, boolean]> = [
-    ['allowComment', 'Allow comments', !!screen.interactions.commentDisabled],
-    ['allowDuet', 'Allow Duet', !!screen.interactions.duetDisabled],
-    ['allowStitch', 'Allow Stitch', !!screen.interactions.stitchDisabled],
+    ['allowComment', TIKTOK_SCREEN_COPY.allowComments, !!screen.interactions.commentDisabled],
+    ['allowDuet', TIKTOK_SCREEN_COPY.allowDuet, !!screen.interactions.duetDisabled],
+    ['allowStitch', TIKTOK_SCREEN_COPY.allowStitch, !!screen.interactions.stitchDisabled],
   ];
   return rows.map(([key, label, off]) => ({
     key,
@@ -381,7 +542,7 @@ function linkMap(links: unknown): Record<string, string> {
 
 /** Split a sentence into plain runs and linked phrases. */
 export function linkifyDeclaration(text: string, links: unknown): DeclarationSegment[] {
-  const map = { ...KNOWN_LINKS, ...linkMap(links) };
+  const map = { ...knownLinks(), ...linkMap(links) };
   const phrases = Object.keys(map).filter((p) => text.includes(p)).sort((a, b) => b.length - a.length);
   if (phrases.length === 0) return [{ text, href: null }];
   const out: DeclarationSegment[] = [];
@@ -442,12 +603,12 @@ export function durationCheck(screen: TikTokPostScreenReady, probe: TikTokVideoP
   if (!(typeof max === 'number' && Number.isFinite(max) && max > 0)) {
     return { state: 'unknown_max', message: TIKTOK_COPY.maxUnknown, blocks: true };
   }
-  const n = formatSeconds(probe.durationSec);
-  const m = formatSeconds(max);
+  const n = secondsText(probe.durationSec);
+  const m = secondsText(max);
   if (probe.durationSec > max) {
-    return { state: 'too_long', message: `This video is ${n} seconds; this TikTok account can post up to ${m} seconds.`, blocks: true };
+    return { state: 'too_long', message: TIKTOK_SCREEN_COPY.tooLong(n, m), blocks: true };
   }
-  return { state: 'ok', message: `This video is ${n} seconds. This TikTok account can post videos up to ${m} seconds.`, blocks: false };
+  return { state: 'ok', message: TIKTOK_SCREEN_COPY.lengthOk(n, m), blocks: false };
 }
 
 /** A duration the player reported, or null when it is not a usable number. */
@@ -512,7 +673,7 @@ export function postGate(
   if (d.blocks) return no(d.message);
   const max = captionMax(screen);
   const len = captionLength(form.title);
-  if (len > max) return no(`The caption is ${len} characters; TikTok allows up to ${max}.`);
+  if (len > max) return no(TIKTOK_SCREEN_COPY.captionTooLong(len, max));
   if (ctx.busy) return no(null);
   return { canPost: true, reason: null };
 }
@@ -532,22 +693,44 @@ export interface MissingItem {
   target: MissingTarget | null;
 }
 
-export const MISSING_COPY = {
+/**
+ * The checklist beside the disabled Post to TikTok button: everything still
+ * missing, each item with the way to the control that fixes it (namespace
+ * 'screensTikTokMissing'). The names in quotes are the screen's own labels
+ * (Your brand, Branded content, Only you), said the same way here.
+ */
+export const MISSING_COPY_EN = {
+  /** The checklist's title. */
   heading: 'Before you can post:',
+  /** An item's button: takes the owner to the control that fixes it. */
   showMe: 'Show me',
+  /** Before the items after the first. */
   alsoNeeded: 'Also still needed:',
+  /** An item: TikTok did not say which account; "Check again" is the screen's button. */
   account: 'Check again, so TikTok says which account this posts to',
+  /** An item: the disclosure is on and neither box is ticked. */
   disclosure: 'Tick "Your brand", "Branded content", or both',
+  /** An item: no audience chosen yet. */
   privacy: 'Choose who can see this video',
+  /** An item: the audience chosen is not offered any more. */
   privacyOther: 'Choose another audience',
+  /** An item: branded content cannot be posted yet. */
   brandedOff: 'Turn off "Branded content"',
+  /** An item: branded content cannot be private. */
   brandedNotPrivate: 'Choose an audience other than "Only you"',
+  /** An item: only "Only you" can be posted for now. */
   onlyYou: 'Choose "Only you (private)"',
+  /** An item: the video's length is still being checked. */
   videoLoading: 'Wait for the length check, or press play on the video once',
+  /** An item: the video could not be loaded. */
   videoCheck: 'Check the video again',
+  /** An item: TikTok did not say the account's longest video. */
   maxUnknown: 'Check again, so TikTok says how long a video this account can post',
+  /** An item: the video is too long; "Request changes" is the approval card's button. */
   tooLong: 'Use a shorter video: ask your team for one with Request changes',
 } as const;
+
+export const MISSING_COPY = localized(MISSING_COPY_EN, 'screensTikTokMissing');
 
 /**
  * Everything that still keeps "Post to TikTok" disabled, in the order
@@ -621,8 +804,8 @@ export function postMissing(
   if (len > max) {
     out.push({
       key: 'title',
-      reason: `The caption is ${len} characters; TikTok allows up to ${max}.`,
-      todo: `Shorten the title to ${max} characters or fewer`,
+      reason: TIKTOK_SCREEN_COPY.captionTooLong(len, max),
+      todo: TIKTOK_SCREEN_COPY.shortenTitle(max),
       target: 'title',
     });
   }
@@ -701,7 +884,7 @@ export function actionsNotice(screen: TikTokPostScreenReady): string | null {
 
 /** "Post to TikTok" alone, "Approve and post" when other networks come along. */
 export function postButtonLabel(otherTargets: string[]): string {
-  return otherTargets.length === 0 ? 'Post to TikTok' : 'Approve and post';
+  return otherTargets.length === 0 ? TIKTOK_SCREEN_COPY.postButton : TIKTOK_SCREEN_COPY.approveAndPost;
 }
 
 // ── A post held for actions ─────────────────────────────────────────────
@@ -723,10 +906,9 @@ export function cancelledWhileHeld(approval: Pick<OperatorApproval, 'status' | '
 
 /** What the confirm dialog says will not happen, naming every network the post was going to. */
 export function cancelHeldDetail(otherNetworkLabels: string[]): string {
-  const where = otherNetworkLabels.length
-    ? `to TikTok or to ${otherNetworkLabels.join(', ')}`
-    : 'to TikTok';
-  return `Nothing has been sent yet. If you cancel, it is not posted ${where}, and it will not go out when your actions come back. Your team can make a new one.`;
+  return otherNetworkLabels.length
+    ? TIKTOK_SCREEN_COPY.cancelDetailOthers(otherNetworkLabels.join(', '))
+    : TIKTOK_SCREEN_COPY.cancelDetail;
 }
 
 // ── After posting ───────────────────────────────────────────────────────
@@ -741,12 +923,12 @@ export function tiktokPublishBadge(p: TikTokPublishState): PublishBadge {
     case 'SENDING':
     case 'PROCESSING':
       return p.mode === 'draft'
-        ? { label: 'Sending to your TikTok inbox', color: 'blue' }
-        : { label: 'Sent to TikTok, processing', color: 'blue' };
-    case 'IN_INBOX': return { label: 'In your TikTok inbox', color: 'blue' };
-    case 'POSTED': return { label: 'Posted on TikTok', color: 'cyan' };
-    case 'FAILED': return { label: 'TikTok did not post it', color: 'rose' };
-    default: return { label: 'Not confirmed by TikTok', color: 'mauve' };
+        ? { label: TIKTOK_SCREEN_COPY.badge.sendingInbox, color: 'blue' }
+        : { label: TIKTOK_SCREEN_COPY.badge.processing, color: 'blue' };
+    case 'IN_INBOX': return { label: TIKTOK_SCREEN_COPY.badge.inInbox, color: 'blue' };
+    case 'POSTED': return { label: TIKTOK_SCREEN_COPY.badge.posted, color: 'cyan' };
+    case 'FAILED': return { label: TIKTOK_SCREEN_COPY.badge.failed, color: 'rose' };
+    default: return { label: TIKTOK_SCREEN_COPY.badge.unconfirmed, color: 'mauve' };
   }
 }
 
@@ -757,10 +939,10 @@ export function tiktokPublishMessage(p: TikTokPublishState): string {
   if (p.state === 'SENDING' || p.state === 'PROCESSING') return TIKTOK_COPY.processingNotice;
   if (p.state === 'POSTED') {
     if (p.mode === 'draft' || !p.privacyLevel) return TIKTOK_COPY.draftPosted;
-    return `Posted on TikTok (visible to: ${PRIVACY_LABELS[p.privacyLevel] ?? p.privacyLevel}).`;
+    return TIKTOK_SCREEN_COPY.postedVisibleTo(PRIVACY_LABELS[p.privacyLevel] ?? p.privacyLevel);
   }
-  if (p.state === 'FAILED') return 'TikTok did not post this video.';
-  return 'TikTok has not confirmed this post after a day. Check your TikTok profile before posting it again.';
+  if (p.state === 'FAILED') return TIKTOK_SCREEN_COPY.notPosted;
+  return TIKTOK_SCREEN_COPY.notConfirmed;
 }
 
 /** The API's refusal for a TikTok post, without the tool's "tiktok: " prefix. */

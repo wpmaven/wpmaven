@@ -27,7 +27,7 @@ class WebMaven_Editor_Bootstrap {
 
         // Enqueue discovery script on the frontend
         add_action('wp_enqueue_scripts', function () {
-            if (empty($_GET['webmaven_discover'])) return;
+            if (empty($_GET['webmaven_discover'])) return; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: the script loads only for a user who may edit posts, checked next
             if (!current_user_can('edit_posts')) return;
 
             wp_enqueue_script(

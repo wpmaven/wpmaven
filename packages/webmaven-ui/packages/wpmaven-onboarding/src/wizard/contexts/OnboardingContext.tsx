@@ -31,7 +31,8 @@ import { storeCurrencyRefusalOf } from '../../api/storeCurrency';
 import { isAiStepStopped } from '../../api/aiStep';
 import { STORE_CURRENCY_COPY, currencyName, normalizeCurrencyCode, pricesConvertedLine } from '../../shared/storeCurrencyCopy';
 import type { OnboardingStep, DescribePhase, DesignConcept, OnboardingAnalysis, CodeFile, PageSelection, PluginSelection } from '../types';
-import type { SiteLanguageAnswer } from '../../host/types';
+import type { SiteLanguageAnswer, SiteLanguagesAnswer } from '../../host/types';
+import { questionOpen as siteLanguagesQuestionOpen } from '../components/Onboarding/siteLanguagesCopy';
 import { analysisWithLanguage, pagesWithLanguage } from '../utils/siteLanguageAnswer';
 
 /** A later step's refusal, in the visitor's words: the bot check and the
@@ -1397,12 +1398,25 @@ export function OnboardingProvider({ children, onComplete }: { children: ReactNo
     setSelectedPages((prev) => pagesWithLanguage(prev, answer));
     if (answer?.businessPlan && typeof answer.businessPlan === 'object') setBusinessPlan(answer.businessPlan);
   }, []);
+  // A site in several languages (multilingual sites, phase 6): the answer of
+  // the languages panel or the question, the session's languages with it.
+  const applySiteLanguages = useCallback((answer: SiteLanguagesAnswer) => {
+    setAnalysis((prev) => (prev ? { ...analysisWithLanguage(prev, answer), ...(answer?.siteLanguages ? { siteLanguages: answer.siteLanguages } : {}) } : prev));
+    setSelectedPages((prev) => pagesWithLanguage(prev, answer));
+    if (answer?.businessPlan && typeof answer.businessPlan === 'object') setBusinessPlan(answer.businessPlan);
+  }, []);
+  // The languages question (several answers) when the session carries several
+  // languages and this host can set them; else the one-language question.
+  const siteLanguagesMode = !!analysis?.siteLanguages && Array.isArray(analysis.siteLanguages.chosen)
+    && typeof host.transport.setSiteLanguages === 'function' && !!getSessionId();
   // The language question is open while the analysis asks it and this host
   // can answer it (its transport sets the language, the session exists).
-  const siteLanguagePending = Array.isArray(analysis?.languageQuestion?.options)
-    && (analysis!.languageQuestion!.options.length > 0)
-    && typeof host.transport.setSiteLanguage === 'function'
-    && !!getSessionId();
+  const siteLanguagePending = siteLanguagesMode
+    ? siteLanguagesQuestionOpen(analysis!.siteLanguages)
+    : Array.isArray(analysis?.languageQuestion?.options)
+      && (analysis!.languageQuestion!.options.length > 0)
+      && typeof host.transport.setSiteLanguage === 'function'
+      && !!getSessionId();
   const togglePage = useCallback((type: string) => {
     setSelectedPages((prev) => prev.map((pg) => (pg.type === type ? { ...pg, include: !pg.include } : pg)));
   }, []);
@@ -1708,17 +1722,31 @@ export function OnboardingProvider({ children, onComplete }: { children: ReactNo
       setKeepSaving(false);
     }
   }, [onboardingApi, keepBody, siteWay]);
-  /** "What your team fixes": the ticked findings filed; then the team starts, Plans opens, or the list waits. */
-  const fileFixes = useCallback(async (findingIds: string[], then: 'start' | 'plans' | 'later') => {
+  /** "Open WPMaven": the site's business opens in WordPress, on Waiting for you when the recommendations wait there. */
+  const finishKept = useCallback(async (open?: 'waiting') => {
+    const sessionId = onboardingApi.getSessionId();
+    clearMemory();
+    await host.navigation.finish(open ? { kind: 'kept', sessionId, open } : { kind: 'kept', sessionId });
+  }, [onboardingApi, host.navigation]);
+  /**
+   * "What your team fixes": the ticked findings filed, with the advice
+   * findings when there are some (each a Waiting for you item with its
+   * steps); then the team starts, Plans opens, or the list waits. "See them
+   * in Waiting for you" (the recommendations alone) files the advice and
+   * opens the app on them.
+   */
+  const fileFixes = useCallback(async (findingIds: string[], then: 'start' | 'plans' | 'later' | 'waiting', opts: { advice?: boolean } = {}) => {
     const values = keptRef.current ?? keepDraft;
     setKeepSaving(true);
     setKeepError(null);
+    let openWaiting = false;
     try {
       // Sent even with nothing ticked ("Not now"): the choice is made, the wizard stops reopening on it.
-      const r = await onboardingApi.keepSite({ ...keepBody(values), findingIds });
+      const r = await onboardingApi.keepSite({ ...keepBody(values), findingIds, ...(opts.advice ? { advice: true } : {}) });
       const plan = r.plan ?? keptPlan ?? false;
       setKeptPlan(plan);
-      if (then === 'plans' && !plan) {
+      if (then === 'waiting') openWaiting = true;
+      else if (then === 'plans' && !plan) {
         host.navigation.openDashboardPath('/billing#plans');
         setFixOutcome('waitingPlan');
       } else setFixOutcome(plan ? 'started' : 'saved');
@@ -1727,7 +1755,9 @@ export function OnboardingProvider({ children, onComplete }: { children: ReactNo
     } finally {
       setKeepSaving(false);
     }
-  }, [onboardingApi, keepBody, keepDraft, keptPlan, host.navigation]);
+    // The recommendations wait in Waiting for you: the app opens there.
+    if (openWaiting) await finishKept('waiting');
+  }, [onboardingApi, keepBody, keepDraft, keptPlan, host.navigation, finishKept]);
   /** Back from Plans: once the plan is on, the team starts on the list already filed. */
   const readPlan = useCallback(async () => {
     const state = await onboardingApi.siteFixesState().catch(() => null);
@@ -1736,12 +1766,6 @@ export function OnboardingProvider({ children, onComplete }: { children: ReactNo
       setFixOutcome('started');
     }
   }, [onboardingApi]);
-  /** "Open WPMaven": the site's business opens in WordPress. */
-  const finishKept = useCallback(async () => {
-    const sessionId = onboardingApi.getSessionId();
-    clearMemory();
-    await host.navigation.finish({ kind: 'kept', sessionId });
-  }, [onboardingApi, host.navigation]);
   // A store that already sells while "Your site" is not open (the api's
   // liveStore): said before the idea, in the launch guard's words.
   const [liveStoreNotice, setLiveStoreNotice] = useState<string | null>(null);
@@ -2043,7 +2067,7 @@ export function OnboardingProvider({ children, onComplete }: { children: ReactNo
     launchPost, projectedReport, marketingTasks, waAdvance, whatsappCapture,
     // setters / actions
     setDescription, setSiteName, setSelectedStyle: setSelectedStyle, togglePage, updatePageTitle,
-    setSiteSummary, setAnalysisLanguage, applySiteLanguage, siteLanguagePending, togglePlugin, startSession: asyncNoop, analyzeDescription,
+    setSiteSummary, setAnalysisLanguage, applySiteLanguage, applySiteLanguages, siteLanguagesMode, siteLanguagePending, togglePlugin, startSession: asyncNoop, analyzeDescription,
     confirmAnalysis, selectStyle: async (s: string) => setSelectedStyle(s), selectPages: asyncNoop,
     startGeneration, goToStep: go, nextStep, prevStep, confirmComplete, confirmAdvance,
     confirmEditCard, confirmStepBack, reset: noop, canProceed, finish,

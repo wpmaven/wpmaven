@@ -31,7 +31,7 @@ final class WebMaven_Cap_Hosted_Images {
     const TIMEOUT = 15;
 
     /** The hosted file name an attachment was copied from (reused by the next save). */
-    const SOURCE_META = '_wm_hosted_source';
+    const SOURCE_META = '_webmaven_hosted_source';
 
     /** Saves that are never pages or posts of the owner. */
     const SKIPPED_TYPES = ['revision', 'attachment', 'nav_menu_item', 'customize_changeset', 'oembed_cache', 'user_request', 'wp_global_styles', 'wp_navigation'];
@@ -132,8 +132,8 @@ final class WebMaven_Cap_Hosted_Images {
         $copied = get_posts([
             'post_type' => 'attachment',
             'post_status' => 'inherit',
-            'meta_key' => self::SOURCE_META,
-            'meta_value' => $file,
+            'meta_key' => self::SOURCE_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- finds the library copy WPMaven made of this file, by its own key (indexed in postmeta) and value; one id
+            'meta_value' => $file, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- finds the library copy WPMaven made of this file, by its own key (indexed in postmeta) and value; one id
             'numberposts' => 1,
             'fields' => 'ids',
         ]);

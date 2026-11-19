@@ -17,6 +17,7 @@ import { memberMeta, type TeamCatalog } from './catalog';
 import { TeamCard } from './TeamCard';
 import { CHECK_IN_BY, PROGRESS_COPY, fmtDay, fmtMoney, weekBadge, type ProgressSnapshot } from './progress';
 import { readTeamProgress } from './reads';
+import { TEAM_PROGRESS_COPY } from './teamCopy';
 
 const label: React.CSSProperties = { margin: 0, fontSize: 14, color: 'var(--text-dim)' };
 const value: React.CSSProperties = { margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text)' };
@@ -140,9 +141,9 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({ host, instanceId, cata
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-testid="progress-tab">
       {/* Every published post and its numbers over time live on Analytics. */}
       <p style={{ margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, fontSize: 14, color: 'var(--text-dim)' }} data-testid="progress-analytics-link">
-        <span>See every post {productName()} published and its numbers over time.</span>
+        <span>{TEAM_PROGRESS_COPY.seeEveryPost(productName())}</span>
         <HostLink to={`/analytics?business=${encodeURIComponent(instanceId)}`} style={{ fontWeight: 500, color: 'var(--text)', textDecoration: 'underline' }}>
-          Open Analytics
+          {TEAM_PROGRESS_COPY.openAnalytics}
         </HostLink>
       </p>
       {host.renderers?.teamProgressTop?.({ instanceId })}

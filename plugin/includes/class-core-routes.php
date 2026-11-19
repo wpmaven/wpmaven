@@ -2,16 +2,13 @@
 /**
  * WebMaven Core Routes & Handlers
  *
- * Contains all route registrations that were previously inline in the main plugin class,
- * plus the handler methods for: signup, settings, user prefs, test, activation,
- * backend connection, config, plugin status, site context, themes and the owner's plan.
+ * The plugin's own REST routes and their handlers: activation, plugin
+ * status, site context, themes, the owner's choices and plan, and the API
+ * proxy.
  *
  * 1.2.9: every route here that reaches the WPMaven API takes an administrator
  * (current_user_can_reach_api). The /ai/* routes (API /agent/process) and
  * /editor/index (API /conversations/:id/index) are gone: the API has neither.
- *
- * Note: handle_plugin_activation references $this->plugin->maybe_install_wp_cli()
- *       — the main class method maybe_install_wp_cli() must be made public.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -50,28 +47,6 @@ class WebMaven_Core_Routes {
         // A link token for an administrator's Sign In (1.2.14): the push that
         // links this site must carry it. Administrators only.
         WebMaven_Link_Guard::register_route();
-
-        // Test: gated. It reports the WP version, site info and API config,
-        // so it must not be anonymous.
-        register_rest_route('webmaven_wp/v1', '/test', [
-            'methods' => 'GET',
-            'permission_callback' => function() { return $this->plugin->current_user_can_use(); },
-            'callback' => [$this, 'test_plugin'],
-        ]);
-
-        // Backend connection test (reaches the API: administrators only, 1.2.9)
-        register_rest_route('webmaven_wp/v1', '/backend/test', [
-            'methods' => 'GET',
-            'permission_callback' => function() { return $this->plugin->current_user_can_reach_api(); },
-            'callback' => [$this, 'test_backend_connection'],
-        ]);
-
-        // Backend config
-        register_rest_route('webmaven_wp/v1', '/backend/config', [
-            'methods' => 'GET',
-            'permission_callback' => function() { return $this->plugin->current_user_can_use(); },
-            'callback' => [$this, 'get_backend_config'],
-        ]);
 
         // Status & health. /status is gated. It
         // reports connection/auth state, so it must not be anonymous. The
@@ -192,34 +167,6 @@ class WebMaven_Core_Routes {
 
     // ---------- REST handlers ----------
 
-    public function handle_signup(\WP_REST_Request $req) {
-        $params = $req->get_params();
-        $email = sanitize_email($params['email'] ?? '');
-        $name = sanitize_text_field($params['name'] ?? '');
-        $company = sanitize_text_field($params['company'] ?? '');
-
-        if (empty($email) || empty($name)) {
-            return new \WP_Error('invalid', 'Name and email are required', ['status' => 400]);
-        }
-
-        $account = [
-            'email' => $email,
-            'name'  => $name,
-            'company' => $company,
-            'created_at' => current_time('mysql'),
-            'token' => wp_generate_password(20, false, false),
-        ];
-        update_option('webmaven_wp_account', $account, false);
-
-        return new \WP_REST_Response(['success' => true, 'account' => $account]);
-    }
-
-    public function get_settings() {
-        $settings = get_option('webmaven_wp_settings', []);
-        // The owner's choices as they are in effect, defaults included.
-        return new \WP_REST_Response(array_merge(is_array($settings) ? $settings : [], WebMaven_Choices::all()));
-    }
-
     /** POST /choices: the choices the body names, saved; answers every choice. */
     public function save_choices(\WP_REST_Request $req) {
         $settings = get_option('webmaven_wp_settings', []);
@@ -230,116 +177,6 @@ class WebMaven_Core_Routes {
             WebMaven_Contact_Sync::init();
         }
         return new \WP_REST_Response(WebMaven_Choices::report());
-    }
-
-    public function save_settings(\WP_REST_Request $req) {
-        $params = $req->get_params();
-        $settings = get_option('webmaven_wp_settings', []);
-
-        $settings['theme_color']  = isset($params['theme_color']) ? sanitize_hex_color($params['theme_color']) : ($settings['theme_color'] ?? '#7c3aed');
-        $settings['accent_color'] = isset($params['accent_color']) ? sanitize_hex_color($params['accent_color']) : ($settings['accent_color'] ?? '#22d3ee');
-
-        $position = sanitize_text_field($params['position'] ?? ($settings['position'] ?? 'bottom-right'));
-        if (!in_array($position, ['bottom-right', 'bottom-left', 'top-right', 'top-left'], true)) {
-            $position = 'bottom-right';
-        }
-        $settings['position'] = $position;
-
-        $offset = isset($params['offset']) ? intval($params['offset']) : ($settings['offset'] ?? 20);
-        $settings['offset'] = max(0, min(100, $offset));
-
-        if (isset($params['oauth_authorize_url'])) {
-            $settings['oauth_authorize_url'] = esc_url_raw($params['oauth_authorize_url']);
-        }
-        if (isset($params['dashboard_url'])) {
-            $settings['dashboard_url'] = esc_url_raw($params['dashboard_url']);
-        }
-        if (isset($params['api_base_url'])) {
-            $settings['api_base_url'] = esc_url_raw($params['api_base_url']);
-            // Also update the webmaven_wp_api_url option for the API client
-            update_option('webmaven_wp_api_url', esc_url_raw($params['api_base_url']));
-        }
-        if (isset($params['websocket_url'])) {
-            $settings['websocket_url'] = esc_url_raw($params['websocket_url']);
-            // Also store WebSocket URL separately for easy access
-            if ($settings['websocket_url']) {
-                update_option('webmaven_wp_websocket_url', esc_url_raw($params['websocket_url']));
-            } else {
-                delete_option('webmaven_wp_websocket_url');
-            }
-        }
-        if (isset($params['billing_portal_url'])) {
-            $settings['billing_portal_url'] = esc_url_raw($params['billing_portal_url']);
-        }
-        // The owner's choices: statistics, the customers' copy, the footer link.
-        $settings = WebMaven_Choices::apply($params, $settings);
-
-        update_option('webmaven_wp_settings', $settings);
-
-        return new \WP_REST_Response(['success' => true, 'settings' => $settings]);
-    }
-
-    public function get_user_prefs() {
-        $prefs = get_user_meta(get_current_user_id(), 'wpai_user_prefs', true);
-        if (!is_array($prefs)) $prefs = null;
-        return new \WP_REST_Response(['success' => true, 'prefs' => $prefs]);
-    }
-
-    public function save_user_prefs(\WP_REST_Request $req) {
-        $params = $req->get_json_params();
-        $clear = !empty($params['clear']);
-        if ($clear) {
-            delete_user_meta(get_current_user_id(), 'wpai_user_prefs');
-            return new \WP_REST_Response(['success' => true, 'prefs' => null]);
-        }
-
-        $prefs = get_user_meta(get_current_user_id(), 'wpai_user_prefs', true);
-        if (!is_array($prefs)) $prefs = [];
-
-        // Allow explicitly clearing position override without affecting other prefs
-        if (!empty($params['positionClear'])) {
-            if (isset($prefs['position'])) unset($prefs['position']);
-        }
-
-        if (isset($params['position']) && is_array($params['position'])) {
-            $prefs['position'] = [
-                'top' => max(0, intval($params['position']['top'] ?? 0)),
-                'left' => max(0, intval($params['position']['left'] ?? 0)),
-            ];
-        }
-        if (isset($params['panelHeight'])) {
-            $prefs['panelHeight'] = max(300, min(1000, intval($params['panelHeight'])));
-        }
-        if (isset($params['colors']) && is_array($params['colors'])) {
-            $prefs['colors'] = [
-                'theme' => sanitize_hex_color($params['colors']['theme'] ?? '#7c3aed'),
-                'accent' => sanitize_hex_color($params['colors']['accent'] ?? '#22d3ee'),
-            ];
-        }
-
-        update_user_meta(get_current_user_id(), 'wpai_user_prefs', $prefs);
-        return new \WP_REST_Response(['success' => true, 'prefs' => $prefs]);
-    }
-
-    // ---------- Test and Debug Handlers ----------
-
-    public function test_plugin(\WP_REST_Request $req) {
-        $api_client = new WebMaven_WP_API_Client();
-        return new \WP_REST_Response(array(
-            'success' => true,
-            'message' => 'WebMaven WordPress plugin is working!',
-            'plugin_version' => defined('WEBMAVEN_WP_VERSION') ? WEBMAVEN_WP_VERSION : '0.0.0',
-            'wordpress_version' => get_bloginfo('version'),
-            'site_url' => get_site_url(),
-            'site_name' => get_bloginfo('name'),
-            'timestamp' => current_time('mysql'),
-            'user_logged_in' => is_user_logged_in(),
-            'current_user_id' => get_current_user_id(),
-            'api_base_url' => get_option('webmaven_wp_api_url', 'NOT_SET'),
-            'api_client_url' => $api_client->api_base_url ?? 'NOT_SET',
-            'client_id_set' => !empty(get_option('webmaven_wp_client_id')),
-            'client_secret_set' => !empty(get_option('webmaven_wp_client_secret'))
-        ), 200);
     }
 
     // ---------- Backend API Integration Handlers ----------
@@ -357,10 +194,15 @@ class WebMaven_Core_Routes {
             $data = array();
         }
 
-        $client_id          = $data['oauthClient']['clientId'] ?? $data['clientId'] ?? '';
-        $client_secret      = $data['oauthClient']['clientSecret'] ?? $data['clientSecret'] ?? '';
-        $authorization_code = $data['authorizationCode'] ?? '';
-        $instance_id        = $data['instanceId'] ?? '';
+        // Each value is one line of text, cleaned before it is used, stored
+        // or answered back.
+        $text = static function ($value) {
+            return is_scalar($value) ? sanitize_text_field((string) $value) : '';
+        };
+        $client_id          = $text($data['oauthClient']['clientId'] ?? $data['clientId'] ?? '');
+        $client_secret      = $text($data['oauthClient']['clientSecret'] ?? $data['clientSecret'] ?? '');
+        $authorization_code = $text($data['authorizationCode'] ?? '');
+        $instance_id        = $text($data['instanceId'] ?? '');
 
         if (empty($client_id) || empty($client_secret) || empty($authorization_code)) {
             return new \WP_REST_Response(array(
@@ -379,7 +221,7 @@ class WebMaven_Core_Routes {
         // anything. The old handler saved them first, so a failed exchange
         // still left a caller-chosen secret in place, and that secret then
         // signed forged webhooks that run as an administrator.
-        $api_client->use_credentials(sanitize_text_field($client_id), sanitize_text_field($client_secret));
+        $api_client->use_credentials($client_id, $client_secret);
         $token_response = $api_client->exchange_authorization_code($authorization_code);
 
         if (empty($token_response['success'])) {
@@ -395,8 +237,8 @@ class WebMaven_Core_Routes {
             ), 400);
         }
 
-        $encrypted_client_id = WebMaven_WP_Error_Handler::encrypt_data(sanitize_text_field($client_id));
-        $encrypted_client_secret = WebMaven_WP_Error_Handler::encrypt_data(sanitize_text_field($client_secret));
+        $encrypted_client_id = WebMaven_WP_Error_Handler::encrypt_data($client_id);
+        $encrypted_client_secret = WebMaven_WP_Error_Handler::encrypt_data($client_secret);
         if (!$encrypted_client_id || !$encrypted_client_secret) {
             WebMaven_WP_Error_Handler::log_security_event('oauth_credentials_encryption_failed', array(
                 'instance_id' => $instance_id
@@ -408,36 +250,27 @@ class WebMaven_Core_Routes {
         }
         update_option('webmaven_wp_client_id', $encrypted_client_id);
         update_option('webmaven_wp_client_secret', $encrypted_client_secret);
-        update_option('webmaven_wp_authorization_code', sanitize_text_field($authorization_code));
+        update_option('webmaven_wp_authorization_code', $authorization_code);
         // Linked: no token given out for this sign-in may link it again.
         WebMaven_Link_Guard::forget_all();
 
-        if (!empty($instance_id)) {
-            update_option('webmaven_wp_instance_id', sanitize_text_field($instance_id));
+        if ($instance_id !== '') {
+            update_option('webmaven_wp_instance_id', $instance_id);
         }
 
         // The analytics tracking id: WebMaven_Analytics::inject_tracker() reads
         // this option and injects nothing without it. Activation is where the
         // site learns who it is, so it rides along with the instance id.
-        if (!empty($data['trackingId'])) {
-            update_option('webmaven_wp_tracking_id', sanitize_text_field($data['trackingId']));
-        }
-        if (!empty($data['scopes'])) {
-            update_option('webmaven_wp_scopes', $data['scopes']);
-        }
-        if (!empty($data['redirectUri'])) {
-            update_option('webmaven_wp_redirect_uri', sanitize_text_field($data['redirectUri']));
-        }
-        if (!empty($data['metadata'])) {
-            update_option('webmaven_wp_metadata', $data['metadata']);
+        $tracking_id = $text($data['trackingId'] ?? '');
+        if ($tracking_id !== '') {
+            update_option('webmaven_wp_tracking_id', $tracking_id);
         }
 
         WebMaven_WP_Error_Handler::log_security_event('plugin_activated_successfully', array(
             'instance_id' => $instance_id
         ));
 
-        // What WPMaven Agent does once the site is linked (WP-CLI), when
-        // Agent is here.
+        // The site is linked: other plugins may act on it (webmaven_connected).
         do_action('webmaven_connected', $instance_id);
 
         return new \WP_REST_Response(array(
@@ -445,28 +278,6 @@ class WebMaven_Core_Routes {
             'message' => 'Plugin activated successfully',
             'instanceId' => $instance_id
         ), 200);
-    }
-
-    public function test_backend_connection() {
-        $api_client = new WebMaven_WP_API_Client();
-        $response = $api_client->test_connection();
-
-        return new \WP_REST_Response(array(
-            'success' => $response['success'],
-            'message' => $response['success'] ? 'Backend connection successful' : 'Backend connection failed',
-            'details' => $response
-        ));
-    }
-
-    public function get_backend_config() {
-        $api_client = new WebMaven_WP_API_Client();
-        $config = $api_client->get_config_status();
-
-        return new \WP_REST_Response(array(
-            'success' => true,
-            'config' => $config,
-            'configured' => $api_client->is_configured()
-        ));
     }
 
     /**
@@ -801,7 +612,8 @@ class WebMaven_Core_Routes {
                     'total' => $user_count['total_users'],
                     'roles' => $user_count['avail_roles'],
                 ],
-                // WP-CLI is WPMaven Agent's: it answers here when it is present.
+                // This edition runs no command line: 'needs_agent', unless
+                // another plugin reports one (webmaven_site_context_cli).
                 'cli' => apply_filters('webmaven_site_context_cli', [
                     'available' => false,
                     'status' => 'needs_agent',
@@ -882,7 +694,7 @@ class WebMaven_Core_Routes {
         header('Content-Disposition: ' . ($pdf['disposition'] !== '' ? $pdf['disposition'] : 'attachment; filename="report.pdf"'));
         header('Content-Length: ' . strlen($pdf['body']));
         // The PDF's bytes (application/pdf), never read as HTML.
-        echo $pdf['body']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo $pdf['body']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the PDF's bytes (application/pdf), never read as HTML
         exit;
     }
 

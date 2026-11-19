@@ -9,6 +9,8 @@
  * The edit routes answer the EditResult itself (no { success, data }); a
  * failure that made no history row still answers one, with an error status,
  * and it is read, not thrown.
+ *
+ * Its words are in the page's language (preparedChangesCopy.ts).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button } from '@yotako/webmaven-ui';
@@ -17,6 +19,8 @@ import type { ScreensHost } from '../host/types';
 import { HostLink } from '../host/HostLink';
 import { readPrepared, type PreparedChange } from './reads';
 import { TYPE, bareList, body, small } from '../approvals/styles';
+import { PREPARED_CHANGES_COPY } from './preparedChangesCopy';
+import { formatTag } from '../copyLanguage';
 
 /** Publishing waits for the site's answer and a snapshot: longer than an app's usual wait, below the API's own limit. */
 export const EDIT_CALL_TIMEOUT_MS = 180_000;
@@ -51,7 +55,7 @@ export function readEditResult(data: unknown): PreparedEditResult | null {
 /** The first failure of a result, in the API's words. */
 export function editFailure(result: PreparedEditResult | null | undefined): { code: string; message: string } | null {
   if (!result || result.ok) return null;
-  return result.failures[0] ?? { code: 'ENGINE', message: 'This change did not go through. Nothing on your site changed.' };
+  return result.failures[0] ?? { code: 'ENGINE', message: PREPARED_CHANGES_COPY.notThrough };
 }
 
 /**
@@ -98,12 +102,12 @@ export function preparedLink(item: Pick<PreparedChange, 'instanceId' | 'operatio
   return null;
 }
 
-/** "Oct 11, 08:00 AM", as the Store says a date. */
+/** "Oct 11, 08:00 AM", as the Store says a date (in the page's language). */
 export function shortDate(iso: string | null | undefined): string {
   if (!iso) return '';
   const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString(formatTag('en-US'), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 /** One change a team member sent: what it does, who sent it, and Publish or Discard. */
@@ -119,24 +123,24 @@ export const PreparedChangeCard: React.FC<{
   const link = preparedLink(item);
   return (
     <div style={ROW_STYLE} data-testid={`store-approval-${item.operationId}`}>
-      <p style={{ ...body, fontWeight: 550, color: 'var(--text)', overflowWrap: 'anywhere' }}>{item.summary || 'A change to your store'}</p>
+      <p style={{ ...body, fontWeight: 550, color: 'var(--text)', overflowWrap: 'anywhere' }}>{item.summary || PREPARED_CHANGES_COPY.aChange}</p>
       <p style={{ ...small, color: 'var(--text-dim)' }}>
-        {[showBusiness ? item.businessName : '', item.requestedBy?.name ? `Sent by ${item.requestedBy.name}` : '', shortDate(item.createdAt)].filter(Boolean).join(' · ')}
+        {[showBusiness ? item.businessName : '', item.requestedBy?.name ? PREPARED_CHANGES_COPY.sentBy(item.requestedBy.name) : '', shortDate(item.createdAt)].filter(Boolean).join(' · ')}
       </p>
       {item.changed.length > 0 && (
         <ul style={{ ...bareList, ...small, marginTop: 4, color: 'var(--text)' }}>
           {item.changed.slice(0, 6).map((c, i) => (
             <li key={`${c.ref}-${i}`} style={{ overflowWrap: 'anywhere', marginTop: i === 0 ? 0 : 2 }}>
-              {c.label}{c.before !== undefined || c.after !== undefined ? `: ${c.before ?? ''} to ${c.after ?? ''}` : ''}
+              {c.before !== undefined || c.after !== undefined ? PREPARED_CHANGES_COPY.changed(c.label, String(c.before ?? ''), String(c.after ?? '')) : c.label}
             </li>
           ))}
         </ul>
       )}
       {error && <p role="alert" style={{ ...small, marginTop: 4, color: 'var(--danger)' }}>{error}</p>}
       <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-        <Button type="button" size="sm" variant="primary" isLoading={busy === 'publish'} disabled={!!busy} onClick={onPublish}>Publish</Button>
-        <Button type="button" size="sm" variant="ghost" isLoading={busy === 'discard'} disabled={!!busy} onClick={onDiscard}>Discard</Button>
-        {link && <HostLink to={link} style={{ ...small, textDecoration: 'underline', color: 'var(--purple)' }}>See it</HostLink>}
+        <Button type="button" size="sm" variant="primary" isLoading={busy === 'publish'} disabled={!!busy} onClick={onPublish}>{PREPARED_CHANGES_COPY.publish}</Button>
+        <Button type="button" size="sm" variant="ghost" isLoading={busy === 'discard'} disabled={!!busy} onClick={onDiscard}>{PREPARED_CHANGES_COPY.discard}</Button>
+        {link && <HostLink to={link} style={{ ...small, textDecoration: 'underline', color: 'var(--purple)' }}>{PREPARED_CHANGES_COPY.seeIt}</HostLink>}
       </div>
     </div>
   );
@@ -200,9 +204,9 @@ export function usePreparedChanges(host: ScreensHost): PreparedChangesState {
       });
       const failure = editFailure(result);
       if (failure) setErrors((e) => ({ ...e, [item.operationId]: failure.message }));
-      else settle(item, `Published: ${result.summary || item.summary}`);
+      else settle(item, PREPARED_CHANGES_COPY.published(result.summary || item.summary));
     } catch (e) {
-      setErrors((x) => ({ ...x, [item.operationId]: preparedErrorText(e, 'This change was not published. Try again.', errorText) }));
+      setErrors((x) => ({ ...x, [item.operationId]: preparedErrorText(e, PREPARED_CHANGES_COPY.publishFailed, errorText) }));
     } finally {
       setBusy(null);
     }
@@ -214,9 +218,9 @@ export function usePreparedChanges(host: ScreensHost): PreparedChangesState {
       const result = await editCall(host, `/instances/${encodeURIComponent(item.instanceId)}/edits/${encodeURIComponent(item.operationId)}/discard`, {});
       const failure = editFailure(result);
       if (failure && result.status !== 'discarded') setErrors((e) => ({ ...e, [item.operationId]: failure.message }));
-      else settle(item, `Discarded: ${item.summary || 'the change'}. Nothing on your site changed.`);
+      else settle(item, PREPARED_CHANGES_COPY.discarded(item.summary || PREPARED_CHANGES_COPY.theChange));
     } catch (e) {
-      setErrors((x) => ({ ...x, [item.operationId]: preparedErrorText(e, 'This change was not discarded. Try again.', errorText) }));
+      setErrors((x) => ({ ...x, [item.operationId]: preparedErrorText(e, PREPARED_CHANGES_COPY.discardFailed, errorText) }));
     } finally {
       setBusy(null);
     }

@@ -16,7 +16,7 @@ class WebMaven_Bookly_Metrics implements WebMaven_Metrics_Adapter {
         global $wpdb;
 
         $table = $wpdb->prefix . 'bookly_appointments';
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$table}'") !== $table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) !== $table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether Bookly's table exists, which no WordPress function tells; asked once per report
             return ['period' => $date, 'plugin' => 'bookly', 'error' => 'Table not found'];
         }
 
@@ -24,37 +24,37 @@ class WebMaven_Bookly_Metrics implements WebMaven_Metrics_Adapter {
         $end   = $date . ' 23:59:59';
 
         // Appointment counts
-        $total = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE start_date >= %s AND start_date <= %s",
-            $start, $end
+        $total = (int) $wpdb->get_var($wpdb->prepare( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- read-only counts from Bookly's own tables, which no WordPress function reads; read for the reports, which need today's figures, so nothing is cached
+            "SELECT COUNT(*) FROM %i WHERE start_date >= %s AND start_date <= %s",
+            $table, $start, $end
         ));
 
         // Revenue from customer appointments table
         $ca_table = $wpdb->prefix . 'bookly_customer_appointments';
         $revenue = 0.0;
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$ca_table}'") === $ca_table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($ca_table))) === $ca_table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether Bookly's table exists, which no WordPress function tells; asked once per report
             $revenue = (float) ($wpdb->get_var($wpdb->prepare(
                 "SELECT COALESCE(SUM(ca.payment_amount), 0)
-                 FROM {$ca_table} ca
-                 INNER JOIN {$table} a ON ca.appointment_id = a.id
+                 FROM %i ca
+                 INNER JOIN %i a ON ca.appointment_id = a.id
                  WHERE a.start_date >= %s AND a.start_date <= %s",
-                $start, $end
+                $ca_table, $table, $start, $end
             )) ?: 0);
         }
 
         // Popular services
         $services_table = $wpdb->prefix . 'bookly_services';
         $popular = [];
-        if ($wpdb->get_var("SHOW TABLES LIKE '{$services_table}'") === $services_table) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($services_table))) === $services_table) { // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- whether Bookly's table exists, which no WordPress function tells; asked once per report
             $popular = $wpdb->get_results($wpdb->prepare(
                 "SELECT s.title AS name, COUNT(*) AS count
-                 FROM {$table} a
-                 INNER JOIN {$services_table} s ON a.service_id = s.id
+                 FROM %i a
+                 INNER JOIN %i s ON a.service_id = s.id
                  WHERE a.start_date >= %s AND a.start_date <= %s
                  GROUP BY a.service_id
                  ORDER BY count DESC
                  LIMIT 5",
-                $start, $end
+                $table, $services_table, $start, $end
             )) ?: [];
         }
 

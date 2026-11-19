@@ -1,21 +1,14 @@
 <?php
 /**
- * The connect wizard's setup password.
+ * Leftover application passwords from the dashboard's connect screen.
  *
- * The WPMaven dashboard connects a self-hosted site through WordPress's
- * "authorize application" screen, which makes an application password named
- * "WPMaven Dashboard" (app_id APP_ID) with the approving administrator's
- * rights. The WPMaven API uses it once, to check the site and switch this
- * plugin on, and deletes it when the connect is done (since 2026-10-04).
- *
- * Connects before that never deleted it, and its value came back to the
- * dashboard in an address its servers logged. A connect that could not reach
- * the site, or one whose delete failed, leaves it too. So this plugin deletes
- * every password with that app_id once it is an hour old, from WP-Cron every
- * hour: a connect in progress takes minutes and is never touched, and
- * nothing else ever uses that app_id (the plugin talks to WPMaven with its own
- * keys). Other application passwords are never read beyond their app_id and
- * age, and never changed.
+ * Older connects through the WPMaven dashboard made an application password
+ * named "WPMaven Dashboard" (app_id APP_ID) on the site, and some of them were
+ * never deleted. This plugin deletes every application password with that
+ * app_id once it is an hour old, from WP-Cron every hour. It never makes one,
+ * never reads one's value, and never uses one: the plugin talks to WPMaven
+ * with its own keys. Other application passwords are never read beyond their
+ * app_id and age, and never changed.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -52,7 +45,7 @@ class WebMaven_Setup_Password {
         }
         $now = $now === null ? time() : (int) $now;
         $user_ids = get_users([
-            'meta_key' => '_application_passwords',
+            'meta_key' => '_application_passwords', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- the users who have application passwords, by the meta_key index of usermeta; run by the scheduled clean-up
             'fields'   => 'ID',
             'number'   => 500,
         ]);

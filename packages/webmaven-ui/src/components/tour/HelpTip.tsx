@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { KIT_COPY } from '../../lib/kitCopy';
 import s from './Help.module.css';
 
 export interface HelpTipProps {
@@ -8,7 +9,7 @@ export interface HelpTipProps {
   label: string;
   /** The one guide page that explains this control in full; no link without it. */
   href?: string;
-  /** The link's words (default "Read more"). */
+  /** The link's words (default "Read more", in the page's language: KIT_COPY.helpTip.readMore). */
   linkLabel?: string;
   /** The panel opens to the left of the "?" (near the right edge of a card). */
   align?: 'start' | 'end';
@@ -25,7 +26,7 @@ export interface HelpTipProps {
  * never covers the screen on arrival. Escape or a click outside closes it.
  */
 export const HelpTip: React.FC<HelpTipProps> = ({
-  children, label, href, linkLabel = 'Read more', align = 'start', onOpen, onLinkClick, testId,
+  children, label, href, linkLabel = KIT_COPY.helpTip.readMore, align = 'start', onOpen, onLinkClick, testId,
 }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);

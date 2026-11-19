@@ -17,17 +17,11 @@
  *           where key is the raw HMAC-SHA256(client secret, "wpmaven-preview-v1")
  *
  * Staged pages are cleaned exactly as a publish cleans them (the same kses
- * allowlist, inline scripts through the same filter), so a preview never
- * runs what the published page would not. A page with a post_id swaps its
- * content and title; a page without one (a page being added) is served as a
- * page of its own at /<slug>/ or at ?wm_preview_page=<slug>. Changed theme
- * files go into a preview copy of the theme, wp-content/themes/<slug>-wmpv-<id>/,
- * selected for the request through pre_option_stylesheet: a full copy (not a
- * child theme), so a changed functions.php replaces the live one instead of
- * loading beside it, and every asset the templates reference still resolves.
- * WPMaven Agent writes and removes those copies
- * (capabilities/theme-files.php); without it a change to theme files
- * answers REQUIRES_AGENT.
+ * allowlist, inline scripts taken out), so a preview never shows what the
+ * published page would not. A page with a post_id swaps its content and
+ * title; a page without one (a page being added) is served as a page of its
+ * own at /<slug>/ or at ?wm_preview_page=<slug>. This edition writes no theme
+ * file: a change to theme files answers REQUIRES_AGENT.
  *
  * Every request carrying a token is sent with X-Robots-Tag: noindex, nofollow
  * and Cache-Control: no-store, is never page cached or canonically
@@ -37,7 +31,7 @@
  * form (AJAX is never a preview). The page carries <meta name="wpmaven-preview">,
  * which the designed forms' runtime reads, and a guard for a theme compiled
  * before the runtime knew it.
- * Expired stagings and their theme copies are removed on each new staging
+ * Expired stagings are removed on each new staging
  * and hourly (WP-Cron).
  *
  * Block content (2026-10-09, sites WPMaven did not design): `blocks` stages
@@ -56,10 +50,6 @@
  */
 
 defined('ABSPATH') || exit;
-
-// Exceptions here end as the "error" of a JSON answer (the signed webhook,
-// execute_command or a REST route), never in a page.
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped
 
 final class WebMaven_Edit_Preview {
 
@@ -115,7 +105,7 @@ final class WebMaven_Edit_Preview {
 
     /** A front-end GET carrying a token: the only requests a preview may touch. */
     public static function candidate_request(): bool {
-        if (!isset($_GET['wm_preview']) || !is_string($_GET['wm_preview']) || $_GET['wm_preview'] === '') {
+        if (!isset($_GET['wm_preview']) || !is_string($_GET['wm_preview']) || $_GET['wm_preview'] === '') { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: the signed preview token in the link authorizes the request (check_token), not a nonce
             return false;
         }
         if (strtoupper(sanitize_text_field(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')))) !== 'GET') {
@@ -127,7 +117,7 @@ final class WebMaven_Edit_Preview {
         if (defined('REST_REQUEST') || defined('XMLRPC_REQUEST') || (defined('WP_CLI') && WP_CLI)) {
             return false;
         }
-        if (isset($_GET['rest_route'])) {
+        if (isset($_GET['rest_route'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: a REST request is never a preview
             return false;
         }
         $path = (string) wp_parse_url(sanitize_text_field(wp_unslash((string) ($_SERVER['REQUEST_URI'] ?? '/'))), PHP_URL_PATH);
@@ -141,7 +131,8 @@ final class WebMaven_Edit_Preview {
     /** setup_theme: reads the token and, when it is good, turns the overlay on. */
     public static function boot() {
         // The signed preview token is what authorizes this request (check_token), not a nonce.
-        $check = self::check_token(sanitize_text_field(wp_unslash((string) $_GET['wm_preview']))); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $token = isset($_GET['wm_preview']) && is_string($_GET['wm_preview']) ? sanitize_text_field(wp_unslash($_GET['wm_preview'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: the signed preview token in the link authorizes the request (check_token), not a nonce
+        $check = self::check_token($token);
         self::$state = $check['state'];
 
         // Every request carrying a token, good or not: never indexed, never
@@ -152,7 +143,7 @@ final class WebMaven_Edit_Preview {
             add_filter('wp_robots', 'wp_robots_no_robots');
         }
         if (!defined('DONOTCACHEPAGE')) {
-            define('DONOTCACHEPAGE', true);
+            define('DONOTCACHEPAGE', true); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- the constant page-cache plugins read to leave a page uncached
         }
         add_action('wp_footer', [__CLASS__, 'footer'], 1000);
         add_action('wp_head', [__CLASS__, 'head_marker'], 1);
@@ -240,15 +231,15 @@ final class WebMaven_Edit_Preview {
         if (!is_int($expires) || $expires <= $now || $expires > $now + self::MAX_TTL) {
             throw self::error('VALIDATION', 'expires_at must be a time in the next 30 days.');
         }
-        $slug = is_string($params['theme_slug'] ?? null) ? $params['theme_slug'] : '';
+        $slug = is_string($params['theme_slug'] ?? null) ? sanitize_text_field($params['theme_slug']) : '';
         $live_stylesheet = (string) get_stylesheet();
         if ($slug === '' || $slug !== $live_stylesheet) {
-            throw self::error('THEME_NOT_ACTIVE', 'The theme "' . self::plain($slug) . '" is not the active theme of this site.');
+            throw self::error('THEME_NOT_ACTIVE', 'The theme "' . self::plain($slug) . '" is not the active theme of this site.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
 
         $root = realpath((string) get_theme_root($slug));
         if ($root === false) {
-            throw self::error('NOT_FOUND', 'The theme ' . $slug . ' is not installed on this site.');
+            throw self::error('NOT_FOUND', 'The theme ' . $slug . ' is not installed on this site.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $root = rtrim(str_replace('\\', '/', $root), '/');
         $payload = [
@@ -310,9 +301,9 @@ final class WebMaven_Edit_Preview {
 
     /**
      * The change's theme files, [files: [path => bytes], removed: [path]], or
-     * null when it has none. WPMaven Agent checks them
-     * (webmaven_preview_theme_change) and writes the copy; without it a
-     * change to theme files needs Agent.
+     * null when it has none. This edition writes no theme file: a change that
+     * carries some answers REQUIRES_AGENT, unless another plugin takes it
+     * (webmaven_preview_theme_change).
      */
     private static function theme_change(array $params) {
         $files = $params['theme_files'] ?? [];
@@ -339,7 +330,7 @@ final class WebMaven_Edit_Preview {
 
     private static function staged_pages($raw): array {
         if (!is_array($raw) || count($raw) > self::MAX_PAGES) {
-            throw self::error('VALIDATION', 'pages must be a list of at most ' . self::MAX_PAGES . ' pages.');
+            throw self::error('VALIDATION', 'pages must be a list of at most ' . self::MAX_PAGES . ' pages.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         $commands = new WebMaven_WordPress_Commands();
         $pages = [];
@@ -357,10 +348,19 @@ final class WebMaven_Edit_Preview {
                 $post_id = is_int($page['post_id']) ? $page['post_id'] : (is_string($page['post_id']) && ctype_digit($page['post_id']) ? (int) $page['post_id'] : 0);
                 $post = $post_id > 0 ? get_post($post_id) : null;
                 if (!$post || $post->post_type !== 'page' || $post->post_status === 'trash') {
-                    throw self::error('NOT_FOUND', 'Page ' . $post_id . ' was not found.');
+                    throw self::error('NOT_FOUND', 'Page ' . $post_id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
             }
-            $key = $post_id !== null ? 'id:' . $post_id : 'slug:' . $slug;
+            // A page being added in another language (an add-on answers on a site in several languages): staged once per language, at that language's address.
+            $lang = '';
+            if (isset($page['lang']) && is_string($page['lang']) && $page['lang'] !== '') {
+                $resolved = apply_filters('webmaven_staged_page_language', '', sanitize_text_field($page['lang']));
+                if ($resolved === false) {
+                    throw self::error('VALIDATION', 'A staged page names a language the site does not have.');
+                }
+                $lang = (string) $resolved;
+            }
+            $key = $post_id !== null ? 'id:' . $post_id : 'slug:' . $lang . ':' . $slug;
             if (isset($seen[$key])) {
                 throw self::error('VALIDATION', 'A page is staged twice.');
             }
@@ -368,26 +368,26 @@ final class WebMaven_Edit_Preview {
             if ($post_id === null && ($page['blocks'] ?? false) === true && class_exists('WebMaven_Cap_Blocks')) {
                 // A block page being added (a site WPMaven did not design): cleaned as wm_blocks_page_create
                 // cleans it, rendered in the theme's own page template.
-                $pages[] = ['post_id' => null, 'slug' => $slug, 'title' => trim(wp_strip_all_tags($page['title'])), 'content' => WebMaven_Cap_Blocks::clean($page['content']), 'blocks' => true];
+                $pages[] = ['post_id' => null, 'slug' => $slug, 'title' => sanitize_text_field($page['title']), 'content' => WebMaven_Cap_Blocks::clean($page['content']), 'blocks' => true] + ($lang !== '' ? ['lang' => $lang] : []);
                 continue;
             }
-            // Cleaned as a publish cleans it: the same allowlist, and the
-            // inline scripts through the same filter, run once the page is
-            // loaded (a publish moves them to the page's script file).
+            // Cleaned as a publish cleans it: the same allowlist, the inline
+            // scripts taken out.
             list($clean, $scripts) = $commands->sanitize_page_content($page['content']);
             if ($post_id !== null && class_exists('WebMaven_Designed_Blocks')) {
                 // The owner's blocks between designed sections show in the preview where a publish keeps them.
                 $memory = class_exists('WebMaven_Cap_Edit_Operations') ? WebMaven_Cap_Edit_Operations::owner_anchors($post_id) : [];
                 $clean = WebMaven_Designed_Blocks::merge($clean, (string) get_post($post_id)->post_content, $memory);
             }
-            // The page's script, as WPMaven Agent would write it; none without Agent.
+            // The scripts taken out run in the preview only when another plugin
+            // hands them back (webmaven_preview_page_script); this edition runs none.
             $script = $scripts ? (string) apply_filters('webmaven_preview_page_script', '', $post_id !== null ? $post_id : 0, $scripts) : '';
             $pages[] = [
                 'post_id' => $post_id,
                 'slug' => $slug,
-                'title' => trim(wp_strip_all_tags($page['title'])),
-                'content' => $clean . ($script !== '' ? "\n<script>\n" . $script . "</script>\n" : ''),
-            ];
+                'title' => sanitize_text_field($page['title']),
+                'content' => $clean . ($script !== '' ? "\n" . wp_get_inline_script_tag($script) : ''),
+            ] + ($lang !== '' ? ['lang' => $lang] : []);
         }
         return $pages;
     }
@@ -399,7 +399,7 @@ final class WebMaven_Edit_Preview {
     private static function staged_blocks($raw): array {
         $out = ['posts' => [], 'parts' => [], 'navigation' => []];
         if (!is_array($raw) || count($raw) > self::MAX_PAGES) {
-            throw self::error('VALIDATION', 'blocks must be a list of at most ' . self::MAX_PAGES . ' targets.');
+            throw self::error('VALIDATION', 'blocks must be a list of at most ' . self::MAX_PAGES . ' targets.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
         }
         if ($raw && !class_exists('WebMaven_Cap_Blocks')) {
             throw self::error('VALIDATION', 'This plugin cannot preview block content.');
@@ -438,13 +438,14 @@ final class WebMaven_Edit_Preview {
         $out = [];
         foreach ($raw as $name => $value) {
             // The site's name and tagline too: a block theme's header shows them (its site title block).
-            if (!is_string($name) || (!preg_match('/^wm_(var|biz)_[a-z0-9_]{1,100}$/', $name) && !in_array($name, ['blogname', 'blogdescription'], true))) {
-                throw self::error('VALIDATION', 'Only wm_var_ and wm_biz_ settings, the site\'s name and its tagline can be previewed, not ' . self::plain((string) $name) . '.');
+            if (!is_string($name) || (!preg_match('/^webmaven_(var|biz)_[a-z0-9_]{1,100}$/', $name) && !in_array($name, ['blogname', 'blogdescription'], true))) {
+                throw self::error('VALIDATION', 'Only webmaven_var_ and webmaven_biz_ settings, the site\'s name and its tagline can be previewed, not ' . self::plain((string) $name) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if (!is_string($value) && !is_int($value) && !is_float($value)) {
-                throw self::error('VALIDATION', 'The setting ' . $name . ' takes text.');
+                throw self::error('VALIDATION', 'The setting ' . $name . ' takes text.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
-            $out[$name] = (string) $value;
+            // Cleaned as the publish cleans these options, so the preview shows what it will write.
+            $out[$name] = WebMaven_WordPress_Commands::clean_option_value($name, (string) $value);
         }
         return $out;
     }
@@ -456,11 +457,12 @@ final class WebMaven_Edit_Preview {
         $registered = function_exists('get_registered_nav_menus') ? (array) get_registered_nav_menus() : [];
         $out = [];
         foreach ($raw as $location => $items) {
+            $location = is_string($location) ? sanitize_text_field($location) : $location;
             if (!is_string($location) || !isset($registered[$location])) {
-                throw self::error('NOT_FOUND', 'This theme has no menu location named ' . self::plain((string) $location) . '.');
+                throw self::error('NOT_FOUND', 'This theme has no menu location named ' . self::plain((string) $location) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             if (!is_array($items) || count($items) > WebMaven_Cap_Edit_Operations::MAX_MENU_ITEMS) {
-                throw self::error('TOO_MANY_ITEMS', 'A menu holds at most ' . WebMaven_Cap_Edit_Operations::MAX_MENU_ITEMS . ' items.');
+                throw self::error('TOO_MANY_ITEMS', 'A menu holds at most ' . WebMaven_Cap_Edit_Operations::MAX_MENU_ITEMS . ' items.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $list = [];
             foreach ($items as $item) {
@@ -484,10 +486,10 @@ final class WebMaven_Edit_Preview {
                 }
                 $list[] = [
                     'id' => (int) $item['id'],
-                    'label' => trim(wp_strip_all_tags($item['label'])),
+                    'label' => sanitize_text_field($item['label']),
                     'link' => $link,
                     'newTab' => !empty($item['newTab']),
-                    'classes' => is_string($item['classes'] ?? null) ? $item['classes'] : '',
+                    'classes' => is_string($item['classes'] ?? null) ? implode(' ', array_values(array_filter(array_map('sanitize_html_class', preg_split('/\s+/', trim($item['classes'])))))) : '',
                     'parent' => (int) ($item['parent'] ?? 0),
                     'order' => (int) ($item['order'] ?? 0),
                 ];
@@ -510,15 +512,15 @@ final class WebMaven_Edit_Preview {
             }
             $post = get_post($id);
             if (!$post || $post->post_type !== 'product') {
-                throw self::error('NOT_FOUND', 'Product ' . $id . ' was not found.');
+                throw self::error('NOT_FOUND', 'Product ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $staged = [];
             foreach ($fields as $key => $value) {
                 if (!in_array($key, self::PRODUCT_PREVIEW_FIELDS, true)) {
-                    throw self::error('VALIDATION', 'A product preview shows the name, the prices and the descriptions, not ' . self::plain((string) $key) . '.');
+                    throw self::error('VALIDATION', 'A product preview shows the name, the prices and the descriptions, not ' . self::plain((string) $key) . '.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 if ($value !== null && !is_string($value)) {
-                    throw self::error('VALIDATION', 'The product ' . $key . ' takes text.');
+                    throw self::error('VALIDATION', 'The product ' . $key . ' takes text.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
                 }
                 if (in_array($key, ['regularPrice', 'salePrice'], true) && $value !== null && !preg_match('/^\d{1,12}(\.\d{1,4})?$/', $value)) {
                     throw self::error('VALIDATION', 'A price is a number like 14.50.');
@@ -527,7 +529,7 @@ final class WebMaven_Edit_Preview {
                     throw self::error('VALIDATION', 'Only the sale price can be removed.');
                 }
                 if ($key === 'name') {
-                    $value = trim(wp_strip_all_tags($value));
+                    $value = sanitize_text_field($value);
                 } elseif ($key === 'shortDescription' || $key === 'description') {
                     $value = wp_kses_post($value); // as store_product_update writes them
                 }
@@ -547,15 +549,15 @@ final class WebMaven_Edit_Preview {
             $id = is_array($entry) && is_int($entry['post_id'] ?? null) ? $entry['post_id'] : 0;
             $fields = is_array($entry) ? ($entry['fields'] ?? null) : null;
             if ($id <= 0 || !is_array($fields) || !get_post($id)) {
-                throw self::error('NOT_FOUND', 'Post ' . $id . ' was not found.');
+                throw self::error('NOT_FOUND', 'Post ' . $id . ' was not found.'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- the error text of a JSON answer to the API, never printed in a page
             }
             $staged = [];
             foreach ($fields as $key => $value) {
                 if (!in_array($key, self::POST_PREVIEW_FIELDS, true) || !is_string($value)) {
                     throw self::error('VALIDATION', 'A post preview shows the title, the excerpt and the text.');
                 }
-                // The text keeps what a post may hold (the same filter a published post goes through).
-                $staged[$key] = $key === 'content' ? wp_kses_post($value) : trim(wp_strip_all_tags($value));
+                // The text keeps what a post may hold (the same filter a published post goes through); the excerpt keeps its line breaks.
+                $staged[$key] = $key === 'content' ? wp_kses_post($value) : ($key === 'excerpt' ? sanitize_textarea_field($value) : sanitize_text_field($value));
             }
             $out[$id] = $staged;
         }
@@ -581,7 +583,7 @@ final class WebMaven_Edit_Preview {
                 $removed[] = (string) $id;
             }
         }
-        // Theme copies no staging owns (WPMaven Agent's).
+        // Theme copies no staging owns, for the plugin that made them.
         do_action('webmaven_preview_sweep_themes', $now);
         return $removed;
     }
@@ -631,19 +633,10 @@ final class WebMaven_Edit_Preview {
         add_filter('the_posts', [__CLASS__, 'swap_posts'], 10, 2);
         add_filter('get_post_metadata', [__CLASS__, 'virtual_meta'], 10, 4);
 
-        $theme = (string) ($payload['preview_theme'] ?? '');
-        $root = (string) ($payload['theme_root'] ?? get_theme_root());
-        if ($theme !== '' && is_dir(rtrim($root, '/') . '/' . $theme)) {
-            $template = (string) ($payload['preview_template'] ?? $theme);
-            $live = (string) $payload['theme_slug'];
-            add_filter('pre_option_stylesheet', function () use ($theme) { return $theme; });
-            add_filter('pre_option_template', function () use ($template) { return $template; });
-            // The live theme's settings (menu locations, logo, Customizer) on its copy.
-            add_filter('pre_option_theme_mods_' . $theme, function () use ($live) {
-                $mods = get_option('theme_mods_' . $live);
-                return is_array($mods) ? $mods : [];
-            });
-        }
+        // A copy of the theme for this staging is another plugin's to
+        // select (webmaven_preview_overlay): this edition writes no theme
+        // file and loads none.
+        do_action('webmaven_preview_overlay', $payload);
 
         if (!empty($payload['menus'])) {
             add_filter('wp_nav_menu_objects', [__CLASS__, 'menu_objects'], 10, 2);
@@ -699,12 +692,18 @@ final class WebMaven_Edit_Preview {
         }
         $by_id = [];
         $added = [];
+        // A page being added in several languages (an add-on answers): the one of the request's language, when it is not the main one.
+        $here = (string) apply_filters('webmaven_request_language', '');
         foreach ((array) self::$active['pages'] as $i => $page) {
             if (!empty($page['post_id'])) {
                 $by_id[(int) $page['post_id']] = $page;
-            } else {
-                $added[$page['slug']] = $page + ['index' => $i];
+                continue;
             }
+            $lang = (string) ($page['lang'] ?? '');
+            if ($lang !== $here && ($lang !== '' || isset($added[$page['slug']]))) {
+                continue;
+            }
+            $added[$page['slug']] = $page + ['index' => $i];
         }
 
         if ($added && is_object($query) && method_exists($query, 'is_main_query') && $query->is_main_query()) {
@@ -779,8 +778,8 @@ final class WebMaven_Edit_Preview {
 
     /** The slug of the page being added this request asks for: ?wm_preview_page=, else the path of a request that found nothing. */
     private static function requested_added_page($query, array $posts) {
-        if (isset($_GET['wm_preview_page']) && is_string($_GET['wm_preview_page'])) {
-            $slug = sanitize_title(wp_unslash($_GET['wm_preview_page']));
+        if (isset($_GET['wm_preview_page']) && is_string($_GET['wm_preview_page'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read on a preview the signed token already authorized (boot)
+            $slug = sanitize_title(wp_unslash($_GET['wm_preview_page'])); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read on a preview the signed token already authorized (boot)
             return $slug !== '' ? $slug : null;
         }
         if ($posts) {
@@ -915,7 +914,7 @@ final class WebMaven_Edit_Preview {
 
     /** A front-end GET carrying a toolkit token. */
     public static function toolkit_request(): bool {
-        if (!isset($_GET['wm_toolkit']) || !is_string($_GET['wm_toolkit']) || isset($_GET['wm_preview'])) {
+        if (!isset($_GET['wm_toolkit']) || !is_string($_GET['wm_toolkit']) || isset($_GET['wm_preview'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: the signed toolkit token in the link authorizes the request (check_toolkit_token), not a nonce
             return false;
         }
         if (strtoupper(sanitize_text_field(wp_unslash((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')))) !== 'GET') {
@@ -953,7 +952,8 @@ final class WebMaven_Edit_Preview {
      */
     public static function toolkit_page() {
         // The signed toolkit token authorizes this request, not a nonce.
-        if (!self::check_toolkit_token(sanitize_text_field(wp_unslash((string) $_GET['wm_toolkit'])))) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $token = isset($_GET['wm_toolkit']) && is_string($_GET['wm_toolkit']) ? sanitize_text_field(wp_unslash($_GET['wm_toolkit'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: the signed toolkit token in the link authorizes the request, not a nonce
+        if (!self::check_toolkit_token($token)) {
             status_header(403);
             nocache_headers();
             header('Content-Type: text/plain; charset=utf-8');
@@ -961,7 +961,7 @@ final class WebMaven_Edit_Preview {
             exit;
         }
         if (!defined('DONOTCACHEPAGE')) {
-            define('DONOTCACHEPAGE', true);
+            define('DONOTCACHEPAGE', true); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- the constant page-cache plugins read to leave a page uncached
         }
         nocache_headers();
         header('X-Robots-Tag: noindex, nofollow');
@@ -969,7 +969,7 @@ final class WebMaven_Edit_Preview {
         echo "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex\"><title>WPMaven block toolkit</title>";
         wp_print_scripts(['wp-blocks', 'wp-block-library', 'wp-block-editor', 'wp-format-library']);
         // toolkit_script is this class's own fixed script, the version a JSON string in it.
-        echo '<script>' . self::toolkit_script((string) get_bloginfo('version')) . '</script>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        wp_print_inline_script_tag(self::toolkit_script((string) get_bloginfo('version')));
         echo '</head><body></body></html>';
         exit;
     }
@@ -1226,28 +1226,28 @@ final class WebMaven_Edit_Preview {
         if (self::$state === null) {
             return;
         }
-        $bare = isset($_GET['wm_preview_bare']) && (string) $_GET['wm_preview_bare'] === '1';
+        $bare = isset($_GET['wm_preview_bare']) && $_GET['wm_preview_bare'] === '1'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a read: whether the preview draws its banner, on a page the signed token already authorized
         if (!$bare) {
             $text = self::BANNERS[self::$state] ?? self::BANNERS['invalid'];
             echo '<div id="wm-preview-banner" role="status" style="position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:2147483647;max-width:calc(100% - 32px);box-sizing:border-box;background:#111827;color:#fff;font:600 13px/1.4 system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;padding:8px 16px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.25);pointer-events:none;text-align:center">'
                 . esc_html($text) . '</div>' . "\n";
         }
         if (self::$state === 'active' && self::$token !== '') {
-            echo '<script>(function(){var t=' . wp_json_encode(self::$token) . ',b=' . ($bare ? 'true' : 'false') . ';'
+            wp_print_inline_script_tag('(function(){var t=' . wp_json_encode(self::$token) . ',b=' . ($bare ? 'true' : 'false') . ';'
                 . 'function k(a){try{var u=new URL(a.getAttribute("href"),location.href);if(u.origin!==location.origin||!/^https?:$/.test(u.protocol)||u.searchParams.has("wm_preview"))return;'
                 . 'u.searchParams.set("wm_preview",t);if(b)u.searchParams.set("wm_preview_bare","1");a.setAttribute("href",u.toString());}catch(e){}}'
                 . 'function all(){var l=document.querySelectorAll("a[href]");for(var i=0;i<l.length;i++)k(l[i]);}'
                 . 'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",all);else all();'
-                . 'document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(a)k(a);},true);})();</script>' . "\n";
+                . 'document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(a)k(a);},true);})();');
             // Before any theme script (window capture runs first): a designed
             // form never submits from a preview, whatever runtime the theme has.
-            echo '<script>(function(){var m=' . wp_json_encode(self::FORM_PREVIEW_SENTENCE) . ';'
+            wp_print_inline_script_tag('(function(){var m=' . wp_json_encode(self::FORM_PREVIEW_SENTENCE) . ';'
                 . 'function stop(e){var t=e.target,f=t&&t.closest?t.closest("[data-wm-form]"):null;if(!f)return;'
                 . 'if(e.type==="click"&&!t.closest("button[type=submit],input[type=submit],button:not([type])"))return;'
                 . 'e.preventDefault();e.stopImmediatePropagation();'
                 . 'var d=f.querySelector(".wpforms-error-container")||f.insertBefore(document.createElement("div"),f.firstChild);'
                 . 'd.className="wpforms-error-container";d.setAttribute("role","status");d.textContent=m;}'
-                . 'window.addEventListener("submit",stop,true);window.addEventListener("click",stop,true);})();</script>' . "\n";
+                . 'window.addEventListener("submit",stop,true);window.addEventListener("click",stop,true);})();');
         }
     }
 
